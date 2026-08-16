@@ -130,10 +130,10 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
     return { id: input.id };
   }
 
-  patch['slug'] = slugify(input.slug?.trim() || input.name);
+  const slug = slugify(input.slug?.trim() || input.name);
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .insert(patch)
+    .insert({ ...patch, slug })
     .select('id')
     .single();
   if (error) throw new Error(error.message);
