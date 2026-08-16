@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as ApiPublicIptvRouteImport } from './routes/api/public/iptv'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
@@ -81,6 +82,11 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const ApiPublicIptvRoute = ApiPublicIptvRouteImport.update({
+  id: '/api/public/iptv',
+  path: '/api/public/iptv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicTmdbDiscoverRoute = ApiPublicTmdbDiscoverRouteImport.update({
   id: '/api/public/tmdb-discover',
   path: '/api/public/tmdb-discover',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
+    | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
+    | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
     | '/_authenticated/admin/users'
+    | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicIptvRoute: typeof ApiPublicIptvRoute
   ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
   ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
   ApiPublicXtreamPlayRoute: typeof ApiPublicXtreamPlayRoute
@@ -280,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/api/public/iptv': {
+      id: '/api/public/iptv'
+      path: '/api/public/iptv'
+      fullPath: '/api/public/iptv'
+      preLoaderRoute: typeof ApiPublicIptvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/tmdb-discover': {
       id: '/api/public/tmdb-discover'
       path: '/api/public/tmdb-discover'
@@ -344,6 +364,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicIptvRoute: ApiPublicIptvRoute,
   ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
   ApiPublicXtreamRoute: ApiPublicXtreamRoute,
   ApiPublicXtreamPlayRoute: ApiPublicXtreamPlayRoute,
