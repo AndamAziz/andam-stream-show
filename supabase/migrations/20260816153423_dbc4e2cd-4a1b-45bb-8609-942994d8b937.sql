@@ -1,0 +1,1 @@
+insert into public.activation_codes (code, sections, max_uses, uses, expires_at, note) values ('XHM9-FEZP-L8LQ', array['live','movies','series'], 2, 1, '2026-12-31', 'restored after delete test') on conflict do nothing;
