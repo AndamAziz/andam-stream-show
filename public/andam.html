@@ -817,19 +817,37 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   menuClose.addEventListener('click',function(){ setMenu(false); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&menu.classList.contains('open')) setMenu(false); });
 
+  function rowByTitle(t){
+    var hs=document.querySelectorAll('.rowhead h2');
+    for(var i=0;i<hs.length;i++) if(hs[i].textContent.trim()===t) return hs[i].closest('.row');
+    return null;
+  }
+  function gotoRow(title){
+    showView('home');
+    setTimeout(function(){
+      var row=rowByTitle(title); if(!row) return;
+      row.scrollIntoView({block:'center',behavior:'smooth'});
+      var first=row.querySelector('.card, .tile');
+      if(first&&document.documentElement.classList.contains('tvmode')) first.focus();
+    },80);
+  }
+
   [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(a){
     a.addEventListener('click',function(e){
       var label=a.textContent.trim();
-      if(label!=='Movies'&&label!=='Shows'&&label!=='Home') return;
+      if(['Movies','Shows','Home','Live TV','IPTV'].indexOf(label)<0) return;
       e.preventDefault();
       setMenu(false);
       [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(x){
         x.classList.toggle('active', x.textContent.trim()===label);
       });
       if(label==='Home') showView('home');
+      else if(label==='Live TV') gotoRow('Live now');
+      else if(label==='IPTV') gotoRow('Your IPTV channels');
       else showView('catalog', label==='Movies'?'movies':'series');
     });
   });
+
 
   /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
      TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
@@ -954,8 +972,27 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return document.querySelector('.vp.open, .drawer.open, #overlay.open, .menu.open');
   }
   document.addEventListener('focusin',function(e){
-    if(!layerOpen()) focusBefore=e.target;
+    if(!layerOpen()&&e.target&&e.target.matches&&e.target.matches(NAVSEL)) focusBefore=e.target;
   });
+
+  /* ---- move focus into a layer as soon as it opens (focus trap entry) ---- */
+  var lastLayer=null;
+  function syncLayerFocus(){
+    var layer=layerOpen();
+    if(layer===lastLayer) return;
+    lastLayer=layer;
+    invalidate();
+    if(!layer) return;
+    setTimeout(function(){
+      if(layerOpen()!==layer) return;
+      if(layer.contains(document.activeElement)) return;
+      var first=[].slice.call(layer.querySelectorAll(NAVSEL)).filter(visible)[0];
+      if(first) moveFocus(first);
+    },90);
+  }
+  new MutationObserver(syncLayerFocus).observe(document.documentElement,
+    {subtree:true,attributes:true,attributeFilter:['class']});
+
   function goBack(){
     var layer=layerOpen();
     if(!layer) return false;
@@ -964,11 +1001,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     else layer.classList.remove('open');
     invalidate();
     setTimeout(function(){
+      invalidate();
       if(focusBefore&&visible(focusBefore)) moveFocus(focusBefore);
       else { var f=navItems()[0]; if(f) moveFocus(f); }
-    },60);
+    },120);
     return true;
   }
+
 
   /* ---- key handling (debounced for held remote buttons) ---- */
   var lastKeyAt=0, DEBOUNCE=150;
@@ -980,9 +1019,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     if(e.key==='Escape'||e.key==='Backspace'||e.key==='BrowserBack'||BACK_CODES.indexOf(e.keyCode)>=0){
       if(typing&&e.key==='Backspace') return;
-      if(goBack()){ e.preventDefault(); }
+      if(goBack()){ e.preventDefault(); e.stopPropagation(); }
       return;
     }
+
 
     if(e.key==='Enter'||e.key===' '||e.key==='OK'){
       if(!el||typing) return;
@@ -1010,7 +1050,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
     var next=pickNext(cur,e.key);
     if(next){ e.preventDefault(); moveFocus(next); }
-  });
+  },true);
+
 
   syncTvMode();
 
