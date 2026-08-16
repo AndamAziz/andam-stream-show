@@ -289,18 +289,17 @@ function CodesPage() {
                     </span>
                   )}
                   <div className="ml-auto flex flex-wrap items-center gap-2">
-                    {/* Expired / revoked / exhausted codes can be revived in place so
-                        the string already handed to a viewer keeps working. */}
-                    {c.status !== 'active' && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="min-h-11"
-                        onClick={() => setRenewing({ id: c.id, code: c.code, date: '' })}
-                      >
-                        Renew
-                      </Button>
-                    )}
+                    {/* Any code can have its expiry pushed out in place so the string
+                        already handed to a viewer keeps working. */}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="min-h-11"
+                      onClick={() => setRenewing({ id: c.id, code: c.code, date: '' })}
+                    >
+                      {c.status === 'active' ? 'Extend' : 'Renew'}
+                    </Button>
+
                     {/* Redeemed codes keep their history: revoke, never delete. */}
                     {c.uses > 0 ? (
                       c.status !== 'revoked' && (
