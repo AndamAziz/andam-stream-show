@@ -28,25 +28,52 @@ function isManifest(url: string, contentType: string | null): boolean {
   return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
 }
 
-async function fetchUpstream(upstream: string, request: Request, attempt = 0): Promise<Response> {
-  const headers = new Headers(relayHeaders());
+/**
+ * Fetches the provider bytes.
+ *
+ * Direct server-side fetch first: this route already hides the provider
+ * credentials, and the relay buffers whole segments (measured ~35s for a 1.6MB
+ * segment the provider serves in 0.15s), which starved the player. The relay is
+ * kept as a fallback for upstreams we cannot reach directly (geo/IP blocks).
+ */
+async function fetchOnce(url: string, request: Request, viaRelay: boolean): Promise<Response> {
+  const headers = new Headers(viaRelay ? relayHeaders() : {});
+  headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  const res = await fetch(relayUrl(upstream), { headers, redirect: 'follow' });
-  // 403/411 from the relay or provider are usually transient (token race,
-  // missing content-length on a rebuilt playlist) — retry once.
-  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500) && attempt < 2) {
-    await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
-    return fetchUpstream(upstream, request, attempt + 1);
+  return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
+}
+
+async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
+  try {
+    const direct = await fetchOnce(upstream, request, false);
+    if (direct.ok || direct.status === 206) return direct;
+    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
+  } catch (err) {
+    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+  }
+
+  let res = await fetchOnce(upstream, request, true);
+  // 403/411/5xx from the relay are usually transient — retry once.
+  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
+    await new Promise((r) => setTimeout(r, 350));
+    res = await fetchOnce(upstream, request, true);
   }
   return res;
 }
 
-async function rewriteManifest(text: string, upstream: string, origin: string): Promise<string> {
+
+/**
+ * Rewrites manifest URIs to *relative* playback URLs. Absolute URLs built from
+ * the incoming request origin are wrong behind the preview/published proxy
+ * (the server sees http://localhost:8080), which made the browser request a
+ * dead origin and left the player spinning forever.
+ */
+async function rewriteManifest(text: string, upstream: string): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
   const token = async (ref: string) =>
-    `${origin}/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
@@ -91,9 +118,11 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         if (!res.ok) {
-          return new Response(res.status === 404 ? 'Stream not found' : 'Stream unavailable', {
-            status: res.status === 404 ? 404 : 502,
-          });
+          console.error('[xtream-play] relay responded', res.status, res.statusText);
+          return new Response(
+            res.status === 404 ? 'Stream not found' : `Stream unavailable (relay ${res.status})`,
+            { status: res.status === 404 ? 404 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+          );
         }
 
         // Allowlist only: upstream headers such as x-final-url echo the provider
@@ -111,7 +140,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
-          const body = await rewriteManifest(text, finalUrl, url.origin);
+          const body = await rewriteManifest(text, finalUrl);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
