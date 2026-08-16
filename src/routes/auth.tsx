@@ -48,16 +48,16 @@ function AuthPage() {
     });
   }, [navigate]);
 
-  async function signInWithGoogle() {
+  async function signInWith(provider: 'google' | 'apple') {
     setError('');
     setNotice('');
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
+      const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin,
       });
       if (result.error) {
-        setError(result.error.message ?? 'Google sign-in failed');
+        setError(result.error.message ?? `${provider} sign-in failed`);
         return;
       }
       if (result.redirected) return;
@@ -69,7 +69,7 @@ function AuthPage() {
       }
       navigate({ to: account.role === 'admin' ? '/admin' : '/', replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+      setError(err instanceof Error ? err.message : `${provider} sign-in failed`);
     } finally {
       setBusy(false);
     }
