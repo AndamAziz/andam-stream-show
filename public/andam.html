@@ -256,7 +256,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 @media (max-width:820px){.mbody{flex-direction:column}.chanlist{width:100%;flex:1 1 auto;max-height:38vh;border-left:0;border-top:1px solid var(--hair)}}
 /* ===== HAMBURGER / MOBILE MENU ===== */
 .status.retry{cursor:pointer;color:var(--ember);border:1px solid rgba(255,69,0,.45);background:rgba(255,69,0,.12);border-radius:999px;padding:10px 18px;min-height:44px;display:inline-flex;align-items:center}
-.burger{display:none;width:44px;height:44px;border-radius:10px;border:1px solid var(--hair);
+.burger{display:grid;width:40px;height:40px;border-radius:10px;border:1px solid var(--hair);
   background:rgba(255,255,255,.03);color:var(--text);font-size:18px;place-items:center}
 .menu{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,10,.94);backdrop-filter:blur(12px);
   flex-direction:column;padding:76px 24px 32px}
@@ -264,6 +264,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .menu a{display:flex;align-items:center;min-height:52px;font-family:'Space Grotesk';font-weight:600;
   font-size:19px;border-bottom:1px solid var(--hair);color:var(--muted)}
 .menu a.active{color:var(--ember)}
+.menu a[hidden]{display:none}
 .menuclose{position:absolute;top:16px;right:20px;width:44px;height:44px;border-radius:10px;
   border:1px solid var(--hair);color:var(--text);font-size:18px;display:grid;place-items:center}
 
@@ -572,11 +573,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <a href="#">Shows</a><a href="#">IPTV</a>
   </div>
   <div class="navright">
-    <span class="chip mono">15 Aug · GB</span>
-    <button class="iconbtn" aria-label="Search">⌕</button>
-    <button class="iconbtn" aria-label="Notifications">☾</button>
     <div class="autharea" id="authArea">
-      <a class="authbtn admin" id="authAdmin" href="/admin" target="_top" hidden><span class="ai">★</span><span class="al">Admin</span></a>
       <a class="authbtn" id="authAccount" href="/auth" target="_top">Sign in</a>
     </div>
     <button class="burger" id="burger" aria-label="Open menu" aria-expanded="false">☰</button>
@@ -587,6 +584,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <button class="menuclose" id="menuClose" aria-label="Close menu">✕</button>
   <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
   <a href="#">Shows</a><a href="#">IPTV</a>
+  <a id="mSearch" href="#">Search</a>
   <a id="mAdmin" href="/admin" target="_top" hidden>Admin</a>
   <a id="mAccount" href="/auth" target="_top">Sign in</a>
 </div>
@@ -1044,6 +1042,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       else showView('catalog', label==='Movies'?'movies':'series');
 
     });
+  });
+
+  var mSearch=document.getElementById('mSearch');
+  if(mSearch) mSearch.addEventListener('click',function(e){
+    e.preventDefault(); setMenu(false);
+    showView('catalog','movies');
+    setTimeout(function(){ var i=document.getElementById('catSearch'); if(i){ i.scrollIntoView({block:'center'}); i.focus() } },120);
   });
 
 
