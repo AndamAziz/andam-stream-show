@@ -1,9 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { Panel, Stat } from '@/components/admin/AdminShell';
 import { Button } from '@/components/ui/button';
-import { getAdminOverview } from '@/lib/admin.functions';
+import { clearLoginActivity, getAdminOverview } from '@/lib/admin.functions';
 
 export const Route = createFileRoute('/_authenticated/admin/monitoring')({
   head: () => ({
@@ -24,6 +24,11 @@ function MonitoringPage() {
     queryKey: ['admin', 'overview'],
     queryFn: () => getAdminOverview(),
     refetchInterval: 30_000,
+  });
+
+  const clearLogs = useMutation({
+    mutationFn: () => clearLoginActivity(),
+    onSuccess: () => refetch(),
   });
 
   const providerName = (id: string | null) =>
@@ -78,7 +83,24 @@ function MonitoringPage() {
         )}
       </Panel>
 
-      <Panel title="Recent logins">
+      <Panel
+        title="Recent logins"
+        description="One entry per real sign-in — background token refreshes are not logged."
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-h-11"
+            disabled={clearLogs.isPending}
+            onClick={() => clearLogs.mutate()}
+          >
+            {clearLogs.isPending ? 'Clearing…' : 'Clear log'}
+          </Button>
+        }
+      >
+        {(data?.recentLogins ?? []).length === 0 && (
+          <p className="text-sm text-muted-foreground">No sign-ins logged.</p>
+        )}
         <ul className="divide-y divide-border text-sm">
           {(data?.recentLogins ?? []).map((l, i) => (
             <li key={i} className="py-2">

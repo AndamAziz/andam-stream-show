@@ -26,6 +26,7 @@ export async function syncAccount(
   email: string,
   userAgent: string | null,
   recordLogin: boolean,
+  sessionId: string | null = null,
 ): Promise<Account> {
   const { data: existing } = await supabaseAdmin
     .from('profiles')
@@ -50,12 +51,33 @@ export async function syncAccount(
       .from('profiles')
       .update({ last_login_at: new Date().toISOString(), email })
       .eq('id', userId);
-    await supabaseAdmin.from('login_activity').insert({
+
+    // One row per auth session: background token refreshes and page reloads
+    // reuse the same `session_id`, so the unique index de-duplicates them.
+    const row = {
       user_id: userId,
       email,
       user_agent: (userAgent ?? '').slice(0, 300) || null,
-    });
+      session_id: sessionId,
+    };
+    if (sessionId) {
+      await supabaseAdmin
+        .from('login_activity')
+        .upsert(row, { onConflict: 'user_id,session_id', ignoreDuplicates: true });
+    } else {
+      // No session claim (older tokens): fall back to a 10-minute quiet window
+      // so a re-entered sign-in screen cannot spam the log.
+      const since = new Date(Date.now() - 10 * 60_000).toISOString();
+      const { data: recent } = await supabaseAdmin
+        .from('login_activity')
+        .select('id')
+        .eq('user_id', userId)
+        .gte('created_at', since)
+        .limit(1);
+      if (!(recent ?? []).length) await supabaseAdmin.from('login_activity').insert(row);
+    }
   }
+
 
   return {
     userId,
