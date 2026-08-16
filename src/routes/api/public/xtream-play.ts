@@ -13,14 +13,15 @@ import { relayHeaders, relayUrl } from '@/lib/xtream';
  * HTTP Range requests are forwarded untouched so VOD seeking keeps working.
  */
 
-const HOP_BY_HOP = new Set([
-  'connection',
-  'keep-alive',
-  'transfer-encoding',
-  'upgrade',
-  'content-encoding',
-  'content-length',
-]);
+const SAFE_HEADERS = [
+  'content-type',
+  'content-range',
+  'accept-ranges',
+  'content-disposition',
+  'last-modified',
+  'etag',
+];
+
 
 function isManifest(url: string, contentType: string | null): boolean {
   if (/\.m3u8(\?|$)/i.test(url)) return true;
