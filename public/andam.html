@@ -716,7 +716,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
         if(d.imdbId) h+='<span class="imdb">'+esc(d.imdbId)+'</span>';
         h+='</div>';
         var pr=getProg(d.tmdbId,d.type);
-        h+='<div class="dactions"><button class="dwatch" id="dWatch">'+(pr?'Resume':'Watch now')+'</button>';
+        h+='<div class="dactions"><button class="dwatch" id="dWatch">'+(pr&&(pr.position||0)>10?('Resume '+fmtTime(pr.position)):(pr?'Resume':'Watch now'))+'</button>';
         if(pr) h+='<span class="dresume">'+(d.type==='tv'?('Last watched S'+pr.season+'E'+pr.episode):'Continue watching')+'</span>';
         h+='</div>';
         if(d.type==='tv'&&d.seasons&&d.seasons.length){
@@ -794,30 +794,85 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   function getProg(id,type){ return allProg()[type+':'+id]||null }
   function setProg(id,type,extra){
     try{
-      var all=allProg();
-      all[type+':'+id]=Object.assign({tmdbId:id,type:type,season:1,episode:1,updated:Date.now()},extra||{});
+      var all=allProg(), key=type+':'+id, prev=all[key]||{};
+      all[key]=Object.assign({tmdbId:id,type:type,season:1,episode:1,position:0,duration:0},prev,extra||{},{updated:Date.now()});
       localStorage.setItem(PKEY,JSON.stringify(all));
     }catch(_){}
     try{ renderContinue() }catch(_){}
+  }
+  function fmtTime(sec){
+    sec=Math.max(0,Math.round(sec||0));
+    var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+    return (h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(s).padStart(2,'0');
+  }
+  function progPct(p){
+    if(!p) return 0;
+    var dur=p.duration||(p.type==='tv'?45*60:110*60);
+    return Math.max(2,Math.min(98,Math.round(100*(p.position||0)/dur)));
   }
 
   var vp=document.getElementById('vp'), vpFrame=document.getElementById('vpFrame'),
       vpTitle=document.getElementById('vpTitle'), vpSub=document.getElementById('vpSub'),
       vpPick=document.getElementById('vpPick');
 
-  function vidUrl(item,season,episode){
-    return item.type==='tv'
+  /* current playback session: accumulates watched time and persists it */
+  var cur=null, ticker=null;
+
+  function saveCur(){
+    if(!cur) return;
+    var now=Date.now();
+    cur.position += Math.max(0,(now-cur.tick)/1000);
+    cur.tick=now;
+    setProg(cur.id,cur.type,{season:cur.season,episode:cur.episode,position:Math.round(cur.position),
+      duration:cur.duration||0,title:cur.title,poster:cur.poster});
+  }
+  function startTracking(item,s,e,startAt){
+    stopTracking();
+    cur={id:item.tmdbId,type:item.type,title:item.title,poster:item.poster,season:s,episode:e,
+      position:startAt||0,duration:(item.runtime?item.runtime*60:0),tick:Date.now()};
+    ticker=setInterval(saveCur,5000);
+  }
+  function stopTracking(){
+    if(ticker){ clearInterval(ticker); ticker=null }
+    saveCur(); cur=null;
+  }
+  /* some embeds post timeupdate events — trust them over elapsed-time estimates */
+  window.addEventListener('message',function(ev){
+    if(!cur||!ev.data) return;
+    var d=ev.data; if(typeof d==='string'){ try{ d=JSON.parse(d) }catch(_){ return } }
+    var t=d.currentTime!=null?d.currentTime:(d.time!=null?d.time:(d.data&&d.data.currentTime));
+    if(typeof t==='number'&&isFinite(t)&&t>0){
+      cur.position=t; cur.tick=Date.now();
+      var du=d.duration!=null?d.duration:(d.data&&d.data.duration);
+      if(typeof du==='number'&&du>0) cur.duration=du;
+      saveCur();
+    }
+  });
+  window.addEventListener('beforeunload',saveCur);
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) saveCur() });
+
+  function vidUrl(item,season,episode,startAt){
+    var u=item.type==='tv'
       ? 'https://vidapi.ru/embed/tv/'+item.tmdbId+'/'+(season||1)+'/'+(episode||1)
       : 'https://vidapi.ru/embed/movie/'+item.tmdbId;
+    var t=Math.round(startAt||0);
+    if(t>10) u+='?t='+t+'&start='+t+'#t='+t;
+    return u;
   }
 
-  function openVid(item,season,episode){
+  function openVid(item,season,episode,startAt){
     var s=season||1, e=episode||1;
+    var saved=getProg(item.tmdbId,item.type);
+    if(startAt==null&&saved&&(item.type!=='tv'||((saved.season||1)===s&&(saved.episode||1)===e))) startAt=saved.position||0;
+    startAt=startAt||0;
     vp.classList.add('open'); document.body.style.overflow='hidden';
     vpTitle.textContent=item.title||'Andam';
-    vpSub.textContent=item.type==='tv'?('VidAPI · S'+s+' E'+e):'VidAPI · Movie';
-    vpFrame.src=vidUrl(item,s,e);
-    setProg(item.tmdbId,item.type,{title:item.title,poster:item.poster,season:s,episode:e});
+    vpSub.textContent=(item.type==='tv'?('VidAPI · S'+s+' E'+e):'VidAPI · Movie')+
+      (startAt>10?(' · resuming at '+fmtTime(startAt)):'');
+    vpFrame.src=vidUrl(item,s,e,startAt);
+    startTracking(item,s,e,startAt);
+    setProg(item.tmdbId,item.type,{title:item.title,poster:item.poster,season:s,episode:e,
+      position:Math.round(startAt),duration:item.runtime?item.runtime*60:0});
     vpPick.innerHTML='';
     if(item.type==='tv'&&item.seasons&&item.seasons.length){
       var ss=document.createElement('select'); ss.setAttribute('aria-label','Season');
@@ -827,16 +882,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       vpPick.appendChild(ss); vpPick.appendChild(es);
       loadEpisodes(item.tmdbId,s,es,e);
       ss.addEventListener('change',function(){ loadEpisodes(item.tmdbId,+ss.value,es,1) });
-      es.addEventListener('change',function(){ openVid(item,+ss.value,+es.value) });
+      es.addEventListener('change',function(){ stopTracking(); openVid(item,+ss.value,+es.value,0) });
     }
   }
 
   function closeVid(){
+    stopTracking();
     vp.classList.remove('open'); vpFrame.src='about:blank'; document.body.style.overflow='';
   }
   document.getElementById('vpClose').addEventListener('click',closeVid);
   vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
+
 
   /* ---------- CONTINUE WATCHING ROW ---------- */
   function progList(){
@@ -854,15 +911,17 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       '<a href="#" id="cwClear">Clear all</a></div><div class="strip" id="cwStrip"></div>';
     var strip=sec.querySelector('#cwStrip');
     strip.innerHTML=list.map(function(p){
-      var sub=p.type==='tv'?('S'+(p.season||1)+' E'+(p.episode||1)):'Movie';
+      var sub=(p.type==='tv'?('S'+(p.season||1)+' E'+(p.episode||1)):'Movie')+
+        ((p.position||0)>10?(' · '+fmtTime(p.position)):'');
       return '<button class="card" type="button" data-id="'+p.tmdbId+'" data-type="'+esc(p.type)+'" '+
         'data-title="'+esc(p.title||'')+'" data-season="'+(p.season||1)+'" data-episode="'+(p.episode||1)+'" '+
+        'data-position="'+Math.round(p.position||0)+'" '+
         'aria-label="Resume '+esc(p.title||'title')+'">'+
         (p.poster?'<img class="ph" src="'+esc(p.poster)+'" alt="" loading="lazy" />':'')+
         '<div class="grad"></div><span class="cwplay" aria-hidden="true">▶</span>'+
         '<span class="cwrm" data-rm="'+esc(p.type)+':'+p.tmdbId+'" role="button" aria-label="Remove from continue watching">✕</span>'+
         '<div class="txt"><div class="t">'+esc(p.title||'Untitled')+'</div><div class="s">'+esc(sub)+'</div></div>'+
-        '<div class="bar"><i style="width:'+(p.type==='tv'?35:20)+'%"></i></div></button>';
+        '<div class="bar"><i style="width:'+progPct(p)+'%"></i></div></button>';
     }).join('');
     rowsEl.insertBefore(sec,rowsEl.firstChild);
 
@@ -881,18 +940,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       var c=e.target.closest('.card'); if(!c) return;
       resume(c.getAttribute('data-id'),c.getAttribute('data-type'),c.getAttribute('data-title'),
         +c.getAttribute('data-season'),+c.getAttribute('data-episode'),
-        (c.querySelector('img')||{}).src);
+        (c.querySelector('img')||{}).src,+c.getAttribute('data-position'));
     });
   }
 
-  function resume(id,type,title,season,episode,poster){
+  function resume(id,type,title,season,episode,poster,position){
     var base={tmdbId:id,type:type,title:title,poster:poster};
-    if(type!=='tv'){ openVid(base); return }
+    if(type!=='tv'){ openVid(base,1,1,position||0); return }
     fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type=tv',
       {headers:{accept:'application/json'}})
       .then(function(r){ return r.json() })
-      .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode) })
-      .catch(function(){ openVid(base,season,episode) });
+      .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode,position||0) })
+      .catch(function(){ openVid(base,season,episode,position||0) });
   }
   renderContinue();
 })();
