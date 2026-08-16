@@ -683,86 +683,16 @@ html.hppreview .nav{position:static}
   function onScroll(){ nav.classList.toggle('solid', window.scrollY>40); }
   window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
 
-  var min=62, clock=document.getElementById('clock');
-  setInterval(function(){ if(min<90){min++; clock.textContent=min+"'";} },15000);
+  /* Hero + rows are populated from real provider/playlist data further down
+     (see "HOME ROWS"). Nothing on this page ships placeholder content. */
 
-  document.getElementById('dots').addEventListener('click',function(e){
-    var b=e.target.closest('button'); if(!b) return;
-    [].forEach.call(this.children,function(c){c.classList.remove('active')});
-    b.classList.add('active');
-  });
-
-  var img=function(seed){return 'https://picsum.photos/seed/'+seed+'/500/282';};
-
-  var live=[["Man City vs Real Madrid","Champions League · 62'","live-mcfc"],
-    ["PGA Tour Final Round","Golf · Round 4","live-pga"],
-    ["Erbil FC vs Duhok SC","Iraqi Premier League","live-erbil"],
-    ["World Snooker Final","Snooker · Session 3","live-snooker"],
-    ["BBC News Live","News · English","live-bbcnews"],
-    ["Al Jazeera English","News · English","live-ajenglish"]];
-
-  var cont=[["Nightfall Protocol","S2 · Ep 4 · 28 min left",64,"cw-nightfall"],
-    ["The Last Caravan","Movie · 1h 04m left",38,"cw-caravan"],
-    ["Echoes of Erbil","S1 · Ep 8 · 7 min left",88,"cw-echoes"],
-    ["Glass Horizon","Movie · 1h 38m left",20,"cw-glass"],
-    ["Desert Static","S3 · Ep 2 · 24 min left",50,"cw-desert"]];
-
-  var movies=[["Neon Heist","Crime · 1h 52m","8.4",true,"mv-neon"],
-    ["Glass Horizon","Sci-Fi · 2h 05m","7.9",false,"mv-glass"],
-    ["The Last Caravan","Drama · 1h 47m","8.1",false,"mv-caravan"],
-    ["Salt & Silence","Thriller · 1h 39m","7.6",true,"mv-salt"],
-    ["Ember Road","Action · 2h 11m","8.7",false,"mv-ember"],
-    ["Midnight in Sulav","Romance · 1h 34m","7.3",false,"mv-sulav"]];
-
-  var shows=[["Nightfall Protocol","Thriller · 3 seasons","8.9",false,"sh-nightfall"],
-    ["Echoes of Erbil","Drama · 1 season","8.2",true,"sh-echoes"],
-    ["Desert Static","Mystery · 3 seasons","7.8",false,"sh-desert"],
-    ["House of Zagros","Historical · 2 seasons","8.5",false,"sh-zagros"],
-    ["Border Signal","Crime · 1 season","7.7",false,"sh-border"]];
-
-  var chans=[["NRT","NR","linear-gradient(140deg,#FF3B4E,#C4243A)"],
-    ["Kurdsat","KS","linear-gradient(140deg,#38E1C6,#1E9C8B)"],
-    ["Rudaw","RD","linear-gradient(140deg,#F5C56B,#C9902F)"],
-    ["KurdMax","KM","linear-gradient(140deg,#B79CFF,#6C7BFF)"],
-    ["BBC","BB","linear-gradient(140deg,#8E9BB3,#4A5468)"],
-    ["Al Araby","AA","linear-gradient(140deg,#5AD1FF,#2A6BE0)"],
-    ["beIN 1","B1","linear-gradient(140deg,#7BE07B,#219653)"],
-    ["MBC","MB","linear-gradient(140deg,#FF9F6B,#D9541F)"]];
-
-  function card(t,s,seed,opts){
-    opts=opts||{};
-    var h='<article class="card'+(opts.feat?' feat':'')+'" tabindex="0">';
-    h+='<img class="ph" loading="lazy" src="'+img(seed)+'" alt="'+t+'" />';
-    h+='<div class="grad"></div>';
-    if(opts.live) h+='<span class="tag live"><i class="dot"></i>LIVE</span>';
-    if(opts.isNew) h+='<span class="tag new">NEW</span>';
-    if(opts.rate) h+='<span class="rate">★ '+opts.rate+'</span>';
-    if(opts.icon) h+='<span class="ic" style="background:'+opts.iconBg+';color:'+opts.iconFg+'">'+opts.icon+'</span>';
-    h+='<div class="txt"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>';
-    if(opts.progress!=null) h+='<div class="bar"><i style="width:'+opts.progress+'%"></i></div>';
-    return h+'</article>';
-  }
+  function esc0(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] }); }
 
   function row(title,inner){
-    return '<section class="row"><div class="rowhead"><h2>'+title+'</h2><a href="#">See all</a></div>'+
+    return '<section class="row"><div class="rowhead"><h2>'+title+'</h2></div>'+
       '<div class="strip">'+inner+'</div></section>';
   }
-
-  var html='';
-  html+=row('Live now', live.map(function(c){return card(c[0],c[1],c[2],{live:true})}).join(''));
-  html+=row('Continue watching', cont.map(function(c){return card(c[0],c[1],c[3],{progress:c[2]})}).join(''));
-  html+=row('Trending movies', movies.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
-  html+=row('Popular shows', shows.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
-  html+=row('Your IPTV channels', chans.map(function(c){
-    return '<button class="tile"><span class="m" style="background:'+c[2]+'">'+c[1]+'</span><span class="n">'+c[0]+'</span></button>';
-  }).join(''));
-  html+=row('Also on Andam',
-    card('Prayer Times & Qibla','Maghrib in 1h 42m · Erbil','feat-prayer',
-      {feat:true,icon:'✧',iconBg:'var(--lavender-dim)',iconFg:'var(--lavender)'})+
-    card('The Holy Quran','Continue Surah Al-Kahf','feat-quran',
-      {feat:true,icon:'❖',iconBg:'var(--teal-dim)',iconFg:'var(--teal)'}));
-
-  document.getElementById('rows').innerHTML=html;
 
   /* ---------- PLAYER ---------- */
   var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
@@ -896,27 +826,6 @@ html.hppreview .nav{position:static}
   document.getElementById('pClose').addEventListener('click',close);
   overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
-
-  document.getElementById('watchNow').addEventListener('click',function(){
-    open(null,'Real Madrid vs Man City',"● LIVE · Champions League · "+min+"'");
-  });
-
-  // Live cards and IPTV tiles open the player too
-  document.getElementById('rows').addEventListener('click',function(e){
-    var tile=e.target.closest('.tile');
-    if(tile){ var n=tile.querySelector('.n').textContent;
-      loadChannels().then(function(){
-        var m=channels.filter(function(c){return c.name.toLowerCase().indexOf(n.toLowerCase())>-1})[0];
-        overlay.classList.add('open'); document.body.style.overflow='hidden';
-        if(m) play(m.url,m.name,'● LIVE · IPTV');
-        else open(null,n,'● LIVE · IPTV');
-      });
-      return;
-    }
-    var c=e.target.closest('.card'); if(!c) return;
-    var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
-    open(null,t,s);
-  });
 
   /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
   var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
