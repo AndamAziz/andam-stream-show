@@ -42,11 +42,17 @@ async function fetchUpstream(upstream: string, request: Request, attempt = 0): P
   return res;
 }
 
-async function rewriteManifest(text: string, upstream: string, origin: string): Promise<string> {
+/**
+ * Rewrites manifest URIs to *relative* playback URLs. Absolute URLs built from
+ * the incoming request origin are wrong behind the preview/published proxy
+ * (the server sees http://localhost:8080), which made the browser request a
+ * dead origin and left the player spinning forever.
+ */
+async function rewriteManifest(text: string, upstream: string): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
   const token = async (ref: string) =>
-    `${origin}/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
@@ -91,9 +97,11 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         if (!res.ok) {
-          return new Response(res.status === 404 ? 'Stream not found' : 'Stream unavailable', {
-            status: res.status === 404 ? 404 : 502,
-          });
+          console.error('[xtream-play] relay responded', res.status, res.statusText);
+          return new Response(
+            res.status === 404 ? 'Stream not found' : `Stream unavailable (relay ${res.status})`,
+            { status: res.status === 404 ? 404 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+          );
         }
 
         // Allowlist only: upstream headers such as x-final-url echo the provider
@@ -111,7 +119,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
-          const body = await rewriteManifest(text, finalUrl, url.origin);
+          const body = await rewriteManifest(text, finalUrl);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
