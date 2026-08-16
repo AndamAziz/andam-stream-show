@@ -1767,25 +1767,40 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
+    /* Abort any in-flight probe so a switched-away channel stops competing for
+       the provider's very small pool of simultaneous connections. */
+    if(s.ac){ try{ s.ac.abort() }catch(_){} s.ac=null }
+    if(s.retryTimer){ clearTimeout(s.retryTimer); s.retryTimer=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
+    s.video.load&&(function(){ try{ s.video.load() }catch(_){} })();
     busy(s,false); clearFail(s);
   }
 
   /* which section's player is on screen right now */
   function activeKind(){ return iptvEl.classList.contains('open')?'iptv':'live' }
 
+  /* hls.js ships a 10s manifest/playlist timeout, which cancelled relay
+     requests before the provider had answered. Give the relay real headroom
+     and let our own silent retry ladder decide when a stream is hopeless. */
+  var HLS_CFG={lowLatencyMode:true,maxBufferLength:20,backBufferLength:30,
+    manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:2,manifestLoadingRetryDelay:1000,
+    levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
+    fragLoadingTimeOut:30000,fragLoadingMaxRetry:6};
+  var MAX_SILENT_RETRIES=3;
+
   function lvPlay(kind,token,title,sub,isHls){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
-    lvStop(kind);
+    /* Only ever one live connection at a time, across both sections. */
+    lvStop('live'); lvStop('iptv');
     var mine=++s.session, alive=function(){ return mine===s.session };
     s.idle.classList.add('hide');
     setNow(s,title,sub,nowLogoOf(kind));
 
     clearFail(s); busy(s,true);
     s.last={token:token,title:title,sub:sub,isHls:isHls};
-    var ok=false,timer=null;
+    var ok=false,timer=null,attempt=0;
 
     function onProgress(){
       if(!alive()||s.video.currentTime<=0.05) return;
@@ -1793,10 +1808,32 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       s.video.removeEventListener('timeupdate',onProgress);
     }
     s.video.addEventListener('timeupdate',onProgress);
-    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
-    timer=setTimeout(function(){
-      if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
-    },18000);
+
+    /* Silent recovery: retry in the background (1s, 2s, 4s) with the spinner
+       as the only feedback. The visible "tap to retry" message is the last
+       resort after the ladder is exhausted. */
+    function retryable(msg){
+      if(!alive()||ok) return;
+      clearTimeout(timer);
+      if(attempt<MAX_SILENT_RETRIES){
+        var wait=1000*Math.pow(2,attempt);
+        attempt++;
+        if(s.ac){ try{ s.ac.abort() }catch(_){} s.ac=null }
+        if(s.hls){ var d=s.hls; s.hls=null; setTimeout(function(){ try{d.destroy()}catch(_){} },0) }
+        try{ s.video.pause() }catch(_){}
+        busy(s,true); clearFail(s);
+        s.retryTimer=setTimeout(function(){ if(alive()&&!ok) start() },wait);
+        return;
+      }
+      fail(s,msg);
+    }
+
+    function arm(){
+      clearTimeout(timer);
+      timer=setTimeout(function(){
+        if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
+      },18000);
+    }
 
     function native(){
       var dead=s.hls; s.hls=null;
@@ -1808,17 +1845,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       },{once:true});
     }
 
-    /* Start the network work off the click's task so the tap never janks. */
-    setTimeout(function(){
+    function start(){
       if(!alive()) return;
+      arm();
       if(!isHls){
         /* progressive files: surface a real HTTP status if the relay refuses */
-        fetch(src,{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
+        var ac=new AbortController(); s.ac=ac;
+        fetch(src,{method:'GET',headers:{range:'bytes=0-0'},signal:ac.signal}).then(function(r){
           if(!r.ok) retryable('Stream error '+r.status);
-        }).catch(function(){ retryable('Network error') });
+        }).catch(function(err){ if(err&&err.name==='AbortError') return; retryable('Network error') });
       }
       if(isHls && window.Hls && window.Hls.isSupported()){
-        var h=new window.Hls({lowLatencyMode:true,maxBufferLength:20,backBufferLength:30});
+        var h=new window.Hls(HLS_CFG);
         s.hls=h;
         h.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(alive()) s.video.play().catch(function(){}) });
         h.on(window.Hls.Events.ERROR,function(e,d){
@@ -1827,16 +1865,17 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){
             setTimeout(function(){ if(alive()) hopChannel(kind,1) },0); return
           }
-          if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
-            setTimeout(function(){ if(alive()&&!ok&&s.hls===h) h.loadSource(src) },1200);
-          }else if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError() }
-          else retryable('Stream failed to load');
+          if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError(); return }
+          retryable('Stream failed to load');
         });
         h.attachMedia(s.video); h.loadSource(src);
       }else{
         native();
       }
-    },0);
+    }
+
+    /* Start the network work off the click's task so the tap never janks. */
+    setTimeout(start,0);
   }
 
   /* Backwards-compatible entry point used by home rows and replay. */
