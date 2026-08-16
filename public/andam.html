@@ -490,6 +490,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lverr{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;
   background:rgba(8,9,12,.9);border:1px solid rgba(255,69,0,.4);border-radius:10px;color:#fff;
   font:500 12.5px/1.35 Inter,sans-serif;padding:10px 14px;cursor:pointer;text-align:center}
+/* swipe / arrow channel-hop feedback: small dark pill over the video */
+.lvswipe{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
+  display:flex;align-items:center;gap:9px;max-width:82%;pointer-events:none;
+  background:rgba(8,9,12,.82);border:1px solid rgba(255,69,0,.32);border-radius:999px;
+  padding:8px 14px;opacity:0;transition:opacity .15s ease,transform .15s ease;z-index:6}
+.lvswipe.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.lvswipe .ar{color:var(--ember);font-size:16px;line-height:1;flex:none}
+.lvswipe img{width:26px;height:26px;flex:none;border-radius:7px;object-fit:contain;padding:2px;
+  background:rgba(255,255,255,.07)}
+.lvswipe img:not([src]){display:none}
+.lvswipe .nm{font:600 13px/1.2 Inter,sans-serif;color:#fff;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvstage{touch-action:pan-y}
 /* slim now-playing bar: logo + name + category tag + LIVE badge + small icon actions */
 .lvbar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface);
   border-top:1px solid var(--hair)}
@@ -683,6 +696,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvidle" id="ltvIdle">Pick a channel below to start watching</div>
         <div class="lvspin hide" id="ltvSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ltvErr" role="button" tabindex="0"></div>
+        <div class="lvswipe" id="ltvSwipe" aria-live="polite"><span class="ar">›</span><img alt="" /><span class="nm"></span></div>
       </div>
       <div class="lvbar">
         <img class="lgo" id="ltvNowLogo" alt="" />
@@ -729,6 +743,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvidle" id="ipIdle">Pick a channel below to start watching</div>
         <div class="lvspin hide" id="ipSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ipErr" role="button" tabindex="0"></div>
+        <div class="lvswipe" id="ipSwipe" aria-live="polite"><span class="ar">›</span><img alt="" /><span class="nm"></span></div>
       </div>
       <div class="lvbar">
         <img class="lgo" id="ipNowLogo" alt="" />
@@ -2295,6 +2310,82 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .catch(function(){ fail(s,'Could not start this channel') });
   });
 
+  /* ================= SWIPE / ARROW CHANNEL HOPPING =================
+     Touch swipe on the video area (and Left/Right arrows on desktop) moves to
+     the next/previous channel of the list currently shown below the player.
+     It simply clicks the neighbouring row, so playback goes through exactly the
+     same opaque-token flow, loading state and highlight as a normal tap. TV
+     D-pad focus navigation is untouched. */
+  var hopAt={live:0,iptv:0}, swipeTimer={};
+  function chanEls(kind){
+    var host=document.getElementById(kind==='iptv'?'ipBody':'ltvBody');
+    return host?[].slice.call(host.querySelectorAll('.chanrow')):[];
+  }
+  function swipeHint(kind,dir,name,logo){
+    var el=document.getElementById((kind==='iptv'?'ip':'ltv')+'Swipe');
+    if(!el) return;
+    el.querySelector('.ar').textContent=dir>0?'›':'‹';
+    var img=el.querySelector('img');
+    if(logo) img.setAttribute('src',logo); else img.removeAttribute('src');
+    el.querySelector('.nm').textContent=name||'';
+    el.classList.add('show');
+    clearTimeout(swipeTimer[kind]);
+    swipeTimer[kind]=setTimeout(function(){ el.classList.remove('show') },2400);
+  }
+  function hopChannel(kind,dir){
+    /* only meaningful for a live channel list (Live TV "Direct" tab / IPTV) */
+    if(kind==='live'&&ltv.tab!=='direct') return false;
+    var now=Date.now();
+    if(now-hopAt[kind]<350) return false;
+    var els=chanEls(kind);
+    if(els.length<2) return false;
+    var cur=-1;
+    for(var i=0;i<els.length;i++){ if(els[i].classList.contains('on')){ cur=i; break } }
+    if(cur<0) cur=dir>0?-1:0;
+    var next=els[cur+dir];
+    if(!next) return false;
+    hopAt[kind]=now;
+    var img=next.querySelector('img.lg');
+    swipeHint(kind,dir,next.getAttribute('data-name'),img&&img.getAttribute('src'));
+    try{ next.scrollIntoView({block:'nearest',behavior:'smooth'}) }catch(_){ next.scrollIntoView() }
+    next.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+    return true;
+  }
+  function bindSwipe(kind){
+    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
+    if(!stage) return;
+    var x0=0,y0=0,t0=0,track=false;
+    stage.addEventListener('touchstart',function(e){
+      if(e.touches.length!==1){ track=false; return }
+      track=true; x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now();
+    },{passive:true});
+    stage.addEventListener('touchend',function(e){
+      if(!track) return; track=false;
+      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+      var dx=t.clientX-x0, dy=t.clientY-y0;
+      if(Date.now()-t0>800) return;                      /* slow drag: not a swipe */
+      if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.4) return; /* tap or vertical scroll */
+      hopChannel(kind,dx<0?1:-1);
+    },{passive:true});
+    /* desktop/laptop: arrows while the player area holds focus or the pointer */
+    stage.addEventListener('mouseenter',function(){ stage.dataset['hover']='1' });
+    stage.addEventListener('mouseleave',function(){ stage.dataset['hover']='' });
+  }
+  bindSwipe('live'); bindSwipe('iptv');
+
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
+    if(e.altKey||e.ctrlKey||e.metaKey||tvMode()) return;   /* TV keeps D-pad behaviour */
+    var el=document.activeElement;
+    if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT')) return;
+    var kind=activeKind();
+    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
+    if(!stage) return;
+    var inPlayer=(el&&stage.contains(el))||stage.dataset['hover']==='1';
+    if(!inPlayer) return;
+    if(hopChannel(kind,e.key==='ArrowRight'?1:-1)){ e.preventDefault(); e.stopPropagation() }
+  },true);
+
   /* ================= HOME ROWS (real data only) =================
      Live now / Trending movies / Popular shows come from the selected Xtream
      provider, "Your IPTV channels" from the M3U playlist source, and Continue
@@ -2416,15 +2507,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       return featuredPats;
     }).catch(function(){ featuredPats=[]; return featuredPats });
   }
+  /* A featured channel only counts when it is actually live right now (present
+     in the provider's live list with a usable stream id). When none of the
+     admin patterns match a live channel, the hero falls back to the provider's
+     own ordering untouched. */
   function prioritise(items,pats){
-    if(!pats||!pats.length) return items;
+    if(!pats||!pats.length||!items||!items.length) return items;
     var hit=[], rest=[];
     items.forEach(function(c,i){
       var n=String(c.name||'').toLowerCase(), rank=-1;
-      for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
+      var live=!!c.id && n!=='';
+      if(live) for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
       (rank<0?rest:hit).push({c:c,rank:rank,i:i});
     });
-    if(!hit.length) return items;
+    if(!hit.length) return items;   /* fallback: provider's normal order */
     hit.sort(function(a,b){ return a.rank-b.rank || a.i-b.i });
     return hit.concat(rest).map(function(o){ return o.c });
   }
