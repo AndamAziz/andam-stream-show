@@ -23,6 +23,33 @@ function authFetch(path: string, key: string, search: Record<string, string>) {
   return fetch(url, { headers });
 }
 
+type TmdbGenre = { id?: number; name?: string };
+type TmdbSeason = { season_number?: number; name?: string; episode_count?: number };
+type TmdbEpisode = {
+  episode_number?: number;
+  name?: string;
+  overview?: string;
+  still_path?: string | null;
+  air_date?: string;
+};
+type TmdbDetails = {
+  id?: number;
+  title?: string;
+  name?: string;
+  overview?: string;
+  backdrop_path?: string | null;
+  poster_path?: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+  runtime?: number | null;
+  genres?: TmdbGenre[];
+  imdb_id?: string | null;
+  external_ids?: { imdb_id?: string | null };
+  seasons?: TmdbSeason[];
+};
+type TmdbSeasonDetails = { episodes?: TmdbEpisode[] };
+
 function mapItem(raw: Record<string, unknown>, kind: "movies" | "series") {
   const date = String(raw["release_date"] ?? raw["first_air_date"] ?? "");
   return {
@@ -54,7 +81,7 @@ async function handle(request: Request) {
         append_to_response: "external_ids",
       });
       if (!res.ok) return Response.json({ error: "TMDB unavailable" }, { status: 502 });
-      const d = (await res.json()) as any;
+      const d = (await res.json()) as TmdbDetails;
       return Response.json({
         tmdbId: Number(d.id),
         type,
@@ -65,11 +92,11 @@ async function handle(request: Request) {
         year: String(d.release_date ?? d.first_air_date ?? "").slice(0, 4),
         rating: d.vote_average ? Number(d.vote_average).toFixed(1) : null,
         runtime: d.runtime ?? null,
-        genres: (d.genres ?? []).map((g: any) => String(g.name)),
+        genres: (d.genres ?? []).map((g: TmdbGenre) => String(g.name)),
         imdbId: d.external_ids?.imdb_id ?? d.imdb_id ?? null,
         seasons: (d.seasons ?? [])
-          .filter((s: any) => Number(s.season_number) > 0)
-          .map((s: any) => ({
+          .filter((s: TmdbSeason) => Number(s.season_number) > 0)
+          .map((s: TmdbSeason) => ({
             season: Number(s.season_number),
             name: String(s.name ?? ""),
             episodes: Number(s.episode_count ?? 0),
@@ -82,10 +109,10 @@ async function handle(request: Request) {
         return Response.json({ error: "id and season required" }, { status: 400 });
       const res = await authFetch(`/tv/${id}/season/${season}`, key, {});
       if (!res.ok) return Response.json({ error: "TMDB unavailable" }, { status: 502 });
-      const d = (await res.json()) as any;
+      const d = (await res.json()) as TmdbSeasonDetails;
       return Response.json({
         season,
-        episodes: (d.episodes ?? []).map((e: any) => ({
+        episodes: (d.episodes ?? []).map((e: TmdbEpisode) => ({
           episode: Number(e.episode_number),
           name: String(e.name ?? `Episode ${e.episode_number}`),
           overview: String(e.overview ?? ""),
