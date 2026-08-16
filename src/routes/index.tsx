@@ -31,10 +31,13 @@ function useSessionBridge(frame: React.RefObject<HTMLIFrameElement | null>) {
   const { data } = useQuery({
     queryKey: ["home-session"],
     queryFn: async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return { signedIn: false, role: "guest" as string };
+      const { data: sessionData } = await supabase.auth.getSession();
+      const session = sessionData.session;
+      if (!session?.user) return { signedIn: false, role: "guest" as string, token: null };
       const account = await syncMyAccount({ data: { recordLogin: false } });
-      return { signedIn: true, role: account?.role ?? "user" };
+      // Same-origin iframe only: the token lets the homepage read this user's
+      // own watch history and any privately granted providers.
+      return { signedIn: true, role: account?.role ?? "user", token: session.access_token };
     },
     staleTime: 60_000,
   });
@@ -42,7 +45,7 @@ function useSessionBridge(frame: React.RefObject<HTMLIFrameElement | null>) {
   const post = useCallback(() => {
     const win = frame.current?.contentWindow;
     if (!win || !data) return;
-    win.postMessage({ type: "andam:session", ...data }, "*");
+    win.postMessage({ type: "andam:session", ...data }, window.location.origin);
   }, [data, frame]);
 
   useEffect(() => {
