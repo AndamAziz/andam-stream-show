@@ -1050,7 +1050,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
     var next=pickNext(cur,e.key);
     if(next){ e.preventDefault(); moveFocus(next); }
-  });
+  },true);
+
 
   syncTvMode();
 
