@@ -1823,7 +1823,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return entry?(entry.status==='up'?' · Up':' · Down'):'';
   }
 
+  var provHealth=document.getElementById('provHealth');
   var ltv={providers:[],prov:null,tab:'direct',cat:'',q:'',hasArchive:false,req:0,started:false,
+           health:{},healthTimer:null,
            archive:[],series:null};
   var lcache={}, TTL=5*60*1000;   // client cache so tab switches don't refetch
 
@@ -2251,7 +2253,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   var ipSrcSel=document.getElementById('ipSrcSel'), ipGroupSel=document.getElementById('ipGroupSel'),
       ipBody=document.getElementById('ipBody'), ipMsg=document.getElementById('ipMsg'),
       ipSearch=document.getElementById('ipSearch'), ipSub=document.getElementById('ipSub');
-  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false};
+  var ipHealth=document.getElementById('ipHealth');
+  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false,
+          health:{},healthTimer:null};
   var ipCache={};
 
   function ipSet(m){ ipMsg.textContent=m||''; ipMsg.classList.toggle('hide',!m); }
