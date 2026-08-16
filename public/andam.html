@@ -1278,8 +1278,9 @@ html.hppreview .nav{position:static}
   var WP_API='/api/public/watch-progress', authToken=null, pushTimer=null;
   window.__andamSetToken=function(t){
     var had=!!authToken; authToken=t||null;
-    if(authToken&&!had) pullProgress();
-    if(!authToken) return;
+    if(!authToken||had) return;
+    pullProgress();
+    try{ lcache={}; loadHome() }catch(_){}   // private sources may now be visible
   };
   function wpFetch(opts){
     if(!authToken) return Promise.reject(new Error('no session'));
