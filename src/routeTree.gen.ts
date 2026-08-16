@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
+import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,57 @@ const ApiPublicXtreamRoute = ApiPublicXtreamRouteImport.update({
   path: '/api/public/xtream',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicXtreamPlayRoute = ApiPublicXtreamPlayRouteImport.update({
+  id: '/api/public/xtream-play',
+  path: '/api/public/xtream-play',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
+  '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
+  '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
+  '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
+  fullPaths:
+    | '/'
+    | '/api/public/tmdb-discover'
+    | '/api/public/xtream'
+    | '/api/public/xtream-play'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
-  id: '__root__' | '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
+  to:
+    | '/'
+    | '/api/public/tmdb-discover'
+    | '/api/public/xtream'
+    | '/api/public/xtream-play'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/public/tmdb-discover'
+    | '/api/public/xtream'
+    | '/api/public/xtream-play'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
   ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
+  ApiPublicXtreamPlayRoute: typeof ApiPublicXtreamPlayRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +105,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicXtreamRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/xtream-play': {
+      id: '/api/public/xtream-play'
+      path: '/api/public/xtream-play'
+      fullPath: '/api/public/xtream-play'
+      preLoaderRoute: typeof ApiPublicXtreamPlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +119,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
   ApiPublicXtreamRoute: ApiPublicXtreamRoute,
+  ApiPublicXtreamPlayRoute: ApiPublicXtreamPlayRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
