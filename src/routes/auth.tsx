@@ -46,7 +46,35 @@ function AuthPage() {
     });
   }, [navigate]);
 
+  async function signInWithGoogle() {
+    setError('');
+    setNotice('');
+    setBusy(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        setError(result.error.message ?? 'Google sign-in failed');
+        return;
+      }
+      if (result.redirected) return;
+      const account = await syncMyAccount({ data: { recordLogin: true } });
+      if (account.suspended) {
+        await supabase.auth.signOut();
+        setError('This account has been suspended. Contact the administrator.');
+        return;
+      }
+      navigate({ to: account.role === 'admin' ? '/admin' : '/', replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
+
     e.preventDefault();
     setError('');
     setNotice('');
