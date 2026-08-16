@@ -822,11 +822,46 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   });
 
   /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
-     Moves focus predictably across nav items, row headers ("See all"),
-     hero CTAs and individual cards. Enter/OK activates the focused item. */
+     TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
+     modals. Focus groups: nav bar, hero CTAs, each row/strip, each grid.
+     Enter/Space activates, Escape/Backspace/461/10009 goes back. */
   var NAVSEL='.links a, .menu a, .navright button, .navright .avatar, .burger, .hero .cta .btn,'+
-    ' .rowhead a, .rowhead button, .card, .tile, .pcard, #catSearch, #catMore, .dots button,'+
-    ' .drawer button, .drawer a, .vp button, .modal button, .modal a, .pchan';
+    ' .dots button, .rowhead a, .rowhead button, .card, .tile, .pcard, .cwrm,'+
+    ' #catSearch, #catMore, .drawer button, .drawer a, .drawer select, .vp button,'+
+    ' .modal button, .modal a, .pchan, #pSearch';
+  var GROUPSEL='.nav, .hero .cta, .dots, .rowhead, .strip, .grid, .catbar, .drawer, .vp, .modal, .menu';
+
+  /* ---- TV mode detection ---- */
+  var TV_UA=/(Tizen|Web0S|WebOS|SmartTV|SMART-TV|HbbTV|NetCast|BRAVIA|AFT[A-Z]|Android TV|GoogleTV|CrKey|Chromecast|VIDAA|Viera)/i;
+  var isTvUA=TV_UA.test(navigator.userAgent);
+  function tvMode(){ return isTvUA || window.innerWidth>=1536; }
+  var tvOn=false;
+  function syncTvMode(){
+    var on=tvMode();
+    document.documentElement.classList.toggle('tvmode',on);
+    if(on&&!tvOn){
+      tvOn=true;
+      // auto-focus so the remote works with no pointer input
+      setTimeout(function(){
+        var el=document.activeElement;
+        if(!el||el===document.body){
+          var first=document.querySelector('.hero .cta .btn')||navItems()[0];
+          if(first) moveFocus(first);
+        }
+      },350);
+    }
+    if(!on) tvOn=false;
+  }
+
+  /* ---- cached geometry (recalculated only on resize / scroll / DOM change) ---- */
+  var cache={items:null,rects:null};
+  function invalidate(){ cache.items=null; cache.rects=null; }
+  window.addEventListener('resize',function(){ invalidate(); syncTvMode(); });
+  window.addEventListener('scroll',invalidate,{passive:true});
+  document.addEventListener('scroll',invalidate,{capture:true,passive:true});
+  if(window.MutationObserver){
+    new MutationObserver(invalidate).observe(document.body,{childList:true,subtree:true});
+  }
 
   function visible(el){
     if(!el||el.disabled) return false;
@@ -838,6 +873,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     return true;
   }
 
+  /* focus trap: when a layer is open, only its focusables are reachable */
   function activeScope(){
     var layers=['.vp.open','.drawer.open','#overlay.open','.menu.open'];
     for(var i=0;i<layers.length;i++){ var n=document.querySelector(layers[i]); if(n) return n; }
@@ -845,35 +881,46 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   }
 
   function navItems(){
-    return [].slice.call(activeScope().querySelectorAll(NAVSEL)).filter(visible);
+    if(cache.items) return cache.items;
+    cache.items=[].slice.call(activeScope().querySelectorAll(NAVSEL)).filter(visible);
+    cache.rects=cache.items.map(function(el){ return el.getBoundingClientRect(); });
+    return cache.items;
   }
-
+  function rectOf(el){
+    var items=navItems(), i=items.indexOf(el);
+    return i>=0?cache.rects[i]:el.getBoundingClientRect();
+  }
   function focusable(el){
-    return el.closest('.card, .tile, .pcard, a, button, input, [tabindex]')||el;
+    return el.closest('.card, .tile, .pcard, a, button, input, select, [tabindex]')||el;
   }
-
-  function center(el){ var r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,r:r}; }
+  function groupOf(el){ return el.closest(GROUPSEL); }
 
   function pickNext(cur,dir){
     var items=navItems();
+    if(items.indexOf(cur)<0){ invalidate(); items=navItems(); }
     if(items.indexOf(cur)<0) return items[0]||null;
-    var c=center(cur), best=null, bestScore=Infinity;
+    var cr=rectOf(cur), cx=cr.left+cr.width/2, cy=cr.top+cr.height/2;
     var horiz=(dir==='ArrowLeft'||dir==='ArrowRight');
+    var curGroup=groupOf(cur);
+    var best=null,bestScore=Infinity;
     items.forEach(function(el){
       if(el===cur) return;
-      var t=center(el);
-      var dx=t.x-c.x, dy=t.y-c.y;
+      var r=rectOf(el), tx=r.left+r.width/2, ty=r.top+r.height/2;
+      var dx=tx-cx, dy=ty-cy;
       if(dir==='ArrowRight'&&dx<=2) return;
       if(dir==='ArrowLeft'&&dx>=-2) return;
       if(dir==='ArrowDown'&&dy<=2) return;
       if(dir==='ArrowUp'&&dy>=-2) return;
-      var along=Math.abs(horiz?dx:dy), across=Math.abs(horiz?dy:dx);
-      // same visual line/column strongly preferred, then nearest along the axis
-      var overlap=horiz
-        ? (t.r.bottom>c.r.top+4 && t.r.top<c.r.bottom-4)
-        : (t.r.right>c.r.left+4 && t.r.left<c.r.right-4);
-      if(horiz&&!overlap) return; // left/right stays on the same visual line
-      var score=along+across*(overlap?0.2:6);
+      var sameLine=r.bottom>cr.top+4 && r.top<cr.bottom-4;
+      var sameCol=r.right>cr.left+4 && r.left<cr.right-4;
+      if(horiz){
+        // Left/Right stays inside the row / focus group
+        if(!sameLine) return;
+        if(curGroup&&groupOf(el)!==curGroup&&groupOf(el)!==null&&!sameLine) return;
+        var score=Math.abs(dx)+Math.abs(dy)*0.2;
+      }else{
+        var score=Math.abs(dy)+Math.abs(dx)*(sameCol?0.15:0.9);
+      }
       if(score<bestScore){ bestScore=score; best=el; }
     });
     return best;
@@ -883,13 +930,49 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     if(!el) return;
     el.focus({preventScroll:true});
     var strip=el.closest('.strip');
-    el.scrollIntoView({block:'nearest',inline:strip?'center':'nearest',behavior:'smooth'});
+    if(strip){
+      // keep the focused card fully visible inside its carousel
+      el.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+    }else{
+      el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
+    }
   }
 
+  /* ---- back / close handling with focus restore ---- */
+  var focusBefore=null;
+  function layerOpen(){
+    return document.querySelector('.vp.open, .drawer.open, #overlay.open, .menu.open');
+  }
+  document.addEventListener('focusin',function(e){
+    if(!layerOpen()) focusBefore=e.target;
+  });
+  function goBack(){
+    var layer=layerOpen();
+    if(!layer) return false;
+    var btn=layer.querySelector('#vpClose,#pClose,#dClose,#menuClose,.dclose');
+    if(btn) btn.click();
+    else layer.classList.remove('open');
+    invalidate();
+    setTimeout(function(){
+      if(focusBefore&&visible(focusBefore)) moveFocus(focusBefore);
+      else { var f=navItems()[0]; if(f) moveFocus(f); }
+    },60);
+    return true;
+  }
+
+  /* ---- key handling (debounced for held remote buttons) ---- */
+  var lastKeyAt=0, DEBOUNCE=150;
+  var BACK_CODES=[461,10009,8,27];
   document.addEventListener('keydown',function(e){
     if(e.altKey||e.ctrlKey||e.metaKey) return;
     var el=document.activeElement;
     var typing=el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA');
+
+    if(e.key==='Escape'||e.key==='Backspace'||e.key==='BrowserBack'||BACK_CODES.indexOf(e.keyCode)>=0){
+      if(typing&&e.key==='Backspace') return;
+      if(goBack()){ e.preventDefault(); }
+      return;
+    }
 
     if(e.key==='Enter'||e.key===' '||e.key==='OK'){
       if(!el||typing) return;
@@ -905,6 +988,10 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     if(dirs.indexOf(e.key)<0) return;
     if(typing&&(e.key==='ArrowLeft'||e.key==='ArrowRight')) return;
 
+    var now=Date.now();
+    if(now-lastKeyAt<DEBOUNCE){ e.preventDefault(); return; }
+    lastKeyAt=now;
+
     var cur=el&&el!==document.body?focusable(el):null;
     if(!cur||!visible(cur)){
       var first=navItems()[0];
@@ -913,6 +1000,10 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     }
     var next=pickNext(cur,e.key);
     if(next){ e.preventDefault(); moveFocus(next); }
+  });
+
+  syncTvMode();
+
   });
 
 
