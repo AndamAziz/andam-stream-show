@@ -216,7 +216,45 @@ function CodesPage() {
         </div>
       </Panel>
 
+      {renewing && (
+        <Panel
+          title={`Renew ${renewing.code}`}
+          description="Keeps the same code string and extends its expiry. Leave the date empty for +30 days."
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="renew-date">New expiry date</Label>
+              <Input
+                id="renew-date"
+                type="date"
+                value={renewing.date}
+                onChange={(e) => setRenewing({ ...renewing, date: e.target.value })}
+                className="min-h-11"
+              />
+            </div>
+            <Button
+              className="min-h-11"
+              disabled={renew.isPending}
+              onClick={() =>
+                renew.mutate({
+                  id: renewing.id,
+                  expiresAt: renewing.date
+                    ? new Date(`${renewing.date}T23:59:59Z`).toISOString()
+                    : null,
+                })
+              }
+            >
+              {renew.isPending ? 'Renewing…' : 'Renew code'}
+            </Button>
+            <Button variant="secondary" className="min-h-11" onClick={() => setRenewing(null)}>
+              Cancel
+            </Button>
+          </div>
+        </Panel>
+      )}
+
       <Panel title="Issued codes" description="Status, usage and who redeemed each code.">
+
         {codes.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, i) => (
