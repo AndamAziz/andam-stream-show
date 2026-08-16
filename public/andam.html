@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Andam — Live TV, Movies &amp; Shows</title>
+<meta name="description" content="Andam streaming homepage: live matches, movies, shows, IPTV channels and prayer times." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --void:#08090C; --surface:#141419; --surface-2:#1D1E24;
+  --hair:rgba(255,255,255,0.09);
+  --ember:#FF3B4E; --ember-dim:rgba(255,59,78,0.16);
+  --gold:#F5C56B; --teal:#38E1C6; --teal-dim:rgba(56,225,198,0.16);
+  --lavender:#B79CFF; --lavender-dim:rgba(183,156,255,0.14);
+  --text:#F6F6F8; --muted:#9A9CA6; --faint:#5E6068;
+  --pad:40px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--void);color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ember);outline-offset:2px;border-radius:6px}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:26px;
+  padding:14px var(--pad);background:transparent;transition:background .3s ease,backdrop-filter .3s ease,border-color .3s ease;border-bottom:1px solid transparent}
+.nav.solid{background:rgba(8,9,12,0.88);backdrop-filter:blur(10px);border-bottom-color:var(--hair)}
+.brand{display:flex;align-items:center;gap:10px}
+.mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(140deg,var(--ember),#C4243A);
+  display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;font-size:16px;color:#fff}
+.word{font-family:'Space Grotesk';font-weight:700;font-size:18px;letter-spacing:.2px}
+.links{display:flex;align-items:center;gap:22px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.links a:hover{color:var(--text)}
+.links a.active{color:var(--text)}
+.links a.active::after{content:"";display:block;height:2px;margin-top:5px;background:var(--ember);border-radius:2px}
+.navright{margin-left:auto;display:flex;align-items:center;gap:12px}
+.chip{border:1px solid var(--hair);background:rgba(255,255,255,.03);border-radius:999px;padding:6px 12px;font-size:11.5px;color:var(--muted)}
+.iconbtn{width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);display:grid;place-items:center;color:var(--muted);background:rgba(255,255,255,.03)}
+.iconbtn:hover{color:var(--text)}
+.avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(140deg,var(--lavender),#6C7BFF);
+  display:grid;place-items:center;font-size:11.5px;font-weight:700;color:#0d0d14}
+
+/* HERO */
+.hero{position:relative;height:86vh;min-height:560px;overflow:hidden}
+.hero img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:ken 26s ease-in-out infinite alternate}
+@keyframes ken{from{transform:scale(1)}to{transform:scale(1.08)}}
+.hero .scrim{position:absolute;inset:0;background:
+  linear-gradient(to top,var(--void) 4%,rgba(8,9,12,.55) 42%,transparent 78%),
+  linear-gradient(to right,rgba(8,9,12,.92),transparent 62%)}
+.hero .inner{position:absolute;left:var(--pad);bottom:96px;max-width:640px}
+.pill{display:inline-flex;align-items:center;gap:7px;background:var(--ember-dim);color:var(--ember);
+  border-radius:999px;padding:5px 11px;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.12em}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ember);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+.hero h1{font-weight:700;font-size:clamp(34px,5.4vw,58px);line-height:1.03;margin:16px 0 12px;letter-spacing:-1px}
+.meta{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:12.5px;color:var(--muted)}
+.meta .g{color:var(--gold)}
+.sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+.watchers{display:flex;align-items:center;gap:10px;margin:14px 0}
+.stack{display:flex}
+.stack span{width:18px;height:18px;border-radius:50%;border:2px solid var(--void);background:linear-gradient(140deg,var(--teal),#1E9C8B)}
+.stack span+span{margin-left:-6px}
+.watchers .mono{font-size:11.5px;color:var(--muted)}
+.desc{color:#C7C8D1;font-size:13.5px;line-height:1.55;max-width:520px;margin:0 0 20px}
+.cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{border-radius:10px;padding:11px 18px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:#fff;color:#0A0B0F}
+.btn.primary:hover{background:#e9e9ee}
+.btn.glass{background:rgba(255,255,255,.1);border:1px solid var(--hair);backdrop-filter:blur(6px)}
+.btn.glass:hover{background:rgba(255,255,255,.16)}
+.btn.round{width:42px;height:42px;padding:0;border-radius:50%;justify-content:center;border:1px solid var(--hair);background:rgba(255,255,255,.08);font-size:19px}
+.dots{position:absolute;right:var(--pad);bottom:104px;display:flex;gap:7px}
+.dots button{width:22px;height:3px;border-radius:999px;background:rgba(255,255,255,.28)}
+.dots button.active{background:var(--ember)}
+
+/* ROWS */
+.rows{position:relative;z-index:2;margin-top:-64px;padding-bottom:70px}
+.row{margin-bottom:30px}
+.rowhead{display:flex;align-items:baseline;justify-content:space-between;padding:0 var(--pad);margin-bottom:12px}
+.rowhead h2{font-weight:600;font-size:18px;letter-spacing:-.2px}
+.rowhead a{font-size:12px;color:var(--muted)}
+.rowhead a:hover{color:var(--ember)}
+.strip{display:flex;gap:14px;overflow-x:auto;padding:6px var(--pad) 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.strip::-webkit-scrollbar{display:none}
+
+.card{position:relative;flex:0 0 auto;width:250px;height:141px;border-radius:12px;border:1px solid var(--hair);
+  overflow:hidden;background:var(--surface);transition:transform .25s ease,box-shadow .25s ease}
+.card .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .25s ease}
+.card .grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.86),rgba(0,0,0,.05) 62%)}
+.card .txt{position:absolute;left:12px;right:12px;bottom:11px}
+.card .t{font-family:'Space Grotesk';font-weight:600;font-size:13.5px}
+.card .s{font-size:11px;color:#D7D8E0;margin-top:3px}
+.card:hover,.card:focus-visible{transform:scale(1.07) translateY(-4px);z-index:5;box-shadow:0 22px 48px rgba(0,0,0,.65)}
+.card:hover .ph{transform:scale(1.06)}
+.tag{position:absolute;top:9px;left:9px;font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.1em;
+  padding:4px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:5px}
+.tag.live{background:var(--ember-dim);color:var(--ember);border:1px solid rgba(255,59,78,.35)}
+.tag.new{background:var(--teal-dim);color:var(--teal);border:1px solid rgba(56,225,198,.32)}
+.tag .dot{width:5px;height:5px}
+.rate{position:absolute;top:9px;right:9px;font-family:'IBM Plex Mono';font-size:10px;color:var(--gold);
+  background:rgba(8,9,12,.7);border:1px solid rgba(245,197,107,.3);padding:3px 7px;border-radius:6px}
+.bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.14)}
+.bar i{display:block;height:100%;background:var(--ember)}
+
+.tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;transition:transform .25s ease,background .25s ease}
+.tile:hover{transform:translateY(-4px);background:var(--surface-2)}
+.tile .m{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;font-size:13px;color:#0b0b10}
+.tile .n{font-size:11.5px;color:var(--muted)}
+.feat .ic{position:absolute;top:11px;left:11px;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:14px}
+.feat .grad{background:linear-gradient(to top,rgba(8,9,12,.92),rgba(8,9,12,.5))}
+
+@media (max-width:900px){.links{display:none}}
+@media (max-width:640px){
+  :root{--pad:20px}
+  .dots{display:none}
+  .hero .inner{bottom:70px;right:20px}
+  .chip{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .hero img.bg{animation:none}
+  .dot{animation:none}
+  .card,.card .ph,.tile{transition:none}
+  .card:hover{transform:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav" id="nav">
+  <div class="brand"><div class="mark">H</div><div class="word">Andam</div></div>
+  <div class="links">
+    <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
+    <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+  </div>
+  <div class="navright">
+    <span class="chip mono">15 Aug · GB</span>
+    <button class="iconbtn" aria-label="Search">⌕</button>
+    <button class="iconbtn" aria-label="Notifications">☾</button>
+    <div class="avatar">FZ</div>
+  </div>
+</nav>
+
+<header class="hero">
+  <img class="bg" src="https://picsum.photos/seed/andam-hero-stadium/1600/900" alt="Floodlit football stadium at night" />
+  <div class="scrim"></div>
+  <div class="inner">
+    <span class="pill"><i class="dot"></i>LIVE NOW</span>
+    <h1>Real Madrid vs Man City</h1>
+    <div class="meta">
+      <span class="g">Champions League · Semi-Final, 2nd Leg</span><i class="sep"></i>
+      <span class="mono" id="clock">62'</span><i class="sep"></i>
+      <span class="mono">1–1</span><i class="sep"></i><span>Full HD</span>
+    </div>
+    <div class="watchers">
+      <div class="stack"><span></span><span></span><span></span></div>
+      <span class="mono">2.1M watching now</span>
+    </div>
+    <p class="desc">A one-goal aggregate lead evaporates in Madrid as both sides trade chances in a semi-final heading for extra time.</p>
+    <div class="cta">
+      <button class="btn primary">▶ Watch now</button>
+      <button class="btn glass">ⓘ More info</button>
+      <button class="btn round" aria-label="Add to my list">+</button>
+    </div>
+  </div>
+  <div class="dots" id="dots">
+    <button class="active" aria-label="Slide 1"></button><button aria-label="Slide 2"></button>
+    <button aria-label="Slide 3"></button><button aria-label="Slide 4"></button>
+  </div>
+</header>
+
+<main class="rows" id="rows"></main>
+
+<script>
+(function(){
+  var nav=document.getElementById('nav');
+  function onScroll(){ nav.classList.toggle('solid', window.scrollY>40); }
+  window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+
+  var min=62, clock=document.getElementById('clock');
+  setInterval(function(){ if(min<90){min++; clock.textContent=min+"'";} },15000);
+
+  document.getElementById('dots').addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    [].forEach.call(this.children,function(c){c.classList.remove('active')});
+    b.classList.add('active');
+  });
+
+  var img=function(seed){return 'https://picsum.photos/seed/'+seed+'/500/282';};
+
+  var live=[["Man City vs Real Madrid","Champions League · 62'","live-mcfc"],
+    ["PGA Tour Final Round","Golf · Round 4","live-pga"],
+    ["Erbil FC vs Duhok SC","Iraqi Premier League","live-erbil"],
+    ["World Snooker Final","Snooker · Session 3","live-snooker"],
+    ["BBC News Live","News · English","live-bbcnews"],
+    ["Al Jazeera English","News · English","live-ajenglish"]];
+
+  var cont=[["Nightfall Protocol","S2 · Ep 4 · 28 min left",64,"cw-nightfall"],
+    ["The Last Caravan","Movie · 1h 04m left",38,"cw-caravan"],
+    ["Echoes of Erbil","S1 · Ep 8 · 7 min left",88,"cw-echoes"],
+    ["Glass Horizon","Movie · 1h 38m left",20,"cw-glass"],
+    ["Desert Static","S3 · Ep 2 · 24 min left",50,"cw-desert"]];
+
+  var movies=[["Neon Heist","Crime · 1h 52m","8.4",true,"mv-neon"],
+    ["Glass Horizon","Sci-Fi · 2h 05m","7.9",false,"mv-glass"],
+    ["The Last Caravan","Drama · 1h 47m","8.1",false,"mv-caravan"],
+    ["Salt & Silence","Thriller · 1h 39m","7.6",true,"mv-salt"],
+    ["Ember Road","Action · 2h 11m","8.7",false,"mv-ember"],
+    ["Midnight in Sulav","Romance · 1h 34m","7.3",false,"mv-sulav"]];
+
+  var shows=[["Nightfall Protocol","Thriller · 3 seasons","8.9",false,"sh-nightfall"],
+    ["Echoes of Erbil","Drama · 1 season","8.2",true,"sh-echoes"],
+    ["Desert Static","Mystery · 3 seasons","7.8",false,"sh-desert"],
+    ["House of Zagros","Historical · 2 seasons","8.5",false,"sh-zagros"],
+    ["Border Signal","Crime · 1 season","7.7",false,"sh-border"]];
+
+  var chans=[["NRT","NR","linear-gradient(140deg,#FF3B4E,#C4243A)"],
+    ["Kurdsat","KS","linear-gradient(140deg,#38E1C6,#1E9C8B)"],
+    ["Rudaw","RD","linear-gradient(140deg,#F5C56B,#C9902F)"],
+    ["KurdMax","KM","linear-gradient(140deg,#B79CFF,#6C7BFF)"],
+    ["BBC","BB","linear-gradient(140deg,#8E9BB3,#4A5468)"],
+    ["Al Araby","AA","linear-gradient(140deg,#5AD1FF,#2A6BE0)"],
+    ["beIN 1","B1","linear-gradient(140deg,#7BE07B,#219653)"],
+    ["MBC","MB","linear-gradient(140deg,#FF9F6B,#D9541F)"]];
+
+  function card(t,s,seed,opts){
+    opts=opts||{};
+    var h='<article class="card'+(opts.feat?' feat':'')+'" tabindex="0">';
+    h+='<img class="ph" loading="lazy" src="'+img(seed)+'" alt="'+t+'" />';
+    h+='<div class="grad"></div>';
+    if(opts.live) h+='<span class="tag live"><i class="dot"></i>LIVE</span>';
+    if(opts.isNew) h+='<span class="tag new">NEW</span>';
+    if(opts.rate) h+='<span class="rate">★ '+opts.rate+'</span>';
+    if(opts.icon) h+='<span class="ic" style="background:'+opts.iconBg+';color:'+opts.iconFg+'">'+opts.icon+'</span>';
+    h+='<div class="txt"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>';
+    if(opts.progress!=null) h+='<div class="bar"><i style="width:'+opts.progress+'%"></i></div>';
+    return h+'</article>';
+  }
+
+  function row(title,inner){
+    return '<section class="row"><div class="rowhead"><h2>'+title+'</h2><a href="#">See all</a></div>'+
+      '<div class="strip">'+inner+'</div></section>';
+  }
+
+  var html='';
+  html+=row('Live now', live.map(function(c){return card(c[0],c[1],c[2],{live:true})}).join(''));
+  html+=row('Continue watching', cont.map(function(c){return card(c[0],c[1],c[3],{progress:c[2]})}).join(''));
+  html+=row('Trending movies', movies.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
+  html+=row('Popular shows', shows.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
+  html+=row('Your IPTV channels', chans.map(function(c){
+    return '<button class="tile"><span class="m" style="background:'+c[2]+'">'+c[1]+'</span><span class="n">'+c[0]+'</span></button>';
+  }).join(''));
+  html+=row('Also on Andam',
+    card('Prayer Times & Qibla','Maghrib in 1h 42m · Erbil','feat-prayer',
+      {feat:true,icon:'✧',iconBg:'var(--lavender-dim)',iconFg:'var(--lavender)'})+
+    card('The Holy Quran','Continue Surah Al-Kahf','feat-quran',
+      {feat:true,icon:'❖',iconBg:'var(--teal-dim)',iconFg:'var(--teal)'}));
+
+  document.getElementById('rows').innerHTML=html;
+})();
+</script>
+</body>
+</html>
