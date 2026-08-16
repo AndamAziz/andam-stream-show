@@ -2310,6 +2310,82 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .catch(function(){ fail(s,'Could not start this channel') });
   });
 
+  /* ================= SWIPE / ARROW CHANNEL HOPPING =================
+     Touch swipe on the video area (and Left/Right arrows on desktop) moves to
+     the next/previous channel of the list currently shown below the player.
+     It simply clicks the neighbouring row, so playback goes through exactly the
+     same opaque-token flow, loading state and highlight as a normal tap. TV
+     D-pad focus navigation is untouched. */
+  var hopAt={live:0,iptv:0}, swipeTimer={};
+  function chanEls(kind){
+    var host=document.getElementById(kind==='iptv'?'ipBody':'ltvBody');
+    return host?[].slice.call(host.querySelectorAll('.chanrow')):[];
+  }
+  function swipeHint(kind,dir,name,logo){
+    var el=document.getElementById((kind==='iptv'?'ip':'ltv')+'Swipe');
+    if(!el) return;
+    el.querySelector('.ar').textContent=dir>0?'›':'‹';
+    var img=el.querySelector('img');
+    if(logo) img.setAttribute('src',logo); else img.removeAttribute('src');
+    el.querySelector('.nm').textContent=name||'';
+    el.classList.add('show');
+    clearTimeout(swipeTimer[kind]);
+    swipeTimer[kind]=setTimeout(function(){ el.classList.remove('show') },2400);
+  }
+  function hopChannel(kind,dir){
+    /* only meaningful for a live channel list (Live TV "Direct" tab / IPTV) */
+    if(kind==='live'&&ltv.tab!=='live') return false;
+    var now=Date.now();
+    if(now-hopAt[kind]<350) return false;
+    var els=chanEls(kind);
+    if(els.length<2) return false;
+    var cur=-1;
+    for(var i=0;i<els.length;i++){ if(els[i].classList.contains('on')){ cur=i; break } }
+    if(cur<0) cur=dir>0?-1:0;
+    var next=els[cur+dir];
+    if(!next) return false;
+    hopAt[kind]=now;
+    var img=next.querySelector('img.lg');
+    swipeHint(kind,dir,next.getAttribute('data-name'),img&&img.getAttribute('src'));
+    try{ next.scrollIntoView({block:'nearest',behavior:'smooth'}) }catch(_){ next.scrollIntoView() }
+    next.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+    return true;
+  }
+  function bindSwipe(kind){
+    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
+    if(!stage) return;
+    var x0=0,y0=0,t0=0,track=false;
+    stage.addEventListener('touchstart',function(e){
+      if(e.touches.length!==1){ track=false; return }
+      track=true; x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now();
+    },{passive:true});
+    stage.addEventListener('touchend',function(e){
+      if(!track) return; track=false;
+      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
+      var dx=t.clientX-x0, dy=t.clientY-y0;
+      if(Date.now()-t0>800) return;                      /* slow drag: not a swipe */
+      if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.4) return; /* tap or vertical scroll */
+      hopChannel(kind,dx<0?1:-1);
+    },{passive:true});
+    /* desktop/laptop: arrows while the player area holds focus or the pointer */
+    stage.addEventListener('mouseenter',function(){ stage.dataset['hover']='1' });
+    stage.addEventListener('mouseleave',function(){ stage.dataset['hover']='' });
+  }
+  bindSwipe('live'); bindSwipe('iptv');
+
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
+    if(e.altKey||e.ctrlKey||e.metaKey||tvMode()) return;   /* TV keeps D-pad behaviour */
+    var el=document.activeElement;
+    if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT')) return;
+    var kind=activeKind();
+    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
+    if(!stage) return;
+    var inPlayer=(el&&stage.contains(el))||stage.dataset['hover']==='1';
+    if(!inPlayer) return;
+    if(hopChannel(kind,e.key==='ArrowRight'?1:-1)){ e.preventDefault(); e.stopPropagation() }
+  },true);
+
   /* ================= HOME ROWS (real data only) =================
      Live now / Trending movies / Popular shows come from the selected Xtream
      provider, "Your IPTV channels" from the M3U playlist source, and Continue
