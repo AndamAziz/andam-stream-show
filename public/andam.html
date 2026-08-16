@@ -129,6 +129,35 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .card,.card .ph,.tile{transition:none}
   .card:hover{transform:none}
 }
+/* DETAILS DRAWER */
+.scrim2{position:fixed;inset:0;z-index:70;background:rgba(4,5,7,.72);backdrop-filter:blur(6px);opacity:0;
+  pointer-events:none;transition:opacity .25s ease}
+.scrim2.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;z-index:75;width:min(460px,100%);background:var(--surface);
+  border-left:1px solid var(--hair);transform:translateX(102%);transition:transform .3s cubic-bezier(.22,.7,.3,1);
+  overflow-y:auto;box-shadow:-30px 0 80px rgba(0,0,0,.65)}
+.drawer.open{transform:translateX(0)}
+.dhero{position:relative;aspect-ratio:16/9;background:var(--surface-2)}
+.dhero img{width:100%;height:100%;object-fit:cover;display:block}
+.dhero .grad{position:absolute;inset:0;background:linear-gradient(to top,var(--surface),rgba(20,20,25,.15) 70%)}
+.dclose{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(8,9,12,.7);color:var(--text);font-size:15px;display:grid;place-items:center}
+.dbody{padding:0 22px 30px;margin-top:-38px;position:relative}
+.dbody h2{font-size:24px;font-weight:700;letter-spacing:-.5px}
+.dmeta{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:9px;font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
+.dmeta b{color:var(--gold);font-weight:500}
+.dmeta .imdb{color:var(--teal)}
+.dgen{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.dgen span{border:1px solid var(--hair);background:rgba(255,255,255,.03);border-radius:999px;padding:4px 10px;font-size:11px;color:var(--muted)}
+.dover{color:#C7C8D1;font-size:13px;line-height:1.6;margin:16px 0 0}
+.dsec{margin-top:22px}
+.dsec h3{font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.14em;color:var(--faint);font-weight:500;margin-bottom:10px}
+.dseasons{display:flex;flex-direction:column;gap:8px}
+.dseasons div{display:flex;justify-content:space-between;gap:12px;border:1px solid var(--hair);border-radius:9px;
+  padding:10px 12px;font-size:12.5px;background:rgba(255,255,255,.02)}
+.dseasons div span:last-child{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
+.dload{font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);padding:20px 0}
+
 /* CATALOG */
 .hide{display:none !important}
 .catalog{display:none;padding:88px var(--pad) 70px}
@@ -242,6 +271,13 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   <div class="catmsg hide" id="catMsg"></div>
   <div class="more"><button class="btn glass hide" id="catMore">Load more</button></div>
 </section>
+
+<div class="scrim2" id="dScrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Title details" aria-hidden="true">
+  <div class="dhero"><img id="dBack" alt="" /><div class="grad"></div>
+    <button class="dclose" id="dClose" aria-label="Close details">✕</button></div>
+  <div class="dbody" id="dBody"></div>
+</aside>
 
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
   <div class="modal">
@@ -586,6 +622,64 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       else showView('catalog', label==='Movies'?'movies':'series');
     });
   });
+
+  /* ---------- DETAILS DRAWER ---------- */
+  var drawer=document.getElementById('drawer'), dScrim=document.getElementById('dScrim'),
+      dBody=document.getElementById('dBody'), dBack=document.getElementById('dBack');
+  var dReq=0;
+
+  function closeDrawer(){
+    drawer.classList.remove('open'); dScrim.classList.remove('open');
+    drawer.setAttribute('aria-hidden','true'); document.body.style.overflow=''; dReq++;
+  }
+
+  function openDrawer(id,type,title,poster){
+    drawer.classList.add('open'); dScrim.classList.add('open');
+    drawer.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
+    dBack.src=poster||''; dBack.alt=title?title+' artwork':'';
+    dBody.innerHTML='<h2>'+esc(title||'')+'</h2><p class="dload">Loading details…</p>';
+    var my=++dReq;
+    fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type='+encodeURIComponent(type),
+      {headers:{accept:'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(d){
+        if(my!==dReq) return;
+        if(d.backdrop||d.poster) dBack.src=d.backdrop||d.poster;
+        var h='<h2>'+esc(d.title||title||'')+'</h2><div class="dmeta">';
+        if(d.year) h+='<span>'+esc(d.year)+'</span>';
+        if(d.rating) h+='<b>★ '+esc(d.rating)+'</b>';
+        if(d.runtime) h+='<span>'+esc(d.runtime)+' min</span>';
+        if(d.seasons&&d.seasons.length) h+='<span>'+d.seasons.length+' season'+(d.seasons.length>1?'s':'')+'</span>';
+        h+='<span>'+(d.type==='tv'?'Series':'Movie')+'</span>';
+        if(d.imdbId) h+='<span class="imdb">'+esc(d.imdbId)+'</span>';
+        h+='</div>';
+        if(d.genres&&d.genres.length)
+          h+='<div class="dgen">'+d.genres.map(function(g){return '<span>'+esc(g)+'</span>'}).join('')+'</div>';
+        if(d.overview) h+='<p class="dover">'+esc(d.overview)+'</p>';
+        if(d.seasons&&d.seasons.length){
+          h+='<div class="dsec"><h3>SEASONS</h3><div class="dseasons">'+
+            d.seasons.map(function(s){
+              return '<div><span>'+esc(s.name||('Season '+s.season))+'</span><span>'+esc(s.episodes)+' ep</span></div>';
+            }).join('')+'</div></div>';
+        }
+        h+='<div class="dsec"><h3>IDS</h3><div class="dmeta"><span>TMDB '+esc(d.tmdbId)+'</span>'+
+          (d.imdbId?'<span class="imdb">IMDb '+esc(d.imdbId)+'</span>':'<span>IMDb unavailable</span>')+'</div></div>';
+        dBody.innerHTML=h;
+      })
+      .catch(function(){
+        if(my!==dReq) return;
+        dBody.innerHTML='<h2>'+esc(title||'')+'</h2><p class="dload">Could not load details. Try again.</p>';
+      });
+  }
+
+  catGrid.addEventListener('click',function(e){
+    var b=e.target.closest('.pcard'); if(!b) return;
+    var img=b.querySelector('img');
+    openDrawer(b.getAttribute('data-id'),b.getAttribute('data-type'),b.getAttribute('data-title'),img&&img.getAttribute('src'));
+  });
+  document.getElementById('dClose').addEventListener('click',closeDrawer);
+  dScrim.addEventListener('click',closeDrawer);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&drawer.classList.contains('open')) closeDrawer() });
 })();
 </script>
 </body>
