@@ -49,15 +49,13 @@ async function pickSource(
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
 
-/** Admin overrides hide/rename/re-sort playlist channels and fix broken logos. */
-async function withOverrides(source: PlaylistSource, channels: M3uChannel[]) {
-  const overrides = await loadOverrides(source.id);
-  return applyOverrides(
-    channels.map((c) => ({ ...c, id: c.id, name: c.name, logo: c.logo })),
-    overrides,
-    'live',
-    (c) => c.id,
-  );
+/** Admin overrides hide/re-sort playlist channels and fix broken logos. */
+async function withOverrides(
+  source: PlaylistSource,
+  channels: M3uChannel[],
+): Promise<M3uChannel[]> {
+  const overrides = await loadOverrides(source.id, 'live');
+  return applyOverrides(channels, overrides, 'logo');
 }
 
 export const Route = createFileRoute('/api/public/iptv')({
