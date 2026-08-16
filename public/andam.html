@@ -2053,13 +2053,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
   };
 
-  ipBar.addEventListener('click',function(e){
-    var b=e.target.closest('[data-ipsrc]'); if(b) setIpSource(b.getAttribute('data-ipsrc'));
+  ipSrcSel.addEventListener('change',function(){ setIpSource(this.value) });
+  ipGroupSel.addEventListener('change',function(){
+    ip.group=this.value; renderIpChannels();
   });
-  ipCats.addEventListener('click',function(e){
-    var b=e.target.closest('[data-ipgroup]'); if(!b) return;
-    ip.group=b.getAttribute('data-ipgroup'); renderIpGroups(); renderIpChannels();
-  });
+
   var ipq=null;
   ipSearch.addEventListener('input',function(){
     clearTimeout(ipq); var v=this.value.trim();
