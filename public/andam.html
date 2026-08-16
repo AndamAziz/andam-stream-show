@@ -2166,7 +2166,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       setProvider(pick.id);
       loadLtvHealth();
       if(!ltv.healthTimer) ltv.healthTimer=setInterval(function(){
-        if(ltvEl && !ltvEl.classList.contains('hide')) loadLtvHealth();
+        var el=document.getElementById('ltv');
+        if(el && !el.classList.contains('hide')) loadLtvHealth();
       },90000);
     }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
   };
@@ -2271,9 +2272,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function renderIpSources(){
     ipSrcSel.innerHTML=ip.sources.map(function(s){
-      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+esc(s.name)+'</option>';
+      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+
+        esc(s.name)+healthSuffix(ip.health[s.id])+'</option>';
     }).join('');
+    paintHealth(ipHealth,ip.health[ip.src]);
   }
+  /* Playlist reachability, refreshed while the IPTV section is on screen. */
+  function loadIpHealth(){
+    paintHealth(ipHealth,ip.health[ip.src]);
+    return ipApi({action:'health'}).then(function(d){
+      (d.health||[]).forEach(function(h){ ip.health[h.id]=h });
+      renderIpSources();
+    }).catch(function(){});
+  }
+
 
   function renderIpGroups(){
     ipGroupSel.innerHTML='<option value=""'+(ip.group?'':' selected')+'>All groups ('+ip.channels.length+')</option>'+
