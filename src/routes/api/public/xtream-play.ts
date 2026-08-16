@@ -138,7 +138,10 @@ export const Route = createFileRoute('/api/public/xtream-play')({
          */
         const host = new URL(upstream).host;
         const progressive = !/\.m3u8(\?|$)/i.test(upstream);
-        if (progressive) {
+        // `via=relay` is the player's fallback when the viewer's own connection
+        // cannot reach the provider either (their country is blocked too).
+        if (progressive && url.searchParams.get('via') !== 'relay') {
+
           if (!isGeoBlocked(host)) {
             try {
               const probe = await fetchOnce(upstream, new Request(request.url, {
