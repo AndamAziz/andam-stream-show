@@ -9,6 +9,7 @@ import {
   type Source,
   type XtreamKind,
 } from '@/lib/xtream';
+import { applyOverrides, loadOverrides } from '@/lib/overrides.server';
 
 /**
  * Metadata proxy for the Live TV section.
@@ -71,19 +72,43 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
+/**
+ * Providers a caller may use: every public+active source, plus any private
+ * source explicitly granted to the signed-in user via user_source_access.
+ */
+async function allowedSourceIds(request: Request): Promise<Set<string> | null> {
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data: userData } = await supabaseAdmin.auth.getUser(token);
+  const userId = userData?.user?.id;
+  if (!userId) return null;
+  const { data } = await supabaseAdmin
+    .from('user_source_access')
+    .select('source_id')
+    .eq('user_id', userId);
+  return new Set((data ?? []).map((r) => String(r.source_id)));
+}
+
 async function loadSources(): Promise<Source[]> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .select('id, slug, name, base_url, username, password')
+    .select('id, slug, name, base_url, username, password, is_public')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []) as Source[];
 }
 
-async function loadSource(slugOrId: string): Promise<Source | null> {
-  const sources = await loadSources();
+function visible(sources: Source[], granted: Set<string> | null): Source[] {
+  return sources.filter(
+    (s) => (s as Source & { is_public?: boolean }).is_public !== false || granted?.has(s.id),
+  );
+}
+
+async function loadSource(slugOrId: string, granted: Set<string> | null): Promise<Source | null> {
+  const sources = visible(await loadSources(), granted);
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
 
@@ -100,13 +125,15 @@ export const Route = createFileRoute('/api/public/xtream')({
         const action = url.searchParams.get('action') ?? 'providers';
 
         try {
+          const granted = await allowedSourceIds(request);
+
           if (action === 'providers') {
-            const sources = await loadSources();
+            const sources = visible(await loadSources(), granted);
             // Only non-sensitive fields leave the server.
             return json({ providers: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
-          const source = await loadSource(url.searchParams.get('source') ?? '');
+          const source = await loadSource(url.searchParams.get('source') ?? '', granted);
           if (!source) return json({ error: 'No provider configured' }, 404);
 
           if (action === 'categories') {
@@ -117,11 +144,12 @@ export const Route = createFileRoute('/api/public/xtream')({
               series: 'get_series_categories',
             };
             const cats = await playerApi<Category[]>(source, { action: map[kind] });
+            const categories = (Array.isArray(cats) ? cats : []).map((c) => ({
+              id: String(c.category_id),
+              name: c.category_name,
+            }));
             return json({
-              categories: (Array.isArray(cats) ? cats : []).map((c) => ({
-                id: String(c.category_id),
-                name: c.category_name,
-              })),
+              categories: applyOverrides(categories, await loadOverrides(source.id, 'category')),
             });
           }
 
@@ -142,7 +170,15 @@ export const Route = createFileRoute('/api/public/xtream')({
               archive: num(s.tv_archive) === 1,
               archiveDays: num(s.tv_archive_duration),
             }));
-            return json({ items, hasArchive: items.some((i) => i.archive) });
+            const visibleItems = applyOverrides(
+              items,
+              await loadOverrides(source.id, 'live'),
+              'logo',
+            );
+            return json({
+              items: visibleItems,
+              hasArchive: visibleItems.some((i) => i.archive),
+            });
           }
 
           if (action === 'vod') {
@@ -160,7 +196,9 @@ export const Route = createFileRoute('/api/public/xtream')({
               year: s.year ? String(s.year) : '',
               ext: s.container_extension || 'mp4',
             }));
-            return json({ items });
+            return json({
+              items: applyOverrides(items, await loadOverrides(source.id, 'vod'), 'poster'),
+            });
           }
 
           if (action === 'series') {
@@ -176,7 +214,9 @@ export const Route = createFileRoute('/api/public/xtream')({
               rating: s.rating ? String(s.rating) : '',
               year: (s.releaseDate || '').slice(0, 4),
             }));
-            return json({ items });
+            return json({
+              items: applyOverrides(items, await loadOverrides(source.id, 'series'), 'poster'),
+            });
           }
 
           if (action === 'play') {
