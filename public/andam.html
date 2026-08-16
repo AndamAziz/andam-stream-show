@@ -68,7 +68,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   border-radius:999px;padding:5px 11px;font-family:'IBM Plex Mono';font-size:10.5px;letter-spacing:.12em}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--ember);animation:pulse 1.4s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
-.hero h1{font-weight:700;font-size:clamp(34px,5.4vw,58px);line-height:1.03;margin:16px 0 12px;letter-spacing:-1px}
+.hero h1{font-weight:700;font-size:clamp(23px,3.5vw,38px);line-height:1.06;margin:12px 0 14px;letter-spacing:-.6px}
 .meta{display:flex;align-items:center;flex-wrap:wrap;gap:9px;font-size:12.5px;color:var(--muted)}
 .meta .g{color:var(--gold)}
 .sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
@@ -305,7 +305,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .hero{height:auto;min-height:0;padding-top:64px}
   .hero img.bg{position:absolute;animation:none}
   .hero .inner{position:relative;left:0;bottom:auto;padding:150px var(--pad) 26px;max-width:none}
-  .hero h1{font-size:clamp(26px,8.4vw,34px);margin:12px 0 10px}
+  .hero h1{font-size:clamp(20px,5.6vw,24px);margin:10px 0 12px}
   .desc{font-size:13px;max-width:none}
   .cta{gap:8px}
   .cta .btn.primary,.cta .btn.glass{flex:0 0 auto;justify-content:center;min-height:40px;padding:0 16px}
@@ -356,7 +356,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .chip{font-size:14px;padding:9px 16px}
   .hero{height:80vh}
   .hero .inner{bottom:9vh;max-width:56vw}
-  .hero h1{font-size:clamp(64px,5.6vw,104px)}
+  .hero h1{font-size:clamp(42px,3.6vw,68px)}
   .meta,.desc{font-size:19px}
   .desc{max-width:44vw}
   .btn{font-size:18px;padding:16px 28px;min-height:56px;border-radius:12px}
@@ -597,7 +597,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <div class="inner">
     <span class="pill" id="heroTag"><i class="dot"></i>LIVE NOW</span>
     <h1 id="heroTitle">Loading your live channels…</h1>
-    <div class="meta" id="heroMeta"></div>
     <div class="cta">
       <button class="btn primary" id="watchNow">▶ Watch now</button>
       <button class="btn glass" id="heroAll">All live channels</button>
@@ -2133,7 +2132,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      empty stays hidden — nothing here is fabricated. */
   var homeIp=null, heroItems=[], heroIdx=0, heroTimer=null;
   var heroBg=document.getElementById('heroBg'), heroTitle=document.getElementById('heroTitle'),
-      heroMeta=document.getElementById('heroMeta'), heroTag=document.getElementById('heroTag'),
+      heroTag=document.getElementById('heroTag'),
       dotsEl=document.getElementById('dots');
 
   function stripOf(id){ return document.querySelector('#'+id+' .strip') }
@@ -2173,9 +2172,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var it=heroItems[heroIdx]; if(!it) return;
     heroTag.classList.remove('hide');
     heroTitle.textContent=it.name;
-    heroMeta.innerHTML=(it.category?'<span class="g">'+esc(it.category)+'</span><i class="sep"></i>':'')+
-      '<span>'+esc(it.provider)+'</span>'+
-      (it.archive?'<i class="sep"></i><span class="mono">REPLAY AVAILABLE</span>':'');
     if(it.logo){ heroBg.src=it.logo; heroBg.classList.add('logo') }
     else { heroBg.removeAttribute('src'); heroBg.classList.remove('logo') }
     [].forEach.call(dotsEl.children,function(b,i){ b.classList.toggle('active',i===heroIdx) });
@@ -2186,7 +2182,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     if(!heroItems.length){
       heroTitle.textContent='No live channels are available for your account yet';
-      heroMeta.textContent=''; heroTag.classList.add('hide'); dotsEl.innerHTML='';
+      heroTag.classList.add('hide'); dotsEl.innerHTML='';
       document.getElementById('watchNow').classList.add('hide');
       return;
     }
@@ -2221,14 +2217,42 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(){ return null });
   }
 
+  /* Admin-managed featured priority list: well-known brands (beIN Sports,
+     National Geographic, …) lead the hero and the Live now row. Falls back to
+     the provider's own order when none of the patterns match. */
+  var featuredPats=null;
+  function loadFeatured(){
+    if(featuredPats) return Promise.resolve(featuredPats);
+    return api({action:'featured'}).then(function(d){
+      featuredPats=(d.featured||[]).map(function(f){
+        return {pat:String(f.pattern||'').toLowerCase(),order:Number(f.order)||100};
+      }).filter(function(f){ return f.pat }).sort(function(a,b){ return a.order-b.order });
+      return featuredPats;
+    }).catch(function(){ featuredPats=[]; return featuredPats });
+  }
+  function prioritise(items,pats){
+    if(!pats||!pats.length) return items;
+    var hit=[], rest=[];
+    items.forEach(function(c,i){
+      var n=String(c.name||'').toLowerCase(), rank=-1;
+      for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
+      (rank<0?rest:hit).push({c:c,rank:rank,i:i});
+    });
+    if(!hit.length) return items;
+    hit.sort(function(a,b){ return a.rank-b.rank || a.i-b.i });
+    return hit.concat(rest).map(function(o){ return o.c });
+  }
+
   function loadHomeLive(prov){
     return Promise.all([
       api({action:'live',source:prov.id}),
-      api({action:'categories',type:'live',source:prov.id}).catch(function(){ return {categories:[]} })
+      api({action:'categories',type:'live',source:prov.id}).catch(function(){ return {categories:[]} }),
+      loadFeatured()
     ]).then(function(res){
       var items=res[0].items||[], names={};
       (res[1].categories||[]).forEach(function(c){ names[c.id]=c.name });
       items.forEach(function(c){ c.category=names[c.categoryId]||'' });
+      items=prioritise(items,res[2]);
       setHero(items,prov.name);
       var list=items.slice(0,18);
       showRow('rowLive',!!list.length);
