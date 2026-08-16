@@ -1929,7 +1929,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
     timer=setTimeout(function(){
       if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
-    },15000);
+    },18000);
 
     function native(){
       var dead=s.hls; s.hls=null;
