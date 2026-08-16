@@ -458,6 +458,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lvsel select option{background:#111;color:#fff}
 .lvsel.accent select{border-color:rgba(255,69,0,.42);background:rgba(255,69,0,.12);color:#ffd9c9}
 .lvsel[hidden]{display:none}
+/* Source health badge shown next to the provider / playlist switcher. */
+.hbadge{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+.hbadge .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.hbadge.up{border-color:rgba(0,128,128,.5);background:rgba(0,128,128,.16);color:#8ff0ef}
+.hbadge.up .dot{background:#19d3c5;box-shadow:0 0 0 0 rgba(25,211,197,.6);animation:hpulse 2.2s infinite}
+.hbadge.down{border-color:rgba(255,69,0,.5);background:rgba(255,69,0,.14);color:#ffb59c}
+.hbadge.down .dot{background:var(--ember)}
+.hbadge.wait .dot{animation:hblink 1s infinite}
+@keyframes hpulse{0%{box-shadow:0 0 0 0 rgba(25,211,197,.55)}70%{box-shadow:0 0 0 7px rgba(25,211,197,0)}100%{box-shadow:0 0 0 0 rgba(25,211,197,0)}}
+@keyframes hblink{0%,100%{opacity:.3}50%{opacity:1}}
+@media (min-width:1600px){.hbadge{height:40px;font-size:13px}}
+
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0}
 .chips::-webkit-scrollbar{display:none}
 .chips .pill,.repbox .pill{flex:0 0 auto;min-height:34px;padding:0 13px;border-radius:9px;border:1px solid var(--hair);
