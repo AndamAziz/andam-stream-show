@@ -1265,9 +1265,49 @@ html.hppreview .nav{position:static}
       var all=allProg(), key=type+':'+id, prev=all[key]||{};
       all[key]=Object.assign({tmdbId:id,type:type,season:1,episode:1,position:0,duration:0},prev,extra||{},{updated:Date.now()});
       localStorage.setItem(PKEY,JSON.stringify(all));
+      pushProgress(all[key]);
     }catch(_){}
     try{ renderContinue() }catch(_){}
   }
+  /* ---- cross-device sync: the host page bridges the session token in ---- */
+  var WP_API='/api/public/watch-progress', authToken=null, pushTimer=null;
+  window.__andamSetToken=function(t){
+    var had=!!authToken; authToken=t||null;
+    if(authToken&&!had) pullProgress();
+    if(!authToken) return;
+  };
+  function wpFetch(opts){
+    if(!authToken) return Promise.reject(new Error('no session'));
+    opts=opts||{};
+    opts.headers=Object.assign({accept:'application/json'},opts.headers||{},
+      {Authorization:'Bearer '+authToken});
+    return fetch(WP_API,opts).then(function(r){ return r.json() });
+  }
+  function pullProgress(){
+    wpFetch({}).then(function(d){
+      var items=(d&&d.items)||[]; if(!items.length){ renderContinue(); return }
+      var all=allProg(), changed=false;
+      items.forEach(function(it){
+        var key=it.type+':'+it.tmdbId, prev=all[key];
+        if(!prev||(prev.updated||0)<it.updated){ all[key]=it; changed=true }
+      });
+      if(changed) try{ localStorage.setItem(PKEY,JSON.stringify(all)) }catch(_){}
+      renderContinue();
+    }).catch(function(){});
+  }
+  function pushProgress(entry){
+    if(!authToken||!entry) return;
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(function(){
+      wpFetch({method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(entry)})
+        .catch(function(){});
+    },1200);
+  }
+  function wpRemove(type,id){ if(authToken) wpFetch({method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({remove:true,type:type,tmdbId:id})}).catch(function(){}); }
+  function wpClear(){ if(authToken) wpFetch({method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({clear:true})}).catch(function(){}); }
+
   function fmtTime(sec){
     sec=Math.max(0,Math.round(sec||0));
     var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
@@ -1396,14 +1436,15 @@ html.hppreview .nav{position:static}
     sec.querySelector('#cwClear').addEventListener('click',function(e){
       e.preventDefault();
       try{ localStorage.removeItem(PKEY) }catch(_){}
-      renderContinue();
+      wpClear(); renderContinue();
     });
     strip.addEventListener('click',function(e){
       var rm=e.target.closest('[data-rm]');
       if(rm){
         e.stopPropagation();
+        var pair=rm.getAttribute('data-rm').split(':');
         try{ var all=allProg(); delete all[rm.getAttribute('data-rm')]; localStorage.setItem(PKEY,JSON.stringify(all)) }catch(_){}
-        renderContinue(); return;
+        wpRemove(pair[0],pair[1]); renderContinue(); return;
       }
       var c=e.target.closest('.card'); if(!c) return;
       resume(c.getAttribute('data-id'),c.getAttribute('data-type'),c.getAttribute('data-title'),
@@ -2087,7 +2128,9 @@ html.hppreview .nav{position:static}
     if(mAcct){ mAcct.textContent=signedIn?'Account':'Sign in'; mAcct.setAttribute('href',signedIn?'/account':'/auth') }
   }
   window.addEventListener('message',function(e){
-    var d=e.data; if(d&&d.type==='andam:session') apply(d);
+    var d=e.data; if(!d||d.type!=='andam:session') return;
+    apply(d);
+    if(window.__andamSetToken) window.__andamSetToken(d.token||null);
   });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'andam:ready'},'*') }catch(_){}
   window.__andamApplySession=apply;
