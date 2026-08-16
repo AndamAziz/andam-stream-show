@@ -1118,13 +1118,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       })
       .catch(function(){ ACC.ready=true; return ACC });
   }
-  /* a small padlock on locked nav items, so the gate is never a surprise */
+  /* a small padlock on locked nav items, so the gate is never a surprise.
+     Drawn with CSS so the link text itself stays exactly "Live TV" etc. */
   function paintLocks(){
     [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(a){
-      var label=a.textContent.replace(/\s*🔒$/,'').trim();
+      var label=a.textContent.trim();
       var sec=label==='Live TV'?'live':label==='Movies'?'movies':label==='Shows'?'series':null;
       if(!sec) return;
-      a.textContent=label+(allowed(sec)?'':' 🔒');
+      a.classList.toggle('lockedlink',!allowed(sec));
     });
   }
   window.__andamRefreshAccess=refreshAccess;
