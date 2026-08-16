@@ -34,6 +34,51 @@ function bearer(request: Request): string {
   return (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
 }
 
+/**
+ * Entitlements granted by an activation code only stay alive while that code is
+ * still valid. Once the code expires, is revoked or is deleted, the grant stops
+ * counting and the viewer falls back to IPTV-only until a new code is redeemed.
+ * Manual admin grants (no code_id) are never time-limited.
+ */
+async function liveGrants(
+  userId: string,
+): Promise<Array<{ section: Section; source_id: string | null }>> {
+  const { data: rows } = await supabaseAdmin
+    .from('user_entitlements')
+    .select('section, source_id, code_id')
+    .eq('user_id', userId);
+
+  const list = (rows ?? []).filter((r) => SECTIONS.includes(r.section as Section));
+  const codeIds = [...new Set(list.map((r) => r.code_id).filter((id): id is string => !!id))];
+  if (!codeIds.length) {
+    return list.map((r) => ({ section: r.section as Section, source_id: r.source_id }));
+  }
+
+  const { data: codes } = await supabaseAdmin
+    .from('activation_codes')
+    .select('id, expires_at, revoked')
+    .in('id', codeIds);
+
+  const valid = new Set(
+    (codes ?? [])
+      .filter(
+        (c) =>
+          !c.revoked && !(c.expires_at && new Date(c.expires_at).getTime() < Date.now()),
+      )
+      .map((c) => c.id),
+  );
+
+  return list
+    .filter((r) => !r.code_id || valid.has(r.code_id))
+    .map((r) => ({ section: r.section as Section, source_id: r.source_id }));
+}
+
+/** Sections a viewer may open right now, honouring code expiry/revocation. */
+export async function effectiveSections(userId: string): Promise<Section[]> {
+  const rows = await liveGrants(userId);
+  return [...new Set(rows.map((r) => r.section))];
+}
+
 /** Resolves what the caller of a public API route is entitled to see. */
 export async function resolveAccess(request: Request): Promise<Access> {
   const token = bearer(request);
@@ -43,24 +88,24 @@ export async function resolveAccess(request: Request): Promise<Access> {
   const userId = userData?.user?.id ?? null;
   if (!userId) return { ...LOCKED };
 
-  const [{ data: roles }, { data: rows }] = await Promise.all([
-    supabaseAdmin.from('user_roles').select('role').eq('user_id', userId),
-    supabaseAdmin.from('user_entitlements').select('section, source_id').eq('user_id', userId),
-  ]);
+  const { data: roles } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId);
 
   const admin = (roles ?? []).some((r) => r.role === 'admin');
   if (admin) {
     return { signedIn: true, userId, admin: true, sections: [...SECTIONS], liveSources: 'all' };
   }
 
+  const rows = await liveGrants(userId);
+
   const sections = new Set<Section>();
   let allSources = false;
   const liveSources = new Set<string>();
-  for (const row of rows ?? []) {
-    const section = row.section as Section;
-    if (!SECTIONS.includes(section)) continue;
-    sections.add(section);
-    if (section !== 'live') continue;
+  for (const row of rows) {
+    sections.add(row.section);
+    if (row.section !== 'live') continue;
     if (row.source_id) liveSources.add(String(row.source_id));
     else allSources = true;
   }
@@ -73,6 +118,7 @@ export async function resolveAccess(request: Request): Promise<Access> {
     liveSources: allSources ? 'all' : [...liveSources],
   };
 }
+
 
 export function canOpen(access: Access, section: Section): boolean {
   return access.admin || access.sections.includes(section);
@@ -135,6 +181,8 @@ export async function redeemCode(
   );
   if (!sections.length) return { ok: false, message: 'That code unlocks nothing.' };
 
+  // Re-point existing rows at the new code so a previously expired grant becomes
+  // live again instead of staying attached to the dead code.
   await supabaseAdmin.from('user_entitlements').upsert(
     sections.map((section) => ({
       user_id: userId,
@@ -143,7 +191,7 @@ export async function redeemCode(
       source_id: section === 'live' ? row.source_id : null,
       code_id: row.id,
     })),
-    { onConflict: 'user_id,section,source_id', ignoreDuplicates: true },
+    { onConflict: 'user_id,section,source_id' },
   );
 
   // Provider grant so private Live TV sources become visible too.
