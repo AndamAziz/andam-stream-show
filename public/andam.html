@@ -130,6 +130,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .card:hover{transform:none}
 }
 /* CATALOG */
+.hide{display:none !important}
 .catalog{display:none;padding:88px var(--pad) 70px}
 .catalog.open{display:block}
 .cathead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
@@ -506,6 +507,84 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     var c=e.target.closest('.card'); if(!c) return;
     var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
     open(null,t,s);
+  });
+
+  /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
+  var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
+      rowsEl=document.getElementById('rows'), catGrid=document.getElementById('catGrid'),
+      catTitle=document.getElementById('catTitle'), catCount=document.getElementById('catCount'),
+      catMsg=document.getElementById('catMsg'), catMore=document.getElementById('catMore'),
+      catSearch=document.getElementById('catSearch'), catForm=document.getElementById('catForm');
+
+  var cat={kind:'movies',page:1,totalPages:1,q:'',items:[],busy:false,req:0};
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] }); }
+
+  function posterCard(it){
+    return '<button class="pcard" data-id="'+esc(it.tmdbId)+'" data-type="'+esc(it.type)+'" data-title="'+esc(it.title)+'">'+
+      '<img loading="lazy" src="'+esc(it.poster)+'" alt="'+esc(it.title)+' poster" />'+
+      '<span class="pi"><span class="pt">'+esc(it.title)+'</span>'+
+      '<span class="pm"><span>'+esc(it.year||'—')+'</span>'+
+      (it.rating?'<b>★ '+esc(it.rating)+'</b>':'')+'</span></span></button>';
+  }
+
+  function skeletons(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel"></div>'; return h; }
+
+  function setCatMsg(m){ catMsg.textContent=m||''; catMsg.classList.toggle('hide',!m); }
+
+  function fetchCatalog(reset){
+    if(cat.busy) return;
+    cat.busy=true; catMore.classList.add('hide'); setCatMsg('');
+    if(reset){ cat.page=1; cat.items=[]; catGrid.innerHTML=skeletons(12); catCount.textContent=''; }
+    var my=++cat.req;
+    var qs='kind='+cat.kind+'&page='+cat.page+(cat.q?'&q='+encodeURIComponent(cat.q):'');
+    fetch('/api/public/tmdb-discover?'+qs,{headers:{accept:'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(d){
+        if(my!==cat.req) return;
+        cat.totalPages=Number(d.totalPages||1);
+        var items=Array.isArray(d.items)?d.items:[];
+        cat.items=cat.items.concat(items);
+        if(reset) catGrid.innerHTML='';
+        catGrid.insertAdjacentHTML('beforeend',items.map(posterCard).join(''));
+        catCount.textContent=cat.items.length+' titles'+(cat.q?' · "'+cat.q+'"':'');
+        if(!cat.items.length) setCatMsg(cat.q?'No titles found for "'+cat.q+'".':'Nothing to show right now.');
+        catMore.classList.toggle('hide', cat.page>=cat.totalPages || !items.length);
+      })
+      .catch(function(){
+        if(my!==cat.req) return;
+        if(reset) catGrid.innerHTML='';
+        setCatMsg('Could not load the catalog. Try again in a moment.');
+      })
+      .then(function(){ cat.busy=false });
+  }
+
+  function showView(view,kind){
+    var isCat=view==='catalog';
+    hero.classList.toggle('hide',isCat); rowsEl.classList.toggle('hide',isCat);
+    catalog.classList.toggle('open',isCat);
+    window.scrollTo(0,0);
+    if(isCat && (kind!==cat.kind || !cat.items.length)){
+      cat.kind=kind; cat.q=''; catSearch.value='';
+      catTitle.textContent=kind==='movies'?'Movies':'Shows';
+      fetchCatalog(true);
+    }
+  }
+
+  catMore.addEventListener('click',function(){ if(cat.page<cat.totalPages){ cat.page++; fetchCatalog(false); } });
+  catForm.addEventListener('submit',function(e){ e.preventDefault(); cat.q=catSearch.value.trim(); fetchCatalog(true); });
+
+  [].forEach.call(document.querySelectorAll('.links a'),function(a){
+    a.addEventListener('click',function(e){
+      var label=a.textContent.trim();
+      if(label!=='Movies'&&label!=='Shows'&&label!=='Home') return;
+      e.preventDefault();
+      [].forEach.call(document.querySelectorAll('.links a'),function(x){x.classList.remove('active')});
+      a.classList.add('active');
+      if(label==='Home') showView('home');
+      else showView('catalog', label==='Movies'?'movies':'series');
+    });
   });
 })();
 </script>
