@@ -81,7 +81,19 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
   const type: SourceType = input.type === 'm3u' ? 'm3u' : 'xtream';
   if (!input.name.trim()) throw new Error('Name is required');
 
-  const patch: Record<string, unknown> = {
+  type Patch = {
+    name: string;
+    type: SourceType;
+    is_active: boolean;
+    is_public: boolean;
+    sort_order: number;
+    base_url?: string | null;
+    username?: string | null;
+    password?: string | null;
+    playlist_url?: string | null;
+    slug?: string;
+  };
+  const patch: Patch = {
     name: input.name.trim(),
     type,
     is_active: input.is_active,
@@ -121,7 +133,7 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
   patch['slug'] = slugify(input.slug?.trim() || input.name);
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .insert(patch as never)
+    .insert(patch)
     .select('id')
     .single();
   if (error) throw new Error(error.message);
