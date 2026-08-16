@@ -327,32 +327,69 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   var hls=null,channels=[],loaded=false,current=null;
 
   function relay(u){ return RELAY+encodeURIComponent(u); }
+  function isRelay(u){ return u.indexOf(RELAY)===0; }
+  function upstream(u){ return isRelay(u)?decodeURIComponent(u.slice(RELAY.length)):u; }
   function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); }
 
   function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
 
-  function play(url,title,sub,viaRelay){
+  // Playlists come back from the relay with relative segment paths, which would
+  // otherwise resolve against the proxy origin. Rewrite every URI to an absolute
+  // relayed URL before handing the manifest to hls.js.
+  function rewriteManifest(text,relayedUrl){
+    var base=upstream(relayedUrl);
+    var abs=function(u){ try{ return new URL(u,base).href }catch(e){ return u } };
+    return text.split(/\r?\n/).map(function(line){
+      var l=line.trim();
+      if(!l) return line;
+      if(l[0]==='#'){
+        return line.replace(/URI="([^"]+)"/g,function(m,u){ return 'URI="'+relay(abs(u))+'"' });
+      }
+      return relay(abs(l));
+    }).join('\n');
+  }
+
+  function makeLoader(Hls){
+    var Base=Hls.DefaultConfig.loader;
+    function Loader(config){ Base.call(this,config); var load=this.load.bind(this);
+      this.load=function(context,cfg,callbacks){
+        var isPlaylist=context.type==='manifest'||context.type==='level';
+        if(!isPlaylist) return load(context,cfg,callbacks);
+        var onSuccess=callbacks.onSuccess;
+        var wrapped=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
+          if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
+          onSuccess(response,stats,ctx,net);
+        }});
+        return load(context,cfg,wrapped);
+      };
+    }
+    Loader.prototype=Object.create(Base.prototype);
+    Loader.prototype.constructor=Loader;
+    return Loader;
+  }
+
+  function play(url,title,sub){
     destroy();
     setStatus('Loading stream…');
     pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
-    var src=viaRelay?relay(url):url;
+    var src=relay(url); // always through the Andam relay: upstream origins send no CORS headers
     if(window.Hls&&window.Hls.isSupported()){
-      hls=new window.Hls({lowLatencyMode:true,xhrSetup:function(xhr,u){
-        if(u.indexOf(RELAY)===0) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN);
-      }});
+      hls=new window.Hls({
+        lowLatencyMode:true,
+        loader:makeLoader(window.Hls),
+        xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
+      });
       hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ setStatus(''); video.play().catch(function(){}); });
       hls.on(window.Hls.Events.ERROR,function(e,d){
         if(!d.fatal) return;
-        if(!viaRelay){ play(url,title,sub,true); return; }   // retry through the Andam relay
         setStatus('This stream is unavailable right now. Pick another channel.');
       });
       hls.loadSource(src); hls.attachMedia(video);
     }else{
-      video.src=src;
+      video.src=src; // Safari plays HLS natively
       video.addEventListener('loadedmetadata',function(){setStatus('')},{once:true});
       video.addEventListener('error',function(){
-        if(!viaRelay) play(url,title,sub,true);
-        else setStatus('This stream is unavailable right now. Pick another channel.');
+        setStatus('This stream is unavailable right now. Pick another channel.');
       },{once:true});
     }
     current=url; renderChans(pSearch.value);
