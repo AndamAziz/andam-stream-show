@@ -457,18 +457,33 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lverr{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;
   background:rgba(8,9,12,.9);border:1px solid rgba(255,69,0,.4);border-radius:10px;color:#fff;
   font:500 12.5px/1.35 Inter,sans-serif;padding:10px 14px;cursor:pointer;text-align:center}
-.lvbar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface);
+/* slim now-playing bar: logo + name + category tag + LIVE badge + small icon actions */
+.lvbar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface);
   border-top:1px solid var(--hair)}
-.lvbar .ld{width:7px;height:7px;border-radius:50%;background:var(--ember);flex:none;animation:pulse 1.4s ease-in-out infinite}
-.lvbar .nm{font:600 13.5px/1.2 Inter,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lvbar .sb{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint);margin-left:auto;flex:none}
+.lvbar .lgo{width:26px;height:26px;flex:none;border-radius:7px;object-fit:contain;padding:2px;
+  background:rgba(255,255,255,.06)}
+.lvbar .lgo:not([src]){display:none}
+.lvbar .nm{font:600 12.5px/1.2 Inter,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvbar .tg{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--hair);border-radius:5px;padding:3px 6px;flex:none;
+  max-width:26%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvbar .tg:empty{display:none}
+.lvbar .live{display:inline-flex;align-items:center;gap:5px;flex:none;margin-left:auto;
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--ember);
+  border:1px solid rgba(255,69,0,.4);background:rgba(255,69,0,.12);border-radius:999px;padding:3px 8px}
+.lvbar .live .ld{width:5px;height:5px;border-radius:50%;background:var(--ember);animation:pulse 1.4s ease-in-out infinite}
+.lvbar .ib{width:28px;height:28px;flex:none;border-radius:8px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:var(--muted);font-size:12px;display:grid;place-items:center;cursor:pointer}
+.lvbar .ib:hover{color:#fff;background:rgba(255,255,255,.1)}
+.lvbar .sb{display:none}
 
 /* channel browsing column */
 .lvbrowse{display:flex;flex-direction:column;gap:10px;min-width:0}
 .lvsearch{display:flex;gap:8px}
-.lvsearch input{flex:1;min-width:0;min-height:48px;padding:12px 14px;border-radius:12px;
-  border:1px solid var(--hair);background:rgba(255,255,255,.04);color:#fff;font:400 14px Inter,sans-serif}
+.lvsearch input{flex:1;min-width:0;min-height:38px;padding:9px 12px;border-radius:10px;
+  border:1px solid var(--hair);background:rgba(255,255,255,.04);color:#fff;font:400 13px Inter,sans-serif}
 .lvsearch input:focus{outline:none;border-color:var(--ember)}
+
 .lvlist{display:flex;flex-direction:column;gap:10px}
 .chanrow{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:8px 14px;
   border:1px solid var(--hair);border-left:3px solid transparent;border-radius:14px;
