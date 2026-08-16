@@ -2252,8 +2252,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var items=res[0].items||[], names={};
       (res[1].categories||[]).forEach(function(c){ names[c.id]=c.name });
       items.forEach(function(c){ c.category=names[c.categoryId]||'' });
-      items=prioritise(items,res[2]);
-      setHero(items,prov.name);
+      /* Hero only: well-known brands lead. The Live now row keeps the
+         provider's own (Kurdish) channel order untouched. */
+      setHero(prioritise(items,res[2]),prov.name);
       var list=items.slice(0,18);
       showRow('rowLive',!!list.length);
       stripOf('rowLive').innerHTML=list.map(function(c,i){
