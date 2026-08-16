@@ -1972,16 +1972,35 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   window.lvStopKind=function(kind){ if(SURF[kind]||document.getElementById(kind==='iptv'?'ipPlayer':'ltvPlayer')) lvStop(kind) };
 
   /* On phones/tablets the player shrinks into a corner mini-player once the
-     user scrolls into the channel list, so "what's playing" is never lost. */
+     user scrolls into the channel list, so "what's playing" is never lost.
+     Two guards against flicker: hysteresis (enter at 320px, leave at 200px) so
+     the class can't oscillate frame-to-frame, and a spacer that keeps the grid
+     height when the player goes position:fixed, so nothing reflows. */
   (function miniPlayer(){
-    var raf=null;
+    var raf=null, mini={live:false,iptv:false};
+    function spacer(s){
+      if(!s.spacer){
+        s.spacer=document.createElement('div');
+        s.spacer.style.display='none';
+        if(s.player.parentNode) s.player.parentNode.insertBefore(s.spacer,s.player);
+      }
+      return s.spacer;
+    }
+    function apply(k,on){
+      var s=SURF[k]; if(mini[k]===on) return;
+      var sp=spacer(s);
+      if(on) sp.style.height=s.player.getBoundingClientRect().height+'px';
+      sp.style.display=on?'block':'none';
+      s.player.classList.toggle('mini',on);
+      mini[k]=on;
+    }
     function tick(){
       raf=null;
+      var narrow=window.innerWidth<1100, y=window.scrollY;
       ['live','iptv'].forEach(function(k){
         var s=SURF[k]; if(!s||!s.player) return;
-        var on=!!s.last && s.player.getBoundingClientRect().top<=(window.innerWidth<1100?154:128)+2
-               && window.scrollY>260;
-        s.player.classList.toggle('mini',on);
+        if(!narrow||!s.last){ apply(k,false); return }
+        apply(k, mini[k] ? y>200 : y>320);
       });
     }
     window.addEventListener('scroll',function(){ if(!raf) raf=requestAnimationFrame(tick) },{passive:true});
