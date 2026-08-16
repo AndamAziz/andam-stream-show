@@ -222,14 +222,42 @@ function CodesPage() {
                       expires {c.expiresAt.slice(0, 10)}
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto min-h-11"
-                    onClick={() => revoke.mutate(c.id)}
-                  >
-                    {c.uses === 0 ? 'Delete' : 'Revoke'}
-                  </Button>
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {/* Expired / revoked / exhausted codes can be revived in place so
+                        the string already handed to a viewer keeps working. */}
+                    {c.status !== 'active' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="min-h-11"
+                        onClick={() => setRenewing({ id: c.id, code: c.code, date: '' })}
+                      >
+                        Renew
+                      </Button>
+                    )}
+                    {/* Redeemed codes keep their history: revoke, never delete. */}
+                    {c.uses > 0 ? (
+                      c.status !== 'revoked' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="min-h-11"
+                          onClick={() => revoke.mutate(c.id)}
+                        >
+                          Revoke
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="min-h-11 text-destructive"
+                        onClick={() => remove.mutate(c.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {c.note && <p className="mt-2 text-xs text-muted-foreground">{c.note}</p>}
                 {c.redeemedBy.length > 0 && (
