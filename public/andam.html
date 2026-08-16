@@ -79,12 +79,12 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .watchers .mono{font-size:11.5px;color:var(--muted)}
 .desc{color:#C7C8D1;font-size:13.5px;line-height:1.55;max-width:520px;margin:0 0 20px}
 .cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.btn{border-radius:10px;padding:11px 18px;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
+.btn{border-radius:999px;padding:8px 15px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px}
 .btn.primary{background:#fff;color:#0A0B0F}
 .btn.primary:hover{background:#e9e9ee}
 .btn.glass{background:rgba(255,255,255,.1);border:1px solid var(--hair);backdrop-filter:blur(6px)}
 .btn.glass:hover{background:rgba(255,255,255,.16)}
-.btn.round{width:42px;height:42px;padding:0;border-radius:50%;justify-content:center;border:1px solid var(--hair);background:rgba(255,255,255,.08);font-size:19px}
+.btn.round{width:36px;height:36px;padding:0;border-radius:50%;justify-content:center;border:1px solid var(--hair);background:rgba(255,255,255,.08);font-size:19px}
 .dots{position:absolute;right:var(--pad);bottom:104px;display:flex;gap:7px}
 .dots button{width:22px;height:3px;border-radius:999px;background:rgba(255,255,255,.28)}
 .dots button.active{background:var(--ember)}
@@ -96,17 +96,17 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .rowhead h2{font-weight:600;font-size:18px;letter-spacing:-.2px}
 .rowhead a{font-size:12px;color:var(--muted)}
 .rowhead a:hover{color:var(--ember)}
-.strip{display:flex;gap:14px;overflow-x:auto;padding:6px var(--pad) 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.strip{display:flex;gap:11px;overflow-x:auto;padding:6px var(--pad) 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .strip::-webkit-scrollbar{display:none}
 
-.card{position:relative;flex:0 0 auto;width:250px;height:141px;border-radius:12px;border:1px solid var(--hair);
+.card{position:relative;flex:0 0 auto;width:196px;height:110px;border-radius:12px;border:1px solid var(--hair);
   overflow:hidden;background:var(--surface);transition:transform .25s ease,box-shadow .25s ease}
 .card .ph{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .25s ease}
 .card .grad{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.86),rgba(0,0,0,.05) 62%)}
-.card .txt{position:absolute;left:12px;right:12px;bottom:11px;text-align:left}
-.card .t{font-family:'Space Grotesk';font-weight:600;font-size:13.5px}
-.card .s{font-size:11px;color:#D7D8E0;margin-top:3px}
-.card:hover,.card:focus-visible{transform:scale(1.07) translateY(-4px);z-index:5;box-shadow:0 22px 48px rgba(0,0,0,.65)}
+.card .txt{position:absolute;left:10px;right:10px;bottom:9px;text-align:left}
+.card .t{font-family:'Space Grotesk';font-weight:600;font-size:12.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .s{font-size:10.5px;color:#D7D8E0;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card:hover,.card:focus-visible{transform:scale(1.045) translateY(-3px);z-index:5;box-shadow:0 22px 48px rgba(0,0,0,.65)}
 .card:hover .ph{transform:scale(1.06)}
 .tag{position:absolute;top:9px;left:9px;font-family:'IBM Plex Mono';font-size:9.5px;letter-spacing:.1em;
   padding:4px 7px;border-radius:6px;display:inline-flex;align-items:center;gap:5px}
@@ -125,13 +125,13 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   background:rgba(255,59,78,.9);color:#0B0B0D;display:grid;place-items:center;font-size:14px;
   opacity:0;transition:opacity .2s ease}
 .card:hover .cwplay{opacity:1}
-.card.chan .ph{object-fit:contain;padding:22px;background:radial-gradient(circle at 50% 40%,#22232B,#101014)}
+.card.chan .ph{object-fit:contain;padding:16px;background:radial-gradient(circle at 50% 40%,#22232B,#101014)}
 .card .ph.noimg{display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;
   font-size:26px;color:#0B0B10;letter-spacing:.5px}
 .hero img.bg.logo{object-fit:contain;padding:16vh 30vw;background:radial-gradient(circle at 32% 45%,#20212A,#08090C);opacity:.5;filter:blur(1px) saturate(1.05)}
 #heroBg:not([src]){background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C)}
 
-.tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
+.tile{flex:0 0 auto;width:92px;height:92px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;transition:transform .25s ease,background .25s ease}
 .tile:hover{transform:translateY(-4px);background:var(--surface-2)}
 .tile .m{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;font-size:13px;color:#0b0b10}
@@ -271,7 +271,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 @media (max-width:1024px){
   :root{--pad:26px}
   .hero{height:72vh;min-height:480px}
-  .card{width:220px;height:124px}
+  .card{width:176px;height:99px}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 }
 @media (min-width:641px) and (max-width:1024px){
@@ -307,16 +307,16 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .hero h1{font-size:clamp(26px,8.4vw,34px);margin:12px 0 10px}
   .desc{font-size:13px;max-width:none}
   .cta{gap:8px}
-  .cta .btn.primary,.cta .btn.glass{flex:1 1 100%;justify-content:center;min-height:48px}
-  .cta .btn.round{width:48px;height:48px}
+  .cta .btn.primary,.cta .btn.glass{flex:0 0 auto;justify-content:center;min-height:40px;padding:0 16px}
+  .cta .btn.round{width:40px;height:40px}
   .rows{margin-top:8px}
   /* scroll-snap carousels */
   .strip{scroll-snap-type:x mandatory;gap:10px;padding:4px var(--pad) 14px}
   .strip>*{scroll-snap-align:start}
-  .card{width:72vw;height:41vw;min-height:132px}
+  .card{width:47vw;height:26.4vw;min-height:98px}
   .card:hover{transform:none;box-shadow:none}
   .cwrm,.cwplay{opacity:1}
-  .tile{width:96px;height:96px}
+  .tile{width:82px;height:82px}
   .rowhead h2{font-size:16px}
   .iconbtn,.avatar{width:44px;height:44px;font-size:15px}
   .catalog{padding:76px var(--pad) 60px}
@@ -326,7 +326,10 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .drawer{width:100%}
   .overlay{padding:0}
   .modal{max-height:100vh;border-radius:0}
-  .btn,.dwatch,.menu a{min-height:44px}
+  .dwatch,.menu a{min-height:44px}
+  .btn{min-height:40px}
+  .card .t{font-size:12px}
+  .card .s{font-size:10px}
 }
 
 /* ===== LAPTOP / DESKTOP ===== */
