@@ -349,50 +349,53 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     }).join('\n');
   }
 
-  function makeLoader(Hls){
-    var Base=Hls.DefaultConfig.loader;
-    function Loader(config){ Base.call(this,config); var load=this.load.bind(this);
-      this.load=function(context,cfg,callbacks){
-        var isPlaylist=context.type==='manifest'||context.type==='level';
-        if(!isPlaylist) return load(context,cfg,callbacks);
-        var onSuccess=callbacks.onSuccess;
-        var wrapped=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
-          if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
-          onSuccess(response,stats,ctx,net);
-        }});
-        return load(context,cfg,wrapped);
+  var PlaylistLoader=null;
+  function playlistLoader(Hls){
+    if(!PlaylistLoader){
+      PlaylistLoader=class extends Hls.DefaultConfig.loader {
+        load(context,config,callbacks){
+          var onSuccess=callbacks.onSuccess;
+          var patched=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
+            if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
+            onSuccess(response,stats,ctx,net);
+          }});
+          super.load(context,config,patched);
+        }
       };
     }
-    Loader.prototype=Object.create(Base.prototype);
-    Loader.prototype.constructor=Loader;
-    return Loader;
+    return PlaylistLoader;
   }
 
-  function play(url,title,sub){
+  function play(url,title,sub,attempt){
     destroy();
     setStatus('Loading stream…');
     pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
-    var src=relay(url); // always through the Andam relay: upstream origins send no CORS headers
+    current=url; renderChans(pSearch.value);
+    var src=relay(url); // always via the Andam relay: upstream origins send no CORS headers
+    attempt=attempt||0;
+
+    function fallback(){
+      // some upstream channels go offline — roll onto the next one in the list
+      var i=channels.map(function(c){return c.url}).indexOf(url);
+      var next=channels[i+1];
+      if(attempt<4&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
+      else setStatus('This stream is unavailable right now. Pick another channel.');
+    }
+
     if(window.Hls&&window.Hls.isSupported()){
       hls=new window.Hls({
         lowLatencyMode:true,
-        loader:makeLoader(window.Hls),
+        pLoader:playlistLoader(window.Hls),
         xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
       });
       hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ setStatus(''); video.play().catch(function(){}); });
-      hls.on(window.Hls.Events.ERROR,function(e,d){
-        if(!d.fatal) return;
-        setStatus('This stream is unavailable right now. Pick another channel.');
-      });
+      hls.on(window.Hls.Events.ERROR,function(e,d){ if(d.fatal) fallback(); });
       hls.loadSource(src); hls.attachMedia(video);
     }else{
       video.src=src; // Safari plays HLS natively
       video.addEventListener('loadedmetadata',function(){setStatus('')},{once:true});
-      video.addEventListener('error',function(){
-        setStatus('This stream is unavailable right now. Pick another channel.');
-      },{once:true});
+      video.addEventListener('error',fallback,{once:true});
     }
-    current=url; renderChans(pSearch.value);
   }
 
   function open(url,title,sub){
