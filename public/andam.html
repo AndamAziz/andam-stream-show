@@ -350,10 +350,20 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 /* remote / keyboard focus visibility */
 .card:focus-visible,.tile:focus-visible,.pcard:focus-visible,.btn:focus-visible,
 .links a:focus-visible,.iconbtn:focus-visible{outline:3px solid var(--ember);outline-offset:3px}
+/* TV mode: high-contrast ring + scale-up, never hover-dependent */
+html.tvmode :focus-visible{outline:3px solid #fff;outline-offset:3px}
+html.tvmode .card:focus-visible,html.tvmode .tile:focus-visible,html.tvmode .pcard:focus-visible,
+html.tvmode .btn:focus-visible,html.tvmode .links a:focus-visible,html.tvmode .menu a:focus-visible,
+html.tvmode .rowhead a:focus-visible,html.tvmode .iconbtn:focus-visible{
+  outline:4px solid var(--ember);outline-offset:4px;
+  box-shadow:0 0 0 2px rgba(255,255,255,.9),0 24px 60px rgba(0,0,0,.7);
+  transform:scale(1.05);transition:transform .16s ease,box-shadow .16s ease}
+html.tvmode .card:focus-visible .cwrm{opacity:1}
 @media (min-width:1536px){
   .card:focus-visible,.tile:focus-visible,.pcard:focus-visible{outline-width:4px;
     transform:scale(1.06);box-shadow:0 24px 60px rgba(0,0,0,.7)}
 }
+
 
 @media (prefers-reduced-motion:reduce){
   .hero img.bg{animation:none}
