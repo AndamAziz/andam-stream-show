@@ -1980,18 +1980,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   function renderIpSources(){
-    ipBar.innerHTML=ip.sources.map(function(s){
-      return '<button class="pill'+(ip.src===s.id?' on':'')+'" data-ipsrc="'+esc(s.id)+'" role="tab">'+esc(s.name)+'</button>';
+    ipSrcSel.innerHTML=ip.sources.map(function(s){
+      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+esc(s.name)+'</option>';
     }).join('');
   }
 
   function renderIpGroups(){
-    ipCats.innerHTML='<button class="pill'+(ip.group?'':' on')+'" data-ipgroup="" role="tab">All ('+ip.channels.length+')</button>'+
+    ipGroupSel.innerHTML='<option value=""'+(ip.group?'':' selected')+'>All groups ('+ip.channels.length+')</option>'+
       ip.groups.map(function(g){
-        return '<button class="pill'+(ip.group===g.name?' on':'')+'" data-ipgroup="'+esc(g.name)+'" role="tab">'+
-          esc(g.name)+' ('+g.count+')</button>';
+        return '<option value="'+esc(g.name)+'"'+(ip.group===g.name?' selected':'')+'>'+
+          esc(g.name)+' ('+g.count+')</option>';
       }).join('');
   }
+
 
   function renderIpChannels(){
     var q=ip.q.toLowerCase();
