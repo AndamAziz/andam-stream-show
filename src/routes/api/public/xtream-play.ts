@@ -44,14 +44,35 @@ async function fetchOnce(url: string, request: Request, viaRelay: boolean): Prom
   return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
 }
 
-async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
-  try {
-    const direct = await fetchOnce(upstream, request, false);
-    if (direct.ok || direct.status === 206) return direct;
-    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
-  } catch (err) {
-    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+/**
+ * Hosts that answered `country-not-allow` (456/459/403). Re-trying the direct
+ * fetch on every segment burns one of the provider's connection slots
+ * (`max_connections: 1` on this account) for nothing.
+ */
+const geoBlocked = new Set<string>();
+const GEO_STATUS = new Set([403, 451, 456, 459]);
+
+function isGeoBlocked(host: string): boolean {
+  return geoBlocked.has(host);
+}
+
+async function fetchUpstream(
+  upstream: string,
+  request: Request,
+): Promise<Response | { geoBlocked: true }> {
+  const host = new URL(upstream).host;
+  if (!isGeoBlocked(host)) {
+    try {
+      const direct = await fetchOnce(upstream, request, false);
+      if (direct.ok || direct.status === 206) return direct;
+      if (GEO_STATUS.has(direct.status)) geoBlocked.add(host);
+      console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
+    } catch (err) {
+      console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+    }
   }
+
+  if (isGeoBlocked(host)) return { geoBlocked: true };
 
   let res = await fetchOnce(upstream, request, true);
   // 403/411/5xx from the relay are usually transient — retry once.
@@ -60,6 +81,7 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
     res = await fetchOnce(upstream, request, true);
   }
   return res;
+
 }
 
 
