@@ -107,6 +107,14 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   background:rgba(8,9,12,.7);border:1px solid rgba(245,197,107,.3);padding:3px 7px;border-radius:6px}
 .bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.14)}
 .bar i{display:block;height:100%;background:var(--ember)}
+.cwrm{position:absolute;top:9px;right:9px;width:24px;height:24px;border-radius:7px;border:1px solid var(--hair);
+  background:rgba(8,9,12,.75);color:var(--text);font-size:11px;display:grid;place-items:center;cursor:pointer;
+  opacity:0;transition:opacity .2s ease}
+.card:hover .cwrm,.cwrm:focus-visible{opacity:1}
+.cwplay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:42px;height:42px;border-radius:50%;
+  background:rgba(255,59,78,.9);color:#0B0B0D;display:grid;place-items:center;font-size:14px;
+  opacity:0;transition:opacity .2s ease}
+.card:hover .cwplay{opacity:1}
 
 .tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;transition:transform .25s ease,background .25s ease}
@@ -790,6 +798,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       all[type+':'+id]=Object.assign({tmdbId:id,type:type,season:1,episode:1,updated:Date.now()},extra||{});
       localStorage.setItem(PKEY,JSON.stringify(all));
     }catch(_){}
+    try{ renderContinue() }catch(_){}
   }
 
   var vp=document.getElementById('vp'), vpFrame=document.getElementById('vpFrame'),
@@ -828,6 +837,64 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   document.getElementById('vpClose').addEventListener('click',closeVid);
   vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
+
+  /* ---------- CONTINUE WATCHING ROW ---------- */
+  function progList(){
+    var all=allProg(), out=[];
+    for(var k in all) if(all[k]&&all[k].tmdbId) out.push(all[k]);
+    return out.sort(function(a,b){ return (b.updated||0)-(a.updated||0) }).slice(0,20);
+  }
+
+  function renderContinue(){
+    var old=document.getElementById('cwRow'); if(old) old.remove();
+    var list=progList(); if(!list.length) return;
+    var sec=document.createElement('section');
+    sec.className='row'; sec.id='cwRow';
+    sec.innerHTML='<div class="rowhead"><h2>Continue watching</h2>'+
+      '<a href="#" id="cwClear">Clear all</a></div><div class="strip" id="cwStrip"></div>';
+    var strip=sec.querySelector('#cwStrip');
+    strip.innerHTML=list.map(function(p){
+      var sub=p.type==='tv'?('S'+(p.season||1)+' E'+(p.episode||1)):'Movie';
+      return '<button class="card" type="button" data-id="'+p.tmdbId+'" data-type="'+esc(p.type)+'" '+
+        'data-title="'+esc(p.title||'')+'" data-season="'+(p.season||1)+'" data-episode="'+(p.episode||1)+'" '+
+        'aria-label="Resume '+esc(p.title||'title')+'">'+
+        (p.poster?'<img class="ph" src="'+esc(p.poster)+'" alt="" loading="lazy" />':'')+
+        '<div class="grad"></div><span class="cwplay" aria-hidden="true">▶</span>'+
+        '<span class="cwrm" data-rm="'+esc(p.type)+':'+p.tmdbId+'" role="button" aria-label="Remove from continue watching">✕</span>'+
+        '<div class="txt"><div class="t">'+esc(p.title||'Untitled')+'</div><div class="s">'+esc(sub)+'</div></div>'+
+        '<div class="bar"><i style="width:'+(p.type==='tv'?35:20)+'%"></i></div></button>';
+    }).join('');
+    rowsEl.insertBefore(sec,rowsEl.firstChild);
+
+    sec.querySelector('#cwClear').addEventListener('click',function(e){
+      e.preventDefault();
+      try{ localStorage.removeItem(PKEY) }catch(_){}
+      renderContinue();
+    });
+    strip.addEventListener('click',function(e){
+      var rm=e.target.closest('[data-rm]');
+      if(rm){
+        e.stopPropagation();
+        try{ var all=allProg(); delete all[rm.getAttribute('data-rm')]; localStorage.setItem(PKEY,JSON.stringify(all)) }catch(_){}
+        renderContinue(); return;
+      }
+      var c=e.target.closest('.card'); if(!c) return;
+      resume(c.getAttribute('data-id'),c.getAttribute('data-type'),c.getAttribute('data-title'),
+        +c.getAttribute('data-season'),+c.getAttribute('data-episode'),
+        (c.querySelector('img')||{}).src);
+    });
+  }
+
+  function resume(id,type,title,season,episode,poster){
+    var base={tmdbId:id,type:type,title:title,poster:poster};
+    if(type!=='tv'){ openVid(base); return }
+    fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type=tv',
+      {headers:{accept:'application/json'}})
+      .then(function(r){ return r.json() })
+      .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode) })
+      .catch(function(){ openVid(base,season,episode) });
+  }
+  renderContinue();
 })();
 
 </script>
