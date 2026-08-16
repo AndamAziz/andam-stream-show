@@ -700,6 +700,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <span class="hbadge wait" id="provHealth" role="status" title="Checking provider status"><span class="dot"></span><span class="tx">Checking</span></span>
+
       <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
       <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
     </div>
@@ -748,6 +750,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
+      <span class="hbadge wait" id="ipHealth" role="status" title="Checking playlist status"><span class="dot"></span><span class="tx">Checking</span></span>
+
       <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
     </div>
   </div>
