@@ -64,9 +64,6 @@ function Index() {
       <iframe
       ref={frame}
       src="/andam.html"
-      onLoad={() => {
-        frame.current?.contentWindow?.postMessage({ type: "andam:ping" }, "*");
-      }}
       title="Andam streaming homepage"
       style={{
         position: "fixed",
