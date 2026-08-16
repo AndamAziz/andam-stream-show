@@ -65,7 +65,16 @@ export async function syncAccount(
         .from('login_activity')
         .upsert(row, { onConflict: 'user_id,session_id', ignoreDuplicates: true });
     } else {
-      await supabaseAdmin.from('login_activity').insert(row);
+      // No session claim (older tokens): fall back to a 10-minute quiet window
+      // so a re-entered sign-in screen cannot spam the log.
+      const since = new Date(Date.now() - 10 * 60_000).toISOString();
+      const { data: recent } = await supabaseAdmin
+        .from('login_activity')
+        .select('id')
+        .eq('user_id', userId)
+        .gte('created_at', since)
+        .limit(1);
+      if (!(recent ?? []).length) await supabaseAdmin.from('login_activity').insert(row);
     }
   }
 
