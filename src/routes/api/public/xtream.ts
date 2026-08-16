@@ -148,6 +148,12 @@ export const Route = createFileRoute('/api/public/xtream')({
             return json({ providers: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
+          if (action === 'featured') {
+            const { listFeatured } = await import('@/lib/featured.server');
+            const rows = await listFeatured();
+            return json({ featured: rows.map((r) => ({ pattern: r.pattern, order: r.sort_order })) });
+          }
+
           const source = await loadSource(url.searchParams.get('source') ?? '', granted);
           if (!source) return json({ error: 'No provider configured' }, 404);
 
