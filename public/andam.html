@@ -1051,6 +1051,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     setTimeout(function(){ var i=document.getElementById('catSearch'); if(i){ i.scrollIntoView({block:'center'}); i.focus() } },120);
   });
 
+  /* Admin / Account leave the embedded homepage: close the menu, then drive the
+     top-level navigation explicitly so the anchor works inside the iframe. */
+  function topGo(href){
+    try{ (window.top||window).location.href=href }catch(_){ window.location.href=href }
+  }
+  [].forEach.call(document.querySelectorAll('#mAdmin, #mAccount, #authAccount'),function(a){
+    a.addEventListener('click',function(e){
+      e.preventDefault();
+      setMenu(false);
+      topGo(a.getAttribute('href')||'/');
+    });
+  });
+
 
   /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
      TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
