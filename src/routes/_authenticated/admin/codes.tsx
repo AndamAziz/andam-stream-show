@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   createActivationCode,
+  deleteActivationCode,
+  renewActivationCode,
   getActivationCodes,
   getProviders,
   revokeActivationCode,
@@ -58,6 +60,7 @@ function CodesPage() {
   const [note, setNote] = useState('');
   const [fresh, setFresh] = useState('');
   const [error, setError] = useState('');
+  const [renewing, setRenewing] = useState<{ id: string; code: string; date: string } | null>(null);
 
   const providers = useQuery({ queryKey: ['admin', 'providers'], queryFn: () => getProviders() });
   const codes = useQuery({ queryKey: ['admin', 'codes'], queryFn: () => getActivationCodes() });
