@@ -304,6 +304,14 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .btn,.dwatch,.menu a{min-height:44px}
 }
 
+/* ===== LAPTOP / DESKTOP ===== */
+@media (min-width:1025px) and (max-width:1279px){
+  .grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
+@media (min-width:1280px) and (max-width:1535px){
+  .grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+}
+
 /* ===== LARGE SCREENS / SMART TV (>=1536px) ===== */
 @media (min-width:1536px){
   :root{--pad:5vw}
