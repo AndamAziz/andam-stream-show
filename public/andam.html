@@ -442,9 +442,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* The head holds the section tabs, so it MUST stay reachable: without
    position:sticky it scrolls under the fixed nav and every click on the
    Movies/Series pills lands on the nav instead (desktop lists are long). */
+/* No backdrop-filter here: blurring a sticky bar forces a full-width repaint
+   of everything behind it on every scroll frame (the visible flicker). An
+   opaque bar on its own compositor layer scrolls clean. */
 .lvhead{position:sticky;top:56px;z-index:30;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;
   margin:0 calc(-1 * clamp(14px,3.5vw,44px)) 14px;padding:9px clamp(14px,3.5vw,44px);
-  background:rgba(6,6,8,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--hair)}
+  background:#07070A;border-bottom:1px solid var(--hair);
+  transform:translateZ(0);backface-visibility:hidden;will-change:transform;contain:paint}
 .lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(17px,1.6vw,22px);margin:0;letter-spacing:-.3px}
 .lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw}
