@@ -679,7 +679,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   /* ---------- DETAILS DRAWER ---------- */
   var drawer=document.getElementById('drawer'), dScrim=document.getElementById('dScrim'),
       dBody=document.getElementById('dBody'), dBack=document.getElementById('dBack');
-  var dReq=0;
+  var dReq=0, dCur=null;
 
   function closeDrawer(){
     drawer.classList.remove('open'); dScrim.classList.remove('open');
@@ -776,7 +776,9 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   });
   document.getElementById('dClose').addEventListener('click',closeDrawer);
   dScrim.addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&drawer.classList.contains('open')) closeDrawer() });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&drawer.classList.contains('open')&&!document.getElementById('vp').classList.contains('open')) closeDrawer();
+  });
 
   /* ---------- VIDAPI PLAYER + WATCH PROGRESS ---------- */
   var PKEY='andam:watch-progress';
