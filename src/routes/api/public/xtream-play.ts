@@ -44,13 +44,29 @@ async function fetchOnce(url: string, request: Request, viaRelay: boolean): Prom
   return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
 }
 
+/**
+ * Hosts that answered `country-not-allow` (456/459/403). Re-trying the direct
+ * fetch on every segment burns one of the provider's connection slots
+ * (`max_connections: 1` on this account) for nothing.
+ */
+const geoBlocked = new Set<string>();
+const GEO_STATUS = new Set([403, 451, 456, 459]);
+
+function isGeoBlocked(host: string): boolean {
+  return geoBlocked.has(host);
+}
+
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
-  try {
-    const direct = await fetchOnce(upstream, request, false);
-    if (direct.ok || direct.status === 206) return direct;
-    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
-  } catch (err) {
-    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+  const host = new URL(upstream).host;
+  if (!isGeoBlocked(host)) {
+    try {
+      const direct = await fetchOnce(upstream, request, false);
+      if (direct.ok || direct.status === 206) return direct;
+      if (GEO_STATUS.has(direct.status)) geoBlocked.add(host);
+      console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
+    } catch (err) {
+      console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+    }
   }
 
   let res = await fetchOnce(upstream, request, true);
@@ -61,6 +77,7 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
   }
   return res;
 }
+
 
 
 /**
@@ -108,6 +125,46 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
         const upstream = await openUrl(token);
         if (!upstream) return new Response('Link expired', { status: 410 });
+
+        /**
+         * Movies and episodes are multi-megabyte progressive files. The relay
+         * tops out around 85 KB/s, which is fine for a low-bitrate live
+         * channel but far below a VOD bitrate — the player buffered forever and
+         * showed "Stream failed to load". When the provider geo-blocks this
+         * server (`country-not-allow`) there is no fast server-side path, so
+         * hand the file to the viewer's own connection with a redirect. Live
+         * manifests keep flowing through the proxy: hls.js needs same-origin
+         * responses to fetch the rewritten segment URLs.
+         */
+        const host = new URL(upstream).host;
+        const progressive = !/\.m3u8(\?|$)/i.test(upstream);
+        // `via=relay` is the player's fallback when the viewer's own connection
+        // cannot reach the provider either (their country is blocked too).
+        if (progressive && url.searchParams.get('via') !== 'relay') {
+
+          if (!isGeoBlocked(host)) {
+            try {
+              const probe = await fetchOnce(upstream, new Request(request.url, {
+                headers: { range: 'bytes=0-1' },
+              }), false);
+              if (GEO_STATUS.has(probe.status)) geoBlocked.add(host);
+              try {
+                await probe.body?.cancel();
+              } catch {
+                /* nothing to drain */
+              }
+            } catch {
+              /* fall through to the normal path */
+            }
+          }
+          if (isGeoBlocked(host)) {
+            return new Response(null, {
+              status: 302,
+              headers: { Location: upstream, 'Cache-Control': 'no-store' },
+            });
+          }
+        }
+
 
         let res: Response;
         try {
