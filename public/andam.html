@@ -876,139 +876,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       '<div class="strip">'+inner+'</div></section>';
   }
 
-  /* ---------- PLAYER ---------- */
-  var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
-  var RELAY='https://relay.andam.uk:8443/proxy?url=';
-  var RELAY_TOKEN='009c95e9a8c6e50d992b8313bb90b01948b4a58e870bd69504a640b32306a5da';
-
-  var overlay=document.getElementById('overlay'),video=document.getElementById('pVideo'),
-      pTitle=document.getElementById('pTitle'),pSub=document.getElementById('pSub'),
-      pStatus=document.getElementById('pStatus'),pChans=document.getElementById('pChans'),
-      pSearch=document.getElementById('pSearch');
-  var hls=null,channels=[],loaded=false,current=null,session=0;
-
-  function relay(u){ return RELAY+encodeURIComponent(u); }
-  function isRelay(u){ return u.indexOf(RELAY)===0; }
-  function upstream(u){ return isRelay(u)?decodeURIComponent(u.slice(RELAY.length)):u; }
-  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); if(!msg) pStatus.classList.remove('retry'); }
-
-  function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
-
-  // Playlists come back from the relay with relative segment paths, which would
-  // otherwise resolve against the proxy origin. Rewrite every URI to an absolute
-  // relayed URL before handing the manifest to hls.js.
-  function rewriteManifest(text,relayedUrl){
-    var base=upstream(relayedUrl);
-    var abs=function(u){ try{ return new URL(u,base).href }catch(e){ return u } };
-    return text.split(/\r?\n/).map(function(line){
-      var l=line.trim();
-      if(!l) return line;
-      if(l[0]==='#'){
-        return line.replace(/URI="([^"]+)"/g,function(m,u){ return 'URI="'+relay(abs(u))+'"' });
-      }
-      return relay(abs(l));
-    }).join('\n');
-  }
-
-  var PlaylistLoader=null;
-  function playlistLoader(Hls){
-    if(!PlaylistLoader){
-      PlaylistLoader=class extends Hls.DefaultConfig.loader {
-        load(context,config,callbacks){
-          var onSuccess=callbacks.onSuccess;
-          var patched=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
-            if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
-            onSuccess(response,stats,ctx,net);
-          }});
-          super.load(context,config,patched);
-        }
-      };
-    }
-    return PlaylistLoader;
-  }
-
-  function play(url,title,sub,attempt){
-    destroy();
-    var mySession=++session;
-    var live=function(){ return mySession===session };
-    setStatus('Loading stream…');
-    pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
-    current=url; renderChans(pSearch.value);
-    var src=relay(url); // always via the Andam relay: upstream origins send no CORS headers
-    attempt=attempt||0;
-    var done=false;
-
-    function fallback(){
-      if(done||!live()) return; done=true;
-      // some upstream channels go offline — roll onto the next one in the list
-      var i=channels.map(function(c){return c.url}).indexOf(url);
-      var next=channels[i+1];
-      if(attempt<5&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
-      else setStatus('This stream is unavailable right now. Pick another channel.');
-    }
-    function playing(){ if(!live())return; done=true; setStatus(''); }
-
-    video.addEventListener('timeupdate',playing,{once:true});
-    // watchdog: manifest can parse fine while segments 404 — bail out on a stall
-    setTimeout(function(){ if(live()&&!done&&video.currentTime===0) fallback(); },12000);
-
-    if(window.Hls&&window.Hls.isSupported()){
-      hls=new window.Hls({
-        lowLatencyMode:true,
-        pLoader:playlistLoader(window.Hls),
-        xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
-      });
-      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(live()) video.play().catch(function(){}); });
-      hls.on(window.Hls.Events.ERROR,function(e,d){ if(d.fatal) fallback(); });
-      hls.loadSource(src); hls.attachMedia(video);
-    }else{
-      video.src=src; // Safari plays HLS natively
-      video.addEventListener('error',fallback,{once:true});
-    }
-  }
-
-  function open(url,title,sub){
-    overlay.classList.add('open'); document.body.style.overflow='hidden';
-    loadChannels().then(function(){
-      var target=url||(channels[0]&&channels[0].url);
-      if(target) play(target,title||'Andam Live',sub);
-      else setStatus('Could not load your channel list.');
-    });
-  }
-  function close(){ overlay.classList.remove('open'); document.body.style.overflow=''; destroy(); setStatus(''); }
-
-  function loadChannels(){
-    if(loaded) return Promise.resolve();
-    setStatus('Loading your channel list…');
-    return fetch(PLAYLIST).then(function(r){return r.text()}).then(function(txt){
-      var lines=txt.split(/\r?\n/),name=null;
-      for(var i=0;i<lines.length;i++){
-        var l=lines[i].trim();
-        if(l.indexOf('#EXTINF')===0){ name=l.split(',').slice(1).join(',').trim()||'Channel'; }
-        else if(l && l[0]!=='#' && name){ channels.push({name:name,url:l}); name=null; }
-      }
-      loaded=true; renderChans('');
-    }).catch(function(){ loaded=true; });
-  }
-
-  function renderChans(q){
-    q=(q||'').toLowerCase();
-    var list=channels.filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>-1}).slice(0,300);
-    pChans.innerHTML=list.map(function(c,i){
-      return '<button data-url="'+c.url.replace(/"/g,'&quot;')+'" class="'+(c.url===current?'playing':'')+'">'+
-        c.name.replace(/</g,'&lt;')+'</button>';
-    }).join('')||'<button disabled>No channels found</button>';
-  }
-
-  pChans.addEventListener('click',function(e){
-    var b=e.target.closest('button[data-url]'); if(!b) return;
-    play(b.getAttribute('data-url'),b.textContent.trim(),'● LIVE · IPTV');
-  });
-  pSearch.addEventListener('input',function(){ renderChans(this.value) });
-  document.getElementById('pClose').addEventListener('click',close);
-  overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
-
   /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
   var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
       rowsEl=document.getElementById('rows'), catGrid=document.getElementById('catGrid'),
@@ -1957,7 +1824,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         h.on(window.Hls.Events.ERROR,function(e,d){
           console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
           if(!d.fatal||!alive()) return;
-          if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(native,0); return }
+          if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){
+            setTimeout(function(){ if(alive()) hopChannel(kind,1) },0); return
+          }
           if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
             setTimeout(function(){ if(alive()&&!ok&&s.hls===h) h.loadSource(src) },1200);
           }else if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError() }
