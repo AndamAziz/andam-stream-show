@@ -66,6 +66,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          session_id: string | null
           user_agent: string | null
           user_id: string | null
         }
@@ -73,6 +74,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
@@ -80,6 +82,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          session_id?: string | null
           user_agent?: string | null
           user_id?: string | null
         }
