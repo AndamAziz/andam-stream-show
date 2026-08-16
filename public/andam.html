@@ -1975,7 +1975,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* Movies/episodes are served by a redirect to the provider so they play
            at full speed. If the viewer's own connection cannot reach it either,
            retry once through the (slower) server proxy before giving up. */
-        if(!streamIsHls&&!relayTried){ relayTried=true; busy(s,true); native(false,true); return }
+        if(!streamIsHls&&!relayTried){
+          relayTried=true; busy(s,true); clearTimeout(timer);
+          timer=setTimeout(function(){
+            if(alive()&&!ok&&s.video.readyState<2) retryable('Stream failed to load');
+          },30000);
+          native(false,true); return;
+        }
+
         retryable('This stream cannot be played here');
       },{once:true});
     }
