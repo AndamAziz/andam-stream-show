@@ -954,8 +954,27 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return document.querySelector('.vp.open, .drawer.open, #overlay.open, .menu.open');
   }
   document.addEventListener('focusin',function(e){
-    if(!layerOpen()) focusBefore=e.target;
+    if(!layerOpen()&&e.target&&e.target.matches&&e.target.matches(NAVSEL)) focusBefore=e.target;
   });
+
+  /* ---- move focus into a layer as soon as it opens (focus trap entry) ---- */
+  var lastLayer=null;
+  function syncLayerFocus(){
+    var layer=layerOpen();
+    if(layer===lastLayer) return;
+    lastLayer=layer;
+    invalidate();
+    if(!layer) return;
+    setTimeout(function(){
+      if(layerOpen()!==layer) return;
+      if(layer.contains(document.activeElement)) return;
+      var first=[].slice.call(layer.querySelectorAll(NAVSEL)).filter(visible)[0];
+      if(first) moveFocus(first);
+    },90);
+  }
+  new MutationObserver(syncLayerFocus).observe(document.documentElement,
+    {subtree:true,attributes:true,attributeFilter:['class']});
+
   function goBack(){
     var layer=layerOpen();
     if(!layer) return false;
@@ -964,11 +983,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     else layer.classList.remove('open');
     invalidate();
     setTimeout(function(){
+      invalidate();
       if(focusBefore&&visible(focusBefore)) moveFocus(focusBefore);
       else { var f=navItems()[0]; if(f) moveFocus(f); }
-    },60);
+    },120);
     return true;
   }
+
 
   /* ---- key handling (debounced for held remote buttons) ---- */
   var lastKeyAt=0, DEBOUNCE=150;
