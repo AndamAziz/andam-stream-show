@@ -442,9 +442,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* The head holds the section tabs, so it MUST stay reachable: without
    position:sticky it scrolls under the fixed nav and every click on the
    Movies/Series pills lands on the nav instead (desktop lists are long). */
+/* No backdrop-filter here: blurring a sticky bar forces a full-width repaint
+   of everything behind it on every scroll frame (the visible flicker). An
+   opaque bar on its own compositor layer scrolls clean. */
 .lvhead{position:sticky;top:56px;z-index:30;display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;
   margin:0 calc(-1 * clamp(14px,3.5vw,44px)) 14px;padding:9px clamp(14px,3.5vw,44px);
-  background:rgba(6,6,8,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--hair)}
+  background:#07070A;border-bottom:1px solid var(--hair);
+  transform:translateZ(0);backface-visibility:hidden;will-change:transform;contain:paint}
 .lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(17px,1.6vw,22px);margin:0;letter-spacing:-.3px}
 .lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw}
@@ -485,8 +489,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 /* layout: player up top on small screens, side-by-side from laptop up */
 .lvmain{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start}
+/* sticky + a compositor layer: without translateZ the blurred head and the
+   video repaint on every scroll frame, which is what flickered. */
 .lvplayer{position:sticky;top:152px;z-index:20;border-radius:14px;overflow:hidden;
-  border:1px solid var(--hair);background:#000;transition:max-width .2s ease}
+  border:1px solid var(--hair);background:#000;
+  transform:translateZ(0);backface-visibility:hidden;contain:paint}
 .lvstage{position:relative;aspect-ratio:16/9;background:#000}
 .lvstage video{position:absolute;inset:0;width:100%;height:100%;background:#000}
 .lvidle{position:absolute;inset:0;display:grid;place-items:center;gap:6px;text-align:center;
@@ -570,7 +577,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   .lvplayer{top:154px}
 }
 @media (max-width:1099px){
-  .lvplayer.mini{max-width:210px;margin-left:auto;box-shadow:0 18px 40px rgba(0,0,0,.6)}
+  /* fixed, so shrinking it never reflows the list underneath (that reflow
+     changed scroll height and made the mini toggle oscillate = flicker) */
+  .lvplayer.mini{position:fixed;top:auto;bottom:14px;right:14px;left:auto;width:210px;max-width:46vw;
+    z-index:60;box-shadow:0 18px 40px rgba(0,0,0,.6)}
   .lvplayer.mini .lvbar{padding:6px 8px}
   .lvplayer.mini .lvbar .tg,.lvplayer.mini .lvbar .ib{display:none}
 }
@@ -1865,11 +1875,52 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
+    /* load() after clearing the src resets the media element; skipping it left
+       the old resource selection alive and it fired a stale error 4 on the
+       *next* stream, which looked like "this stream is unsupported". */
+    try{ s.video.load() }catch(_){}
     busy(s,false); clearFail(s);
   }
 
   /* which section's player is on screen right now */
   function activeKind(){ return iptvEl.classList.contains('open')?'iptv':'live' }
+
+  /* hls.js comes from a CDN, so on a cold/slow network window.Hls can still be
+     undefined when the first channel is tapped. Falling through to the native
+     element then hands Chrome an .m3u8 it cannot decode → MEDIA_ERR_SRC_NOT_
+     SUPPORTED (error 4). Wait for the script (and re-inject once) instead. */
+  var hlsReady=null;
+  function ensureHls(){
+    if(window.Hls) return Promise.resolve(window.Hls);
+    if(hlsReady) return hlsReady;
+    hlsReady=new Promise(function(resolve){
+      var done=false, t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.Hls){ done=true; return resolve(window.Hls) }
+        if(Date.now()-t0>6000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
+      s.onload=function(){ if(!done){ done=true; resolve(window.Hls||null) } };
+      document.head.appendChild(s);
+    });
+    return hlsReady;
+  }
+
+  /* Trust the response, not the caller's flag: providers happily serve an
+     .m3u8 for a "ts" channel and an mp4 for an "m3u8" movie. One cheap ranged
+     probe tells us which engine to use, so the native element never receives a
+     manifest it cannot decode. */
+  function probeKind(src){
+    return fetch(src,{headers:{range:'bytes=0-1'}}).then(function(r){
+      var ct=(r.headers.get('content-type')||'').toLowerCase();
+      try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
+      return {ok:r.ok||r.status===206,status:r.status,
+              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0};
+    });
+  }
 
   function lvPlay(kind,token,title,sub,isHls){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
@@ -1903,47 +1954,93 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<2) retryable('Stream failed to load');
     },15000);
 
-    function native(){
+    function native(streamIsHls){
+      if(!alive()) return;
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      if(streamIsHls && !s.video.canPlayType('application/vnd.apple.mpegurl')){
+        retryable('This stream cannot be played in this browser');
+        return;
+      }
       s.video.preload='auto';
       s.video.setAttribute('preload','auto');
       s.video.src=src;
       try{ s.video.load() }catch(_){}
       s.video.play().catch(function(){});
       s.video.addEventListener('error',function(){
+        if(!alive()) return;
         console.error('[player] native playback error',s.video.error&&s.video.error.code,src);
         retryable('This stream cannot be played here');
       },{once:true});
     }
 
+    var recover=0;
+    function viaHls(Hls){
+      /* Buffer config: the relay delivers segments in bursts, and the previous
+         lowLatencyMode + 20s buffer starved the pipeline into
+         bufferStalledError. Deeper buffers, generous timeouts and retries. */
+      var h=new Hls({
+        lowLatencyMode:false,
+        maxBufferLength:30,maxMaxBufferLength:90,maxBufferSize:60*1000*1000,
+        backBufferLength:60,
+        liveSyncDurationCount:4,liveMaxLatencyDurationCount:12,
+        manifestLoadingTimeOut:20000,manifestLoadingMaxRetry:4,
+        levelLoadingTimeOut:20000,levelLoadingMaxRetry:4,
+        fragLoadingTimeOut:30000,fragLoadingMaxRetry:6,fragLoadingMaxRetryTimeout:8000,
+        nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
+      });
+      s.hls=h;
+      h.on(Hls.Events.MANIFEST_PARSED,function(){ if(alive()) s.video.play().catch(function(){}) });
+      h.on(Hls.Events.ERROR,function(e,d){
+        console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
+        if(!alive()||s.hls!==h) return;
+        /* Non-fatal stalls: jump over the hole instead of sitting on it. */
+        if(d.details===Hls.ErrorDetails.BUFFER_STALLED_ERROR){
+          try{
+            var b=s.video.buffered;
+            for(var i=0;i<b.length;i++){
+              if(b.start(i)>s.video.currentTime){ s.video.currentTime=b.start(i)+0.1; break }
+            }
+            s.video.play().catch(function(){});
+          }catch(_){}
+          return;
+        }
+        if(!d.fatal) return;
+        if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(function(){ native(false) },0); return }
+        if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
+          setTimeout(function(){ if(alive()&&!ok&&s.hls===h){ try{ h.startLoad() }catch(_){ h.loadSource(src) } } },1200);
+        }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
+          /* Cap recovery: a codec this device cannot decode otherwise loops
+             forever (append → error → recover → append). */
+          if(++recover>2){ retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
+          if(recover===2) h.swapAudioCodec();
+          h.recoverMediaError();
+        }
+        else retryable('Stream failed to load');
+      });
+      h.attachMedia(s.video); h.loadSource(src);
+    }
 
     /* Start the network work off the click's task so the tap never janks. */
     setTimeout(function(){
       if(!alive()) return;
-      if(!isHls){
-        /* progressive files: surface a real HTTP status if the relay refuses */
-        fetch(src,{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
-          if(!r.ok) retryable('Stream error '+r.status);
-        }).catch(function(){ retryable('Network error') });
-      }
-      if(isHls && window.Hls && window.Hls.isSupported()){
-        var h=new window.Hls({lowLatencyMode:true,maxBufferLength:20,backBufferLength:30});
-        s.hls=h;
-        h.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(alive()) s.video.play().catch(function(){}) });
-        h.on(window.Hls.Events.ERROR,function(e,d){
-          console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
-          if(!d.fatal||!alive()) return;
-          if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(native,0); return }
-          if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
-            setTimeout(function(){ if(alive()&&!ok&&s.hls===h) h.loadSource(src) },1200);
-          }else if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError() }
-          else retryable('Stream failed to load');
+      probeKind(src).then(function(p){
+        if(!alive()) return;
+        if(!p.ok){ retryable('Stream error '+p.status); return }
+        var streamIsHls=p.hls||(isHls&&p.status!==206);
+        if(!streamIsHls){ native(false); return }
+        ensureHls().then(function(Hls){
+          if(!alive()) return;
+          if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
         });
-        h.attachMedia(s.video); h.loadSource(src);
-      }else{
-        native();
-      }
+      }).catch(function(){
+        if(!alive()) return;
+        /* probe blocked/aborted — fall back to the caller's hint */
+        if(isHls){ ensureHls().then(function(Hls){
+          if(!alive()) return;
+          if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
+        }) } else native(false);
+      });
     },0);
   }
 
@@ -1962,16 +2059,35 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   window.lvStopKind=function(kind){ if(SURF[kind]||document.getElementById(kind==='iptv'?'ipPlayer':'ltvPlayer')) lvStop(kind) };
 
   /* On phones/tablets the player shrinks into a corner mini-player once the
-     user scrolls into the channel list, so "what's playing" is never lost. */
+     user scrolls into the channel list, so "what's playing" is never lost.
+     Two guards against flicker: hysteresis (enter at 320px, leave at 200px) so
+     the class can't oscillate frame-to-frame, and a spacer that keeps the grid
+     height when the player goes position:fixed, so nothing reflows. */
   (function miniPlayer(){
-    var raf=null;
+    var raf=null, mini={live:false,iptv:false};
+    function spacer(s){
+      if(!s.spacer){
+        s.spacer=document.createElement('div');
+        s.spacer.style.display='none';
+        if(s.player.parentNode) s.player.parentNode.insertBefore(s.spacer,s.player);
+      }
+      return s.spacer;
+    }
+    function apply(k,on){
+      var s=SURF[k]; if(mini[k]===on) return;
+      var sp=spacer(s);
+      if(on) sp.style.height=s.player.getBoundingClientRect().height+'px';
+      sp.style.display=on?'block':'none';
+      s.player.classList.toggle('mini',on);
+      mini[k]=on;
+    }
     function tick(){
       raf=null;
+      var narrow=window.innerWidth<1100, y=window.scrollY;
       ['live','iptv'].forEach(function(k){
         var s=SURF[k]; if(!s||!s.player) return;
-        var on=!!s.last && s.player.getBoundingClientRect().top<=(window.innerWidth<1100?154:128)+2
-               && window.scrollY>260;
-        s.player.classList.toggle('mini',on);
+        if(!narrow||!s.last){ apply(k,false); return }
+        apply(k, mini[k] ? y>200 : y>320);
       });
     }
     window.addEventListener('scroll',function(){ if(!raf) raf=requestAnimationFrame(tick) },{passive:true});
