@@ -1667,8 +1667,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
     s.idle.classList.add('hide');
-    s.now.textContent=title||'Andam';
-    s.sub.textContent=(sub||'Andam relay').replace(/^●\s*/,'');
+    setNow(s,title,sub,nowLogoOf(kind));
+
     clearFail(s); busy(s,true);
     s.last={token:token,title:title,sub:sub,isHls:isHls};
     var ok=false,timer=null;
