@@ -24,10 +24,18 @@ export async function listFeatured(): Promise<FeaturedRow[]> {
 export async function saveFeatured(pattern: string, sortOrder: number): Promise<void> {
   const value = pattern.trim();
   if (!value) throw new Error('Pattern is required');
-  const { error } = await supabaseAdmin
+  const existing = await supabaseAdmin
     .from('featured_channels')
-    .upsert({ pattern: value, sort_order: sortOrder }, { onConflict: 'pattern' });
-  if (error) throw new Error(error.message);
+    .select('id')
+    .ilike('pattern', value)
+    .maybeSingle();
+  const row = existing.data?.id
+    ? await supabaseAdmin
+        .from('featured_channels')
+        .update({ pattern: value, sort_order: sortOrder })
+        .eq('id', existing.data.id)
+    : await supabaseAdmin.from('featured_channels').insert({ pattern: value, sort_order: sortOrder });
+  if (row.error) throw new Error(row.error.message);
 }
 
 export async function removeFeatured(id: string): Promise<void> {
