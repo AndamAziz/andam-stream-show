@@ -783,17 +783,54 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   catMore.addEventListener('click',function(){ if(cat.page<cat.totalPages){ cat.page++; fetchCatalog(false); } });
   catForm.addEventListener('submit',function(e){ e.preventDefault(); cat.q=catSearch.value.trim(); fetchCatalog(true); });
 
-  [].forEach.call(document.querySelectorAll('.links a'),function(a){
+  var menu=document.getElementById('menu'), burger=document.getElementById('burger'),
+      menuClose=document.getElementById('menuClose');
+  function setMenu(open){
+    menu.classList.toggle('open',open);
+    menu.setAttribute('aria-hidden',open?'false':'true');
+    burger.setAttribute('aria-expanded',open?'true':'false');
+    document.body.style.overflow=open?'hidden':'';
+  }
+  burger.addEventListener('click',function(){ setMenu(!menu.classList.contains('open')); });
+  menuClose.addEventListener('click',function(){ setMenu(false); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&menu.classList.contains('open')) setMenu(false); });
+
+  [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(a){
     a.addEventListener('click',function(e){
       var label=a.textContent.trim();
       if(label!=='Movies'&&label!=='Shows'&&label!=='Home') return;
       e.preventDefault();
-      [].forEach.call(document.querySelectorAll('.links a'),function(x){x.classList.remove('active')});
-      a.classList.add('active');
+      setMenu(false);
+      [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(x){
+        x.classList.toggle('active', x.textContent.trim()===label);
+      });
       if(label==='Home') showView('home');
       else showView('catalog', label==='Movies'?'movies':'series');
     });
   });
+
+  /* remote / D-pad navigation inside card strips and grids */
+  document.addEventListener('keydown',function(e){
+    var keys=['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'];
+    if(keys.indexOf(e.key)<0) return;
+    var el=document.activeElement;
+    if(!el||!el.closest) return;
+    var container=el.closest('.strip, .grid');
+    if(!container) return;
+    var items=[].slice.call(container.children).filter(function(c){return c.tabIndex>=0||c.tagName==='BUTTON'||c.tagName==='ARTICLE'});
+    var i=items.indexOf(el.closest('.card, .tile, .pcard'));
+    if(i<0) return;
+    var isStrip=container.classList.contains('strip');
+    var next=null;
+    if(e.key==='ArrowRight') next=items[i+1];
+    else if(e.key==='ArrowLeft') next=items[i-1];
+    else if(!isStrip){
+      var cols=Math.max(1,Math.round(container.clientWidth/(items[i].clientWidth||1)));
+      next=items[e.key==='ArrowDown'?i+cols:i-cols];
+    }
+    if(next){ e.preventDefault(); next.focus(); next.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'}); }
+  });
+
 
   /* ---------- DETAILS DRAWER ---------- */
   var drawer=document.getElementById('drawer'), dScrim=document.getElementById('dScrim'),
