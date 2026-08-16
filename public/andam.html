@@ -911,15 +911,17 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       '<a href="#" id="cwClear">Clear all</a></div><div class="strip" id="cwStrip"></div>';
     var strip=sec.querySelector('#cwStrip');
     strip.innerHTML=list.map(function(p){
-      var sub=p.type==='tv'?('S'+(p.season||1)+' E'+(p.episode||1)):'Movie';
+      var sub=(p.type==='tv'?('S'+(p.season||1)+' E'+(p.episode||1)):'Movie')+
+        ((p.position||0)>10?(' · '+fmtTime(p.position)):'');
       return '<button class="card" type="button" data-id="'+p.tmdbId+'" data-type="'+esc(p.type)+'" '+
         'data-title="'+esc(p.title||'')+'" data-season="'+(p.season||1)+'" data-episode="'+(p.episode||1)+'" '+
+        'data-position="'+Math.round(p.position||0)+'" '+
         'aria-label="Resume '+esc(p.title||'title')+'">'+
         (p.poster?'<img class="ph" src="'+esc(p.poster)+'" alt="" loading="lazy" />':'')+
         '<div class="grad"></div><span class="cwplay" aria-hidden="true">▶</span>'+
         '<span class="cwrm" data-rm="'+esc(p.type)+':'+p.tmdbId+'" role="button" aria-label="Remove from continue watching">✕</span>'+
         '<div class="txt"><div class="t">'+esc(p.title||'Untitled')+'</div><div class="s">'+esc(sub)+'</div></div>'+
-        '<div class="bar"><i style="width:'+(p.type==='tv'?35:20)+'%"></i></div></button>';
+        '<div class="bar"><i style="width:'+progPct(p)+'%"></i></div></button>';
     }).join('');
     rowsEl.insertBefore(sec,rowsEl.firstChild);
 
@@ -938,18 +940,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       var c=e.target.closest('.card'); if(!c) return;
       resume(c.getAttribute('data-id'),c.getAttribute('data-type'),c.getAttribute('data-title'),
         +c.getAttribute('data-season'),+c.getAttribute('data-episode'),
-        (c.querySelector('img')||{}).src);
+        (c.querySelector('img')||{}).src,+c.getAttribute('data-position'));
     });
   }
 
-  function resume(id,type,title,season,episode,poster){
+  function resume(id,type,title,season,episode,poster,position){
     var base={tmdbId:id,type:type,title:title,poster:poster};
-    if(type!=='tv'){ openVid(base); return }
+    if(type!=='tv'){ openVid(base,1,1,position||0); return }
     fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type=tv',
       {headers:{accept:'application/json'}})
       .then(function(r){ return r.json() })
-      .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode) })
-      .catch(function(){ openVid(base,season,episode) });
+      .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode,position||0) })
+      .catch(function(){ openVid(base,season,episode,position||0) });
   }
   renderContinue();
 })();
