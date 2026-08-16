@@ -45,6 +45,16 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .iconbtn:hover{color:var(--text)}
 .avatar{width:32px;height:32px;border-radius:9px;background:linear-gradient(140deg,var(--lavender),#6C7BFF);
   display:grid;place-items:center;font-size:11.5px;font-weight:700;color:#0d0d14}
+.autharea{display:flex;align-items:center;gap:10px}
+.authbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:999px;
+  border:1px solid var(--hair);background:rgba(255,255,255,.03);font-size:12.5px;font-weight:500;
+  color:var(--muted);white-space:nowrap;text-decoration:none}
+.authbtn:hover{color:var(--text);background:rgba(255,255,255,.07)}
+.authbtn.admin{color:var(--ember);border-color:rgba(255,69,0,.35);background:var(--ember-dim)}
+.authbtn.admin:hover{color:var(--ember);background:rgba(255,69,0,.22)}
+.authbtn .ai{font-size:13px;line-height:1}
+.autharea[hidden],.authbtn[hidden]{display:none}
+.menu .authbtn{border-bottom:1px solid var(--hair)}
 
 /* HERO */
 .hero{position:relative;height:86vh;min-height:560px;overflow:hidden}
@@ -266,6 +276,12 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 @media (max-width:767px){
   .links{display:none}
   .burger{display:grid}
+  .navright .chip{display:none}
+  #authAccount .full{display:none}
+  .autharea{gap:8px}
+  .authbtn{height:44px;padding:0 12px;font-size:12.5px}
+  .authbtn.admin .al{display:none}
+  .authbtn.admin{padding:0;width:44px;justify-content:center}
 }
 @media (min-width:768px) and (max-width:1024px){
   .links{gap:14px;font-size:12.5px}
@@ -320,6 +336,9 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .word{font-size:24px}
   .mark{width:40px;height:40px;font-size:21px}
   .iconbtn,.avatar{width:48px;height:48px;font-size:18px}
+  .authbtn{height:52px;padding:0 26px;font-size:19px;border-radius:999px}
+  .authbtn .ai{font-size:20px}
+  .autharea{gap:16px}
   .chip{font-size:14px;padding:9px 16px}
   .hero{height:80vh}
   .hero .inner{bottom:9vh;max-width:56vw}
@@ -349,12 +368,12 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 
 /* remote / keyboard focus visibility */
 .card:focus-visible,.tile:focus-visible,.pcard:focus-visible,.btn:focus-visible,
-.links a:focus-visible,.iconbtn:focus-visible{outline:3px solid var(--ember);outline-offset:3px}
+.links a:focus-visible,.iconbtn:focus-visible,.authbtn:focus-visible{outline:3px solid var(--ember);outline-offset:3px}
 /* TV mode: high-contrast ring + scale-up, never hover-dependent */
 html.tvmode :focus-visible{outline:3px solid #fff;outline-offset:3px}
 html.tvmode .card:focus-visible,html.tvmode .tile:focus-visible,html.tvmode .pcard:focus-visible,
 html.tvmode .btn:focus-visible,html.tvmode .links a:focus-visible,html.tvmode .menu a:focus-visible,
-html.tvmode .rowhead a:focus-visible,html.tvmode .iconbtn:focus-visible{
+html.tvmode .rowhead a:focus-visible,html.tvmode .iconbtn:focus-visible,html.tvmode .authbtn:focus-visible{
   outline:4px solid var(--ember);outline-offset:4px;
   box-shadow:0 0 0 2px rgba(255,255,255,.9),0 24px 60px rgba(0,0,0,.7);
   transform:scale(1.05);transition:transform .16s ease,box-shadow .16s ease}
@@ -451,7 +470,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <span class="chip mono">15 Aug · GB</span>
     <button class="iconbtn" aria-label="Search">⌕</button>
     <button class="iconbtn" aria-label="Notifications">☾</button>
-    <div class="avatar">FZ</div>
+    <div class="autharea" id="authArea">
+      <a class="authbtn admin" id="authAdmin" href="/admin" target="_top" hidden><span class="ai">★</span><span class="al">Admin</span></a>
+      <a class="authbtn" id="authAccount" href="/auth" target="_top">Sign in</a>
+    </div>
     <button class="burger" id="burger" aria-label="Open menu" aria-expanded="false">☰</button>
   </div>
 </nav>
@@ -460,6 +482,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <button class="menuclose" id="menuClose" aria-label="Close menu">✕</button>
   <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
   <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+  <a id="mAdmin" href="/admin" target="_top" hidden>Admin</a>
+  <a id="mAccount" href="/auth" target="_top">Sign in</a>
 </div>
 
 
@@ -967,7 +991,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
      modals. Focus groups: nav bar, hero CTAs, each row/strip, each grid.
      Enter/Space activates, Escape/Backspace/461/10009 goes back. */
-  var NAVSEL='.links a, .menu a, .navright button, .navright .avatar, .burger, .hero .cta .btn,'+
+  var NAVSEL='.links a, .menu a, .navright button, .navright .authbtn, .burger, .hero .cta .btn,'+
     ' .dots button, .rowhead a, .rowhead button, .card, .tile, .pcard, .cwrm,'+
     ' #catSearch, #catMore, .drawer button, .drawer a, .drawer select, .vp button,'+
     ' .modal button, .modal a, .pchan, #pSearch';
@@ -1833,6 +1857,23 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 })();
 
 
+</script>
+<script>
+(function(){
+  function apply(st){
+    var admin=document.getElementById('authAdmin'), acct=document.getElementById('authAccount');
+    var mA=document.getElementById('mAdmin'), mAcct=document.getElementById('mAccount');
+    var signedIn=!!(st&&st.signedIn), isAdmin=!!(st&&st.role==='admin');
+    if(admin) admin.hidden=!isAdmin;
+    if(mA) mA.hidden=!isAdmin;
+    if(acct){ acct.textContent=signedIn?'Account':'Sign in'; acct.setAttribute('href',signedIn?'/account':'/auth') }
+    if(mAcct){ mAcct.textContent=signedIn?'Account':'Sign in'; mAcct.setAttribute('href',signedIn?'/account':'/auth') }
+  }
+  window.addEventListener('message',function(e){
+    var d=e.data; if(d&&d.type==='andam:session') apply(d);
+  });
+  try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'andam:ready'},'*') }catch(_){}
+})();
 </script>
 </body>
 </html>
