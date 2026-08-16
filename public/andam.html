@@ -936,9 +936,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         x.classList.toggle('active', x.textContent.trim()===label);
       });
       if(label==='Home') showView('home');
-      else if(label==='Live TV') gotoRow('Live now');
-      else if(label==='IPTV') gotoRow('Your IPTV channels');
+      else if(label==='Live TV') showView('live');
+      else if(label==='IPTV') showView('live');
       else showView('catalog', label==='Movies'?'movies':'series');
+
     });
   });
 
