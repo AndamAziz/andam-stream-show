@@ -1,0 +1,1 @@
+DELETE FROM public.activation_codes WHERE code = '3E9T-W7RR-WQ3E';
