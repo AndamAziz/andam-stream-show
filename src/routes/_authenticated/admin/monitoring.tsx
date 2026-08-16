@@ -83,7 +83,24 @@ function MonitoringPage() {
         )}
       </Panel>
 
-      <Panel title="Recent logins">
+      <Panel
+        title="Recent logins"
+        description="One entry per real sign-in — background token refreshes are not logged."
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            className="min-h-11"
+            disabled={clearLogs.isPending}
+            onClick={() => clearLogs.mutate()}
+          >
+            {clearLogs.isPending ? 'Clearing…' : 'Clear log'}
+          </Button>
+        }
+      >
+        {(data?.recentLogins ?? []).length === 0 && (
+          <p className="text-sm text-muted-foreground">No sign-ins logged.</p>
+        )}
         <ul className="divide-y divide-border text-sm">
           {(data?.recentLogins ?? []).map((l, i) => (
             <li key={i} className="py-2">
