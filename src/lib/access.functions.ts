@@ -5,19 +5,14 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 export const getMyAccess = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
-      .from('user_entitlements')
-      .select('section')
-      .eq('user_id', context.userId);
     const { data: isAdmin } = await context.supabase.rpc('has_role', {
       _user_id: context.userId,
       _role: 'admin',
     });
-    const sections = [...new Set((data ?? []).map((r) => String(r.section)))];
-    return {
-      admin: !!isAdmin,
-      sections: isAdmin ? ['live', 'movies', 'series'] : sections,
-    };
+    if (isAdmin) return { admin: true, sections: ['live', 'movies', 'series'] };
+    // Grants tied to an expired/revoked code no longer count.
+    const { effectiveSections } = await import('@/lib/access.server');
+    return { admin: false, sections: await effectiveSections(context.userId) as string[] };
   });
 
 export const redeemMyCode = createServerFn({ method: 'POST' })
