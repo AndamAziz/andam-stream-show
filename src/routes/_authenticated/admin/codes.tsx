@@ -82,9 +82,34 @@ function CodesPage() {
     onError: (e: Error) => setError(e.message),
   });
 
+  const refreshCodes = () => qc.invalidateQueries({ queryKey: ['admin', 'codes'] });
+
   const revoke = useMutation({
     mutationFn: (id: string) => revokeActivationCode({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'codes'] }),
+    onSuccess: () => {
+      setError('');
+      refreshCodes();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteActivationCode({ data: { id } }),
+    onSuccess: () => {
+      setError('');
+      refreshCodes();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const renew = useMutation({
+    mutationFn: (v: { id: string; expiresAt: string | null }) =>
+      renewActivationCode({ data: v }),
+    onSuccess: () => {
+      setError('');
+      setRenewing(null);
+      refreshCodes();
+    },
     onError: (e: Error) => setError(e.message),
   });
 
