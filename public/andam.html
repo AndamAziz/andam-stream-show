@@ -1617,14 +1617,39 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       err:document.getElementById(p+'Err'),
       now:document.getElementById(p+'Now'),
       sub:document.getElementById(p+'NowSub'),
+      logo:document.getElementById(p+'NowLogo'),
+      tag:document.getElementById(p+'NowTag'),
+      live:document.getElementById(p+'Live'),
+      fs:document.getElementById(p+'Fs'),
       hls:null,session:0,last:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
+    s.fs.addEventListener('click',function(){
+      var v=s.video;
+      try{ (v.requestFullscreen||v.webkitRequestFullscreen||v.webkitEnterFullscreen||function(){}).call(v) }catch(_){}
+    });
     SURF[kind]=s; return s;
   }
   function busy(s,on){ s.spin.classList.toggle('hide',!on) }
   function fail(s,msg){ s.err.textContent=(msg||'Stream failed to load')+' — tap to retry'; s.err.classList.remove('hide'); busy(s,false) }
   function clearFail(s){ s.err.classList.add('hide') }
+  /* slim now-playing bar: logo + name + category tag + LIVE badge */
+  function setNow(s,title,sub,logo){
+    s.now.textContent=title||'Andam';
+    var txt=(sub||'').replace(/^●\s*/,'');
+    s.sub.textContent=txt||'Andam relay';
+    var isLive=/live/i.test(txt);
+    s.live.hidden=!isLive;
+    var parts=txt.split('·').map(function(x){return x.trim()}).filter(function(x){return x&&!/^live$/i.test(x)});
+    s.tag.textContent=parts.length?parts[parts.length-1]:'';
+    if(logo){ s.logo.setAttribute('src',logo) } else { s.logo.removeAttribute('src') }
+  }
+  function nowLogoOf(kind){
+    var host=document.getElementById(kind==='iptv'?'ipBody':'ltvBody');
+    var img=host&&host.querySelector('.chanrow.on img.lg');
+    return img?img.getAttribute('src'):'';
+  }
+
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
