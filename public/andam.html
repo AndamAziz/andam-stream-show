@@ -2038,6 +2038,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(e.target.closest('#cwRow')) return;   // continue watching has its own handler
     var card=e.target.closest('.card'); if(!card) return;
     var title=card.getAttribute('data-title')||(card.querySelector('.t')||{}).textContent||'Andam';
+    if(card.hasAttribute('data-tmdb')){
+      openDrawer(card.getAttribute('data-tmdb'),card.getAttribute('data-type')||'movie',
+        title,card.getAttribute('data-poster')||'');
+      return;
+    }
     if(card.hasAttribute('data-live')){
       playById('live',card.getAttribute('data-live'),'',title,'● LIVE · provider channel',true); return;
     }
@@ -2066,6 +2071,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var to=a.getAttribute('data-goto');
     if(to==='live'){ showView('live') }
     else if(to==='iptv'){ showView('iptv') }
+    else if(to==='movies'||to==='series'){ showView('catalog',to) }
     else if(to==='live-movies'||to==='live-series'){
       showView('live'); if(window.ltvOpen) window.ltvOpen();
       setTimeout(function(){ setTab(to==='live-movies'?'movies':'series') },250);
@@ -2074,12 +2080,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function loadHome(){
     loadHomeProvider().then(function(prov){
-      if(!prov){ setHero([],''); showRow('rowLive',false); showRow('rowMovies',false); showRow('rowShows',false); return }
-      loadHomeLive(prov); loadHomeMovies(prov); loadHomeShows(prov);
+      if(!prov){ setHero([],''); showRow('rowLive',false); return }
+      loadHomeLive(prov);
     });
+    loadHomeMovies(); loadHomeShows();
     loadHomeIptv();
   }
   loadHome();
+
+  /* keep TMDB rows fresh: every 30 minutes, and whenever the tab regains focus
+     after being away for more than 10 minutes */
+  var tmdbFresh=Date.now();
+  function refreshTmdbRows(){
+    tmdbFresh=Date.now();
+    loadHomeMovies(); loadHomeShows();
+  }
+  setInterval(function(){ if(!document.hidden) refreshTmdbRows() },30*60*1000);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden && Date.now()-tmdbFresh>10*60*1000) refreshTmdbRows();
+  });
+
 
 })();
 
