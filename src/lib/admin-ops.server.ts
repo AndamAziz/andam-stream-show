@@ -66,7 +66,16 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
   if (!input.name.trim()) throw new Error('Name is required');
 
   if (input.id) {
-    const patch: Record<string, unknown> = {
+    const patch: {
+      name: string;
+      base_url: string;
+      username: string;
+      is_active: boolean;
+      is_public: boolean;
+      sort_order: number;
+      slug?: string;
+      password?: string;
+    } = {
       name: input.name.trim(),
       base_url,
       username: input.username.trim(),
@@ -74,8 +83,8 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
       is_public: input.is_public,
       sort_order: input.sort_order,
     };
-    if (input.slug?.trim()) patch['slug'] = slugify(input.slug);
-    if (input.password) patch['password'] = input.password;
+    if (input.slug?.trim()) patch.slug = slugify(input.slug);
+    if (input.password) patch.password = input.password;
     const { error } = await supabaseAdmin.from('sources').update(patch).eq('id', input.id);
     if (error) throw new Error(error.message);
     return { id: input.id };
@@ -287,19 +296,27 @@ export async function saveOverride(input: {
   sortOrder?: number | null | undefined;
   logoUrl?: string | null | undefined;
 }): Promise<void> {
-  const row: Record<string, unknown> = {
+  const row: {
+    source_id: string;
+    kind: OverrideKind;
+    item_id: string;
+    label?: string | null;
+    hidden?: boolean;
+    sort_order?: number | null;
+    logo_url?: string | null;
+  } = {
     source_id: input.sourceId,
     kind: input.kind,
     item_id: input.itemId,
   };
-  if (input.label !== undefined) row['label'] = input.label;
-  if (input.hidden !== undefined) row['hidden'] = input.hidden;
-  if (input.sortOrder !== undefined) row['sort_order'] = input.sortOrder;
-  if (input.logoUrl !== undefined) row['logo_url'] = input.logoUrl || null;
+  if (input.label !== undefined) row.label = input.label;
+  if (input.hidden !== undefined) row.hidden = input.hidden;
+  if (input.sortOrder !== undefined) row.sort_order = input.sortOrder;
+  if (input.logoUrl !== undefined) row.logo_url = input.logoUrl || null;
 
   const { error } = await supabaseAdmin
     .from('content_overrides')
-    .upsert(row as never, { onConflict: 'source_id,kind,item_id' });
+    .upsert(row, { onConflict: 'source_id,kind,item_id' });
   if (error) throw new Error(error.message);
 }
 
