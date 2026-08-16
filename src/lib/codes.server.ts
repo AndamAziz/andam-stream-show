@@ -114,6 +114,53 @@ export async function revokeCode(id: string): Promise<{ deleted: boolean }> {
   return { deleted: false };
 }
 
+/**
+ * Hard-deletes a code. Redeemed codes are refused: their redemption rows are
+ * the audit trail, so those must be revoked instead.
+ */
+export async function deleteCode(id: string): Promise<{ deleted: true }> {
+  const { data: row } = await supabaseAdmin
+    .from('activation_codes')
+    .select('id, uses')
+    .eq('id', id)
+    .maybeSingle();
+  if (!row) throw new Error('Code not found');
+  if (row.uses > 0) throw new Error('Redeemed codes are kept for audit — revoke it instead');
+  const { error } = await supabaseAdmin.from('activation_codes').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+  return { deleted: true };
+}
+
+/**
+ * Extends an existing code instead of issuing a new string, so a viewer who
+ * already has the code keeps using it. Also un-revokes and tops the use count
+ * back up when the code had been exhausted.
+ */
+export async function renewCode(input: {
+  id: string;
+  expiresAt: string | null;
+  extraUses?: number;
+}): Promise<{ expiresAt: string | null }> {
+  const { data: row } = await supabaseAdmin
+    .from('activation_codes')
+    .select('id, uses, max_uses')
+    .eq('id', input.id)
+    .maybeSingle();
+  if (!row) throw new Error('Code not found');
+
+  const expiresAt =
+    input.expiresAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const extra = Math.min(Math.max(0, Math.round(input.extraUses ?? 0)), 1000);
+  const maxUses = Math.max(row.max_uses + extra, row.uses + 1);
+
+  const { error } = await supabaseAdmin
+    .from('activation_codes')
+    .update({ expires_at: expiresAt, revoked: false, max_uses: maxUses })
+    .eq('id', row.id);
+  if (error) throw new Error(error.message);
+  return { expiresAt };
+}
+
 /** Manual override so an admin can unlock or re-lock a viewer without a code. */
 export async function setEntitlement(
   userId: string,

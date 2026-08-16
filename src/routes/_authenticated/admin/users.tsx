@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   changeUserAccess,
+  changeUserPassword,
   changeUserRole,
   changeUserSuspension,
   getProviders,
@@ -31,6 +32,8 @@ function UsersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
+  /** Which account's password form is open, plus its draft value. */
+  const [pw, setPw] = useState<{ userId: string; value: string } | null>(null);
 
   const users = useQuery({ queryKey: ['admin', 'users'], queryFn: () => getUsers() });
   const providers = useQuery({ queryKey: ['admin', 'providers'], queryFn: () => getProviders() });
@@ -52,6 +55,15 @@ function UsersPage() {
     onSuccess: () => {
       setMessage('Account access updated.');
       invalidate();
+    },
+    onError,
+  });
+
+  const password = useMutation({
+    mutationFn: (v: { userId: string; password: string }) => changeUserPassword({ data: v }),
+    onSuccess: () => {
+      setMessage('Password changed. The user has been signed out of existing sessions.');
+      setPw(null);
     },
     onError,
   });
@@ -119,8 +131,46 @@ function UsersPage() {
                     >
                       {u.suspended ? 'Restore access' : 'Suspend'}
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="min-h-11"
+                      onClick={() =>
+                        setPw(pw?.userId === u.id ? null : { userId: u.id, value: '' })
+                      }
+                    >
+                      Change password
+                    </Button>
                   </div>
                 </div>
+
+                {pw?.userId === u.id && (
+                  <div className="mt-3 flex flex-wrap items-end gap-2 rounded-md border border-border bg-secondary/40 p-3">
+                    <Input
+                      type="text"
+                      value={pw.value}
+                      onChange={(e) => setPw({ userId: u.id, value: e.target.value })}
+                      placeholder="New password (min 8 characters)"
+                      className="min-h-11 max-w-xs"
+                    />
+                    <Button
+                      size="sm"
+                      className="min-h-11"
+                      disabled={pw.value.length < 8 || password.isPending}
+                      onClick={() => password.mutate({ userId: u.id, password: pw.value })}
+                    >
+                      {password.isPending ? 'Saving…' : 'Set password'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-11"
+                      onClick={() => setPw(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
 
                 <div className="mt-3">
                   <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">

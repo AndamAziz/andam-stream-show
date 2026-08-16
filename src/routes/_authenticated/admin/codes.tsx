@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   createActivationCode,
+  deleteActivationCode,
+  renewActivationCode,
   getActivationCodes,
   getProviders,
   revokeActivationCode,
@@ -58,6 +60,7 @@ function CodesPage() {
   const [note, setNote] = useState('');
   const [fresh, setFresh] = useState('');
   const [error, setError] = useState('');
+  const [renewing, setRenewing] = useState<{ id: string; code: string; date: string } | null>(null);
 
   const providers = useQuery({ queryKey: ['admin', 'providers'], queryFn: () => getProviders() });
   const codes = useQuery({ queryKey: ['admin', 'codes'], queryFn: () => getActivationCodes() });
@@ -82,9 +85,34 @@ function CodesPage() {
     onError: (e: Error) => setError(e.message),
   });
 
+  const refreshCodes = () => qc.invalidateQueries({ queryKey: ['admin', 'codes'] });
+
   const revoke = useMutation({
     mutationFn: (id: string) => revokeActivationCode({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'codes'] }),
+    onSuccess: () => {
+      setError('');
+      refreshCodes();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteActivationCode({ data: { id } }),
+    onSuccess: () => {
+      setError('');
+      refreshCodes();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const renew = useMutation({
+    mutationFn: (v: { id: string; expiresAt: string | null }) =>
+      renewActivationCode({ data: v }),
+    onSuccess: () => {
+      setError('');
+      setRenewing(null);
+      refreshCodes();
+    },
     onError: (e: Error) => setError(e.message),
   });
 
@@ -188,7 +216,45 @@ function CodesPage() {
         </div>
       </Panel>
 
+      {renewing && (
+        <Panel
+          title={`Renew ${renewing.code}`}
+          description="Keeps the same code string and extends its expiry. Leave the date empty for +30 days."
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="renew-date">New expiry date</Label>
+              <Input
+                id="renew-date"
+                type="date"
+                value={renewing.date}
+                onChange={(e) => setRenewing({ ...renewing, date: e.target.value })}
+                className="min-h-11"
+              />
+            </div>
+            <Button
+              className="min-h-11"
+              disabled={renew.isPending}
+              onClick={() =>
+                renew.mutate({
+                  id: renewing.id,
+                  expiresAt: renewing.date
+                    ? new Date(`${renewing.date}T23:59:59Z`).toISOString()
+                    : null,
+                })
+              }
+            >
+              {renew.isPending ? 'Renewing…' : 'Renew code'}
+            </Button>
+            <Button variant="secondary" className="min-h-11" onClick={() => setRenewing(null)}>
+              Cancel
+            </Button>
+          </div>
+        </Panel>
+      )}
+
       <Panel title="Issued codes" description="Status, usage and who redeemed each code.">
+
         {codes.isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -222,14 +288,42 @@ function CodesPage() {
                       expires {c.expiresAt.slice(0, 10)}
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto min-h-11"
-                    onClick={() => revoke.mutate(c.id)}
-                  >
-                    {c.uses === 0 ? 'Delete' : 'Revoke'}
-                  </Button>
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {/* Expired / revoked / exhausted codes can be revived in place so
+                        the string already handed to a viewer keeps working. */}
+                    {c.status !== 'active' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="min-h-11"
+                        onClick={() => setRenewing({ id: c.id, code: c.code, date: '' })}
+                      >
+                        Renew
+                      </Button>
+                    )}
+                    {/* Redeemed codes keep their history: revoke, never delete. */}
+                    {c.uses > 0 ? (
+                      c.status !== 'revoked' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="min-h-11"
+                          onClick={() => revoke.mutate(c.id)}
+                        >
+                          Revoke
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="min-h-11 text-destructive"
+                        onClick={() => remove.mutate(c.id)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {c.note && <p className="mt-2 text-xs text-muted-foreground">{c.note}</p>}
                 {c.redeemedBy.length > 0 && (

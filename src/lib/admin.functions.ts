@@ -245,6 +245,33 @@ export const revokeActivationCode = createServerFn({ method: 'POST' })
     return revokeCode(data.id);
   });
 
+export const deleteActivationCode = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { deleteCode } = await import('@/lib/codes.server');
+    return deleteCode(data.id);
+  });
+
+export const renewActivationCode = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; expiresAt: string | null; extraUses?: number }) => input)
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { renewCode } = await import('@/lib/codes.server');
+    return renewCode(data);
+  });
+
+export const changeUserPassword = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { userId: string; password: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await guard(context.supabase, context.userId);
+    await ops.setUserPassword(data.userId, data.password);
+    return { ok: true };
+  });
+
 export const changeUserSectionAccess = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator(
