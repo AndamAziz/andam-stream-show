@@ -228,6 +228,20 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 
 <main class="rows" id="rows"></main>
 
+<section class="catalog" id="catalog" aria-label="Catalog">
+  <div class="cathead">
+    <h1 id="catTitle">Movies</h1>
+    <span class="cnt mono" id="catCount"></span>
+    <form id="catForm" role="search">
+      <input id="catSearch" type="search" placeholder="Search titles" aria-label="Search titles" />
+      <button class="btn glass" type="submit">Search</button>
+    </form>
+  </div>
+  <div class="grid" id="catGrid"></div>
+  <div class="catmsg hide" id="catMsg"></div>
+  <div class="more"><button class="btn glass hide" id="catMore">Load more</button></div>
+</section>
+
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
   <div class="modal">
     <div class="mhead">
