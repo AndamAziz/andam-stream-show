@@ -1828,6 +1828,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       fail(s,msg);
     }
 
+    /* Provider refusals are permanent for this attempt window: retrying only
+       burns more of the account's few simultaneous connection slots, which is
+       what turned one busy channel into a cascade of failures. */
+    function httpFail(code){
+      if(!alive()||ok) return;
+      clearTimeout(timer);
+      if(code===429||code===403) return fail(s,'Channel busy — provider connection limit reached. Try again in a moment.');
+      if(code===404) return fail(s,'This channel is no longer available');
+      if(code===410) return fail(s,'Link expired — reopen the channel');
+      retryable('Stream error '+code);
+    }
+
+
     function arm(){
       clearTimeout(timer);
       timer=setTimeout(function(){
