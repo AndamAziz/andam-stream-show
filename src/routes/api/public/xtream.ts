@@ -95,10 +95,19 @@ async function loadSources(): Promise<Source[]> {
   const { data, error } = await supabaseAdmin
     .from('sources')
     .select('id, slug, name, base_url, username, password, is_public')
+    .eq('type', 'xtream')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Source[];
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
+    base_url: s.base_url ?? '',
+    username: s.username ?? '',
+    password: s.password ?? '',
+    is_public: s.is_public,
+  })) as Source[];
 }
 
 function visible(sources: Source[], granted: Set<string> | null): Source[] {

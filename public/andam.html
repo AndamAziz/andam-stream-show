@@ -534,6 +534,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   </div>
 </section>
 
+<section class="ltv" id="iptv" aria-label="IPTV playlist channels">
+  <h1>IPTV</h1>
+  <div class="sub" id="ipSub">M3U playlist channels</div>
+  <div class="provbar" id="ipBar" role="tablist" aria-label="IPTV sources"></div>
+  <div class="ltvwrap">
+    <aside class="ltvside" id="ipCats"><h4>Groups</h4></aside>
+    <div>
+      <div class="ltvbar">
+        <input id="ipSearch" type="search" placeholder="Search channels" aria-label="Search channels" />
+      </div>
+      <div id="ipBody"></div>
+      <div class="ltvmsg hide" id="ipMsg"></div>
+    </div>
+  </div>
+</section>
 
 
 <div class="scrim2" id="dScrim"></div>
@@ -880,14 +895,17 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .then(function(){ cat.busy=false });
   }
 
-  var ltvEl=document.getElementById('ltv');
+  var ltvEl=document.getElementById('ltv'), iptvEl=document.getElementById('iptv');
   function showView(view,kind){
-    var isCat=view==='catalog', isLtv=view==='live';
-    hero.classList.toggle('hide',isCat||isLtv); rowsEl.classList.toggle('hide',isCat||isLtv);
+    var isCat=view==='catalog', isLtv=view==='live', isIptv=view==='iptv';
+    var away=isCat||isLtv||isIptv;
+    hero.classList.toggle('hide',away); rowsEl.classList.toggle('hide',away);
     catalog.classList.toggle('open',isCat);
     ltvEl.classList.toggle('open',isLtv);
+    iptvEl.classList.toggle('open',isIptv);
     window.scrollTo(0,0);
     if(isLtv && window.ltvOpen) window.ltvOpen();
+    if(isIptv && window.iptvOpen) window.iptvOpen();
     if(isCat && (kind!==cat.kind || !cat.items.length)){
       cat.kind=kind; cat.q=''; catSearch.value='';
       catTitle.textContent=kind==='movies'?'Movies':'Shows';
@@ -937,7 +955,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       });
       if(label==='Home') showView('home');
       else if(label==='Live TV') showView('live');
-      else if(label==='IPTV') showView('live');
+      else if(label==='IPTV') showView('iptv');
       else showView('catalog', label==='Movies'?'movies':'series');
 
     });
@@ -1700,6 +1718,116 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           'Replay · '+d+' '+t,true);
       })
       .catch(function(){ ltvSet('Replay not available for this time.') });
+  });
+
+  /* ================= IPTV (M3U playlist sources) ================= */
+  var IPTV_API='/api/public/iptv', IP_KEY='andam:iptv-source';
+  var ipBar=document.getElementById('ipBar'), ipCats=document.getElementById('ipCats'),
+      ipBody=document.getElementById('ipBody'), ipMsg=document.getElementById('ipMsg'),
+      ipSearch=document.getElementById('ipSearch'), ipSub=document.getElementById('ipSub');
+  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false};
+  var ipCache={};
+
+  function ipSet(m){ ipMsg.textContent=m||''; ipMsg.classList.toggle('hide',!m); }
+
+  function ipApi(params){
+    var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]) }).join('&');
+    var hit=ipCache[qs];
+    if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
+    return fetch(IPTV_API+'?'+qs,{headers:{accept:'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(v){ if(v&&v.error) throw new Error(v.error); ipCache[qs]={t:Date.now(),v:v}; return v });
+  }
+
+  function renderIpSources(){
+    ipBar.innerHTML=ip.sources.map(function(s){
+      return '<button class="pill'+(ip.src===s.id?' on':'')+'" data-ipsrc="'+esc(s.id)+'" role="tab">'+esc(s.name)+'</button>';
+    }).join('');
+  }
+
+  function renderIpGroups(){
+    ipCats.innerHTML='<h4>Groups</h4>'+
+      '<button class="'+(ip.group?'':'on')+'" data-ipgroup="">All ('+ip.channels.length+')</button>'+
+      ip.groups.map(function(g){
+        return '<button class="'+(ip.group===g.name?'on':'')+'" data-ipgroup="'+esc(g.name)+'">'+
+          esc(g.name)+' ('+g.count+')</button>';
+      }).join('');
+  }
+
+  function renderIpChannels(){
+    var q=ip.q.toLowerCase();
+    var list=ip.channels.filter(function(c){
+      return (!ip.group||c.group===ip.group) && (!q||c.name.toLowerCase().indexOf(q)>-1);
+    });
+    if(!list.length){ ipBody.innerHTML=''; ipSet('No channels match that search.'); return }
+    ipSet('');
+    ipBody.innerHTML=list.map(function(c){
+      return '<button class="chanrow" type="button" data-ipch="'+esc(c.id)+'" data-name="'+esc(c.name)+'">'+
+        '<span class="no">'+c.num+'</span>'+
+        (c.logo?'<img class="lg" src="'+esc(c.logo)+'" alt="" loading="lazy" />':'<span class="lg"></span>')+
+        '<span class="nm">'+esc(c.name)+'</span></button>';
+    }).join('');
+  }
+
+  function loadIptv(){
+    var my=++ip.req;
+    ipBody.innerHTML=skelRows(8); ipSet('');
+    ipApi({action:'channels',source:ip.src})
+      .then(function(d){
+        if(my!==ip.req) return;
+        ip.channels=d.channels||[]; ip.groups=d.groups||[];
+        if(!ip.channels.length){ ipBody.innerHTML=''; ipSet('This playlist has no channels yet.'); return }
+        renderIpGroups(); renderIpChannels();
+      })
+      .catch(function(){
+        if(my!==ip.req) return;
+        ipBody.innerHTML=''; ipSet('Could not load this playlist. Try again in a moment.');
+      });
+  }
+
+  function setIpSource(id){
+    ip.src=id; ip.group=''; ip.q=''; ipSearch.value='';
+    try{ localStorage.setItem(IP_KEY,id) }catch(_){}
+    renderIpSources();
+    var s=ip.sources.filter(function(x){return x.id===id})[0];
+    ipSub.textContent=(s?s.name:'Playlist')+' · M3U channels via the Andam relay';
+    loadIptv();
+  }
+
+  window.iptvOpen=function(){
+    if(ip.started) return;
+    ip.started=true;
+    ipBody.innerHTML=skelRows(8);
+    ipApi({action:'sources'}).then(function(d){
+      ip.sources=d.sources||[];
+      if(!ip.sources.length){ ipBody.innerHTML=''; ipSet('No IPTV playlist is configured for your account yet.'); return }
+      var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
+      var pick=ip.sources.filter(function(s){return s.id===saved})[0]||ip.sources[0];
+      setIpSource(pick.id);
+    }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
+  };
+
+  ipBar.addEventListener('click',function(e){
+    var b=e.target.closest('[data-ipsrc]'); if(b) setIpSource(b.getAttribute('data-ipsrc'));
+  });
+  ipCats.addEventListener('click',function(e){
+    var b=e.target.closest('[data-ipgroup]'); if(!b) return;
+    ip.group=b.getAttribute('data-ipgroup'); renderIpGroups(); renderIpChannels();
+  });
+  var ipq=null;
+  ipSearch.addEventListener('input',function(){
+    clearTimeout(ipq); var v=this.value.trim();
+    ipq=setTimeout(function(){ ip.q=v; renderIpChannels(); },200);
+  });
+  ipBody.addEventListener('click',function(e){
+    var ch=e.target.closest('[data-ipch]'); if(!ch) return;
+    [].forEach.call(ipBody.querySelectorAll('.chanrow.on'),function(x){x.classList.remove('on')});
+    ch.classList.add('on');
+    var name=ch.getAttribute('data-name');
+    setStatus('Preparing stream…');
+    ipApi({action:'play',source:ip.src,id:ch.getAttribute('data-ipch')})
+      .then(function(d){ playToken(d.token,name,'● LIVE · IPTV playlist',true) })
+      .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this channel.') });
   });
 })();
 
