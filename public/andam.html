@@ -368,19 +368,28 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 
   function play(url,title,sub,attempt){
     destroy();
+    var mySession=++session;
+    var live=function(){ return mySession===session };
     setStatus('Loading stream…');
     pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
     current=url; renderChans(pSearch.value);
     var src=relay(url); // always via the Andam relay: upstream origins send no CORS headers
     attempt=attempt||0;
+    var done=false;
 
     function fallback(){
+      if(done||!live()) return; done=true;
       // some upstream channels go offline — roll onto the next one in the list
       var i=channels.map(function(c){return c.url}).indexOf(url);
       var next=channels[i+1];
-      if(attempt<4&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
+      if(attempt<5&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
       else setStatus('This stream is unavailable right now. Pick another channel.');
     }
+    function playing(){ if(!live())return; done=true; setStatus(''); }
+
+    video.addEventListener('timeupdate',playing,{once:true});
+    // watchdog: manifest can parse fine while segments 404 — bail out on a stall
+    setTimeout(function(){ if(live()&&!done&&video.currentTime===0) fallback(); },12000);
 
     if(window.Hls&&window.Hls.isSupported()){
       hls=new window.Hls({
@@ -388,12 +397,11 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
         pLoader:playlistLoader(window.Hls),
         xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
       });
-      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ setStatus(''); video.play().catch(function(){}); });
+      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(live()) video.play().catch(function(){}); });
       hls.on(window.Hls.Events.ERROR,function(e,d){ if(d.fatal) fallback(); });
       hls.loadSource(src); hls.attachMedia(video);
     }else{
       video.src=src; // Safari plays HLS natively
-      video.addEventListener('loadedmetadata',function(){setStatus('')},{once:true});
       video.addEventListener('error',fallback,{once:true});
     }
   }
