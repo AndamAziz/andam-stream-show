@@ -1424,7 +1424,285 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .catch(function(){ openVid(base,season,episode,position||0) });
   }
   renderContinue();
+  /* ================= LIVE TV: MULTI-PROVIDER XTREAM SECTION =================
+     Everything here talks to /api/public/xtream (metadata) and
+     /api/public/xtream-play (bytes). Provider credentials and the relay token
+     stay server-side; the browser only ever holds opaque play tokens. */
+  var LTV_API='/api/public/xtream';
+  var provBar=document.getElementById('provBar'), ltvTabs=document.getElementById('ltvTabs'),
+      ltvCats=document.getElementById('ltvCats'), ltvBody=document.getElementById('ltvBody'),
+      ltvMsg=document.getElementById('ltvMsg'), ltvSearch=document.getElementById('ltvSearch'),
+      ltvSub=document.getElementById('ltvSub'), repBox=document.getElementById('repBox'),
+      repChan=document.getElementById('repChan'), repDate=document.getElementById('repDate'),
+      repTime=document.getElementById('repTime'), repDur=document.getElementById('repDur'),
+      repGo=document.getElementById('repGo');
+
+  var PROV_KEY='andam:provider';
+  var ltv={providers:[],prov:null,tab:'direct',cat:'',q:'',hasArchive:false,req:0,started:false,
+           archive:[],series:null};
+  var lcache={}, TTL=5*60*1000;   // client cache so tab switches don't refetch
+
+  function ltvSet(m){ ltvMsg.textContent=m||''; ltvMsg.classList.toggle('hide',!m); }
+
+  function api(params){
+    var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]) }).join('&');
+    var key=qs;
+    var hit=lcache[key];
+    if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
+    return fetch(LTV_API+'?'+qs,{headers:{accept:'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(v){ if(v&&v.error) throw new Error(v.error); lcache[key]={t:Date.now(),v:v}; return v });
+  }
+
+  /* ---- playback through the opaque proxy ---- */
+  function playToken(token,title,sub,isHls){
+    var src='/api/public/xtream-play?t='+encodeURIComponent(token);
+    overlay.classList.add('open'); document.body.style.overflow='hidden';
+    destroy();
+    var mySession=++session;
+    var alive=function(){ return mySession===session };
+    pTitle.textContent=title||'Andam'; pSub.textContent=sub||'● Andam relay';
+    setStatus('Loading stream…');
+    var ok=false;
+    video.addEventListener('timeupdate',function(){ if(alive()){ ok=true; setStatus('') } },{once:true});
+    function fail(msg){
+      if(!alive()||ok) return;
+      setStatus(msg||'Stream unavailable — retrying…');
+    }
+    if(isHls && window.Hls && window.Hls.isSupported()){
+      // Manifests are already rewritten server-side, so the default loader is fine.
+      hls=new window.Hls({lowLatencyMode:true});
+      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(alive()) video.play().catch(function(){}) });
+      hls.on(window.Hls.Events.ERROR,function(e,d){
+        if(!d.fatal||!alive()) return;
+        if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
+          setStatus('Stream unavailable, retrying…');
+          setTimeout(function(){ if(alive()&&!ok) hls.loadSource(src) },1200);
+        }else fail('This stream is unavailable right now.');
+      });
+      hls.loadSource(src); hls.attachMedia(video);
+    }else{
+      video.src=src;
+      video.play().catch(function(){});
+      video.addEventListener('error',function(){ fail('This stream is unavailable right now.') },{once:true});
+    }
+    setTimeout(function(){ if(alive()&&!ok&&video.currentTime===0) fail('Still buffering — the provider may be slow.'); },14000);
+  }
+
+  function playById(type,id,ext,title,sub,isHls){
+    setStatus('Preparing stream…');
+    api({action:'play',source:ltv.prov,type:type,id:id,ext:ext||''})
+      .then(function(d){ playToken(d.play,title,sub,isHls) })
+      .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this stream.') });
+  }
+
+  /* ---- rendering ---- */
+  var TABS=[['direct','Direct'],['movies','Movies'],['series','Series'],['replay','Replay']];
+  function renderTabs(){
+    ltvTabs.innerHTML=TABS.filter(function(t){ return t[0]!=='replay'||ltv.hasArchive })
+      .map(function(t){
+        return '<button class="pill'+(ltv.tab===t[0]?' on':'')+'" data-tab="'+t[0]+'" role="tab">'+t[1]+'</button>';
+      }).join('');
+  }
+  function renderProviders(){
+    provBar.innerHTML=ltv.providers.map(function(p){
+      return '<button class="pill'+(ltv.prov===p.id?' on':'')+'" data-prov="'+esc(p.id)+'" role="tab">'+esc(p.name)+'</button>';
+    }).join('');
+  }
+  function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:12px;margin-bottom:8px"></div>'; return h; }
+
+  function renderCats(cats){
+    ltvCats.innerHTML='<h4>Categories</h4>'+
+      '<button class="'+(ltv.cat?'':'on')+'" data-cat="">All</button>'+
+      cats.map(function(c){
+        return '<button class="'+(ltv.cat===c.id?'on':'')+'" data-cat="'+esc(c.id)+'">'+esc(c.name)+'</button>';
+      }).join('');
+  }
+
+  function filtered(items,field){
+    var q=ltv.q.toLowerCase();
+    return q?items.filter(function(i){ return String(i[field]||'').toLowerCase().indexOf(q)>-1 }):items;
+  }
+
+  function renderDirect(items){
+    var list=filtered(items,'name').slice(0,400);
+    if(!list.length){ ltvBody.innerHTML=''; ltvSet('No channels here.'); return }
+    ltvSet('');
+    ltvBody.innerHTML=list.map(function(c){
+      return '<button class="chanrow" data-id="'+esc(c.id)+'" data-name="'+esc(c.name)+'" type="button">'+
+        '<span class="no">'+esc(c.num)+'</span>'+
+        (c.logo?'<img class="lg" loading="lazy" src="'+esc(c.logo)+'" alt="" />':'<span class="lg"></span>')+
+        '<span class="nm">'+esc(c.name)+'</span>'+
+        (c.archive?'<span class="arc">REPLAY</span>':'')+'</button>';
+    }).join('');
+  }
+
+  function vodCard(it,kind){
+    return '<button class="pcard" type="button" data-'+kind+'="'+esc(it.id)+'" data-ext="'+esc(it.ext||'')+'" '+
+      'data-title="'+esc(it.name)+'">'+
+      (it.poster?'<img loading="lazy" src="'+esc(it.poster)+'" alt="'+esc(it.name)+' poster" />':'')+
+      '<span class="pi"><span class="pt">'+esc(it.name)+'</span><span class="pm">'+
+      '<span>'+esc(it.year||'—')+'</span>'+(it.rating?'<b>★ '+esc(it.rating)+'</b>':'')+
+      '</span></span></button>';
+  }
+
+  function renderGrid(items,kind){
+    var list=filtered(items,'name').slice(0,300);
+    if(!list.length){ ltvBody.innerHTML=''; ltvSet('Nothing here yet.'); return }
+    ltvSet('');
+    ltvBody.innerHTML='<div class="vodgrid">'+list.map(function(i){ return vodCard(i,kind) }).join('')+'</div>';
+  }
+
+  function renderReplay(){
+    ltvSet('');
+    ltvBody.innerHTML='<div class="ltvmsg">Pick a channel, date and time above, then press Replay.</div>';
+    repChan.innerHTML=ltv.archive.map(function(c){
+      return '<option value="'+esc(c.id)+'" data-days="'+esc(c.archiveDays||0)+'">'+esc(c.name)+'</option>';
+    }).join('');
+    var now=new Date();
+    if(!repDate.value){
+      repDate.value=now.toISOString().slice(0,10);
+      repTime.value=('0'+now.getHours()).slice(-2)+':00';
+    }
+    var days=Number((ltv.archive[0]||{}).archiveDays||0)||7;
+    var min=new Date(now.getTime()-days*864e5);
+    repDate.min=min.toISOString().slice(0,10);
+    repDate.max=now.toISOString().slice(0,10);
+  }
+
+  /* ---- data loading per tab ---- */
+  function loadTab(){
+    var my=++ltv.req;
+    repBox.classList.toggle('hide',ltv.tab!=='replay');
+    ltvSearch.parentNode.classList.toggle('hide',ltv.tab==='replay');
+    if(ltv.tab==='replay'){ ltvCats.classList.add('hide'); renderReplay(); return }
+    ltvCats.classList.remove('hide');
+    ltvBody.innerHTML=skelRows(8); ltvSet('');
+    var type=ltv.tab==='direct'?'live':(ltv.tab==='movies'?'vod':'series');
+    api({action:'categories',type:type,source:ltv.prov})
+      .then(function(d){ if(my===ltv.req) renderCats(d.categories||[]) })
+      .catch(function(){});
+    api(Object.assign({action:type,source:ltv.prov},ltv.cat?{category_id:ltv.cat}:{}))
+      .then(function(d){
+        if(my!==ltv.req) return;
+        var items=d.items||[];
+        if(ltv.tab==='direct'){
+          if(!ltv.cat){ ltv.hasArchive=!!d.hasArchive; ltv.archive=items.filter(function(i){return i.archive}); renderTabs(); }
+          renderDirect(items);
+        }
+        else if(ltv.tab==='movies') renderGrid(items,'vod');
+        else renderGrid(items,'series');
+      })
+      .catch(function(){
+        if(my!==ltv.req) return;
+        ltvBody.innerHTML=''; ltvSet('Could not reach this provider. Try again in a moment.');
+      });
+  }
+
+  function setTab(tab){ ltv.tab=tab; ltv.cat=''; ltv.q=''; ltvSearch.value=''; ltv.series=null; renderTabs(); loadTab(); }
+
+  function setProvider(id){
+    ltv.prov=id; lcache={}; ltv.hasArchive=false; ltv.archive=[];
+    try{ localStorage.setItem(PROV_KEY,id) }catch(_){}
+    renderProviders();
+    var p=ltv.providers.filter(function(x){return x.id===id})[0];
+    ltvSub.textContent=(p?p.name:'Provider')+' · channels, movies, series & replay';
+    setTab('direct');
+  }
+
+  window.ltvOpen=function(){
+    if(ltv.started){ return }
+    ltv.started=true;
+    ltvBody.innerHTML=skelRows(6);
+    api({action:'providers'}).then(function(d){
+      ltv.providers=d.providers||[];
+      if(!ltv.providers.length){ ltvSet('No providers are configured for your account yet.'); return }
+      var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
+      var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
+      setProvider(pick.id);
+    }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
+  };
+
+  /* ---- interactions ---- */
+  provBar.addEventListener('click',function(e){
+    var b=e.target.closest('[data-prov]'); if(b) setProvider(b.getAttribute('data-prov'));
+  });
+  ltvTabs.addEventListener('click',function(e){
+    var b=e.target.closest('[data-tab]'); if(b) setTab(b.getAttribute('data-tab'));
+  });
+  ltvCats.addEventListener('click',function(e){
+    var b=e.target.closest('[data-cat]'); if(!b) return;
+    ltv.cat=b.getAttribute('data-cat'); loadTab();
+  });
+  var stq=null;
+  ltvSearch.addEventListener('input',function(){
+    clearTimeout(stq); var v=this.value.trim();
+    stq=setTimeout(function(){ ltv.q=v; loadTab(); },200);
+  });
+
+  ltvBody.addEventListener('click',function(e){
+    var ch=e.target.closest('.chanrow');
+    if(ch){
+      [].forEach.call(ltvBody.querySelectorAll('.chanrow.on'),function(x){x.classList.remove('on')});
+      ch.classList.add('on');
+      playById('live',ch.getAttribute('data-id'),'',ch.getAttribute('data-name'),'● LIVE · '+(ltvSub.textContent.split(' ·')[0]),true);
+      return;
+    }
+    var mv=e.target.closest('[data-vod]');
+    if(mv){
+      playById('vod',mv.getAttribute('data-vod'),mv.getAttribute('data-ext'),
+        mv.getAttribute('data-title'),'Movie · provider VOD',false);
+      return;
+    }
+    var sr=e.target.closest('[data-series]');
+    if(sr){ openSeries(sr.getAttribute('data-series'),sr.getAttribute('data-title')); return }
+    var ep=e.target.closest('[data-play]');
+    if(ep){ playToken(ep.getAttribute('data-play'),ep.getAttribute('data-title'),'Episode · provider series',false); return }
+    var back=e.target.closest('#srBack');
+    if(back){ loadTab(); }
+  });
+
+  function openSeries(id,title){
+    ltvBody.innerHTML=skelRows(6); ltvSet('');
+    api({action:'series_info',source:ltv.prov,series_id:id})
+      .then(function(d){
+        ltv.series=d;
+        var seasons=d.seasons||[];
+        if(!seasons.length){ ltvBody.innerHTML=''; ltvSet('No episodes listed for this series.'); return }
+        ltvBody.innerHTML='<div class="ltvbar"><button class="pill" id="srBack" type="button">← Back</button>'+
+          '<select id="srSeason" aria-label="Season">'+seasons.map(function(s){
+            return '<option value="'+s.season+'">Season '+s.season+' · '+s.episodes.length+' ep</option>' }).join('')+
+          '</select></div><h1 style="font-size:22px">'+esc(d.title||title||'Series')+'</h1>'+
+          '<div class="epilist" id="srEps"></div>';
+        var sel=document.getElementById('srSeason');
+        function paint(){
+          var s=seasons.filter(function(x){return String(x.season)===sel.value})[0]||seasons[0];
+          document.getElementById('srEps').innerHTML=s.episodes.map(function(ep){
+            return '<button class="epirow" type="button" data-play="'+esc(ep.play)+'" '+
+              'data-title="'+esc((d.title||title||'')+' · S'+s.season+'E'+ep.episode)+'">'+
+              '<span class="en">S'+s.season+'E'+ep.episode+'</span>'+
+              '<span class="nm">'+esc(ep.title||('Episode '+ep.episode))+'</span></button>';
+          }).join('');
+        }
+        sel.addEventListener('change',paint); paint();
+      })
+      .catch(function(){ ltvBody.innerHTML=''; ltvSet('Could not load this series.') });
+  }
+
+  repGo.addEventListener('click',function(){
+    var id=repChan.value, d=repDate.value, t=repTime.value;
+    if(!id||!d||!t){ ltvSet('Pick a channel, date and time first.'); return }
+    var start=d+':'+t.replace(':','-');
+    ltvSet('');
+    api({action:'timeshift',source:ltv.prov,stream_id:id,start:start,duration:repDur.value})
+      .then(function(r){
+        playToken(r.play,repChan.options[repChan.selectedIndex].textContent+' · replay',
+          'Replay · '+d+' '+t,true);
+      })
+      .catch(function(){ ltvSet('Replay not available for this time.') });
+  });
 })();
+
 
 </script>
 </body>
