@@ -312,8 +312,8 @@ function CodesPage() {
                       </Button>
                     )}
 
-                    {/* Delete works on any code; redeemed ones ask first because their
-                        redemption history goes with them. */}
+                    {/* Delete works on any code; redeemed ones ask first because the
+                        access it granted is withdrawn along with its history. */}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -322,7 +322,7 @@ function CodesPage() {
                         if (
                           c.uses > 0 &&
                           !window.confirm(
-                            `Delete ${c.code}? Its redemption history will be removed. Users keep the access they already unlocked.`,
+                            `Delete ${c.code}? Viewers who redeemed it lose that access and drop back to IPTV only until they redeem a new code.`,
                           )
                         )
                           return;
