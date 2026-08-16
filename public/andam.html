@@ -2008,7 +2008,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
           setTimeout(function(){ if(alive()&&!ok&&s.hls===h){ try{ h.startLoad() }catch(_){ h.loadSource(src) } } },1200);
-        }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){ h.recoverMediaError() }
+        }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
+          /* Cap recovery: a codec this device cannot decode otherwise loops
+             forever (append → error → recover → append). */
+          if(++recover>2){ retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
+          if(recover===2) h.swapAudioCodec();
+          h.recoverMediaError();
+        }
         else retryable('Stream failed to load');
       });
       h.attachMedia(s.video); h.loadSource(src);
