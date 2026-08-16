@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTmdbDiscoverRoute = ApiPublicTmdbDiscoverRouteImport.update({
+  id: '/api/public/tmdb-discover',
+  path: '/api/public/tmdb-discover',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/public/tmdb-discover'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/public/tmdb-discover'
+  id: '__root__' | '/' | '/api/public/tmdb-discover'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/tmdb-discover': {
+      id: '/api/public/tmdb-discover'
+      path: '/api/public/tmdb-discover'
+      fullPath: '/api/public/tmdb-discover'
+      preLoaderRoute: typeof ApiPublicTmdbDiscoverRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
