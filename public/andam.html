@@ -263,9 +263,13 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 }
 
 /* ===== MOBILE (<=640px) ===== */
-@media (max-width:900px){
+@media (max-width:767px){
   .links{display:none}
   .burger{display:grid}
+}
+@media (min-width:768px) and (max-width:1024px){
+  .links{gap:14px;font-size:12.5px}
+  .chip{display:none}
 }
 @media (max-width:640px){
   :root{--pad:16px}
