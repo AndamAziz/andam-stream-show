@@ -1950,9 +1950,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
     function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
+    /* A relay segment can legitimately take longer than 15s to buffer. The old
+       watchdog covered the still-active player with a false failure while HLS
+       was continuing to download. Engine errors below remain authoritative. */
     timer=setTimeout(function(){
-      if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<2) retryable('Stream failed to load');
-    },15000);
+      if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<1) retryable('Stream failed to load');
+    },60000);
 
     function native(streamIsHls){
       if(!alive()) return;
@@ -1983,16 +1986,22 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
          bufferStalledError. Deeper buffers, generous timeouts and retries. */
       var h=new Hls({
         lowLatencyMode:false,
-        maxBufferLength:30,maxMaxBufferLength:90,maxBufferSize:60*1000*1000,
-        backBufferLength:60,
-        liveSyncDurationCount:4,liveMaxLatencyDurationCount:12,
-        manifestLoadingTimeOut:20000,manifestLoadingMaxRetry:4,
-        levelLoadingTimeOut:20000,levelLoadingMaxRetry:4,
-        fragLoadingTimeOut:30000,fragLoadingMaxRetry:6,fragLoadingMaxRetryTimeout:8000,
+        maxBufferLength:15,maxMaxBufferLength:45,maxBufferSize:30*1000*1000,
+        backBufferLength:30,
+        liveSyncDurationCount:2,liveMaxLatencyDurationCount:8,
+        manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:4,
+        levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
+        fragLoadingTimeOut:90000,fragLoadingMaxRetry:6,fragLoadingMaxRetryTimeout:12000,
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
       s.hls=h;
-      h.on(Hls.Events.MANIFEST_PARSED,function(){ if(alive()) s.video.play().catch(function(){}) });
+      h.on(Hls.Events.MANIFEST_PARSED,function(){
+        if(!alive()) return;
+        /* Start at the newest segment. Beginning at the oldest advertised
+           segment made slow relay downloads fall behind the live window. */
+        try{ h.startLoad(-1) }catch(_){}
+        s.video.play().catch(function(){});
+      });
       h.on(Hls.Events.ERROR,function(e,d){
         console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
         if(!alive()||s.hls!==h) return;
