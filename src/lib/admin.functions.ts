@@ -33,11 +33,13 @@ export const upsertProvider = createServerFn({ method: 'POST' })
   .inputValidator(
     (input: {
       id?: string;
+      type?: 'xtream' | 'm3u';
       name: string;
       slug?: string;
-      base_url: string;
-      username: string;
+      base_url?: string;
+      username?: string;
       password?: string;
+      playlist_url?: string;
       is_active: boolean;
       is_public: boolean;
       sort_order: number;
@@ -55,6 +57,14 @@ export const removeProvider = createServerFn({ method: 'POST' })
     const ops = await guard(context.supabase, context.userId);
     await ops.deleteProvider(data.id);
     return { ok: true };
+  });
+
+export const refreshProviderPlaylist = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await guard(context.supabase, context.userId);
+    return ops.refreshProviderPlaylist(data.id);
   });
 
 export const testProviderConnection = createServerFn({ method: 'POST' })
