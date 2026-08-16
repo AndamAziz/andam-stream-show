@@ -1019,9 +1019,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     if(e.key==='Escape'||e.key==='Backspace'||e.key==='BrowserBack'||BACK_CODES.indexOf(e.keyCode)>=0){
       if(typing&&e.key==='Backspace') return;
-      if(goBack()){ e.preventDefault(); }
+      if(goBack()){ e.preventDefault(); e.stopPropagation(); }
       return;
     }
+
 
     if(e.key==='Enter'||e.key===' '||e.key==='OK'){
       if(!el||typing) return;
