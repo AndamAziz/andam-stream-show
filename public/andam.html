@@ -2507,15 +2507,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       return featuredPats;
     }).catch(function(){ featuredPats=[]; return featuredPats });
   }
+  /* A featured channel only counts when it is actually live right now (present
+     in the provider's live list with a usable stream id). When none of the
+     admin patterns match a live channel, the hero falls back to the provider's
+     own ordering untouched. */
   function prioritise(items,pats){
-    if(!pats||!pats.length) return items;
+    if(!pats||!pats.length||!items||!items.length) return items;
     var hit=[], rest=[];
     items.forEach(function(c,i){
       var n=String(c.name||'').toLowerCase(), rank=-1;
-      for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
+      var live=!!c.id && n!=='';
+      if(live) for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
       (rank<0?rest:hit).push({c:c,rank:rank,i:i});
     });
-    if(!hit.length) return items;
+    if(!hit.length) return items;   /* fallback: provider's normal order */
     hit.sort(function(a,b){ return a.rank-b.rank || a.i-b.i });
     return hit.concat(rest).map(function(o){ return o.c });
   }
