@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
@@ -20,10 +22,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ApiPublicTmdbDiscoverRoute = ApiPublicTmdbDiscoverRouteImport.update({
   id: '/api/public/tmdb-discover',
@@ -44,6 +55,7 @@ const ApiPublicXtreamPlayRoute = ApiPublicXtreamPlayRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -51,6 +63,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -58,7 +71,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -68,6 +83,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/admin'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -75,13 +91,16 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/admin'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
     | '/auth'
+    | '/_authenticated/admin'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -89,6 +108,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
   ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
@@ -104,12 +124,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/tmdb-discover': {
       id: '/api/public/tmdb-discover'
@@ -135,8 +169,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRouteRoute: typeof AuthenticatedAdminRouteRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRouteRoute: AuthenticatedAdminRouteRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
   ApiPublicXtreamRoute: ApiPublicXtreamRoute,
