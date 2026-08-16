@@ -685,8 +685,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 <section class="ltv" id="iptv" aria-label="IPTV playlist channels">
   <div class="lvhead">
-    <div><h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div></div>
-    <div class="chips" id="ipBar" role="tablist" aria-label="IPTV sources"></div>
+    <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
+    <div class="lvtools">
+      <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
+      <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
+    </div>
   </div>
   <div class="lvmain">
     <div class="lvplayer" id="ipPlayer">
@@ -696,11 +699,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvspin hide" id="ipSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ipErr" role="button" tabindex="0"></div>
       </div>
-      <div class="lvbar"><span class="ld"></span><span class="nm" id="ipNow">Nothing playing</span>
-        <span class="sb" id="ipNowSub">Andam relay</span></div>
+      <div class="lvbar">
+        <img class="lgo" id="ipNowLogo" alt="" />
+        <span class="nm" id="ipNow">Nothing playing</span>
+        <span class="tg" id="ipNowTag"></span>
+        <span class="live" id="ipLive" hidden><span class="ld"></span>LIVE</span>
+        <button class="ib" id="ipFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+        <span class="sb" id="ipNowSub">Andam relay</span>
+      </div>
     </div>
     <div class="lvbrowse">
-      <div class="chips cats" id="ipCats" role="tablist" aria-label="Groups"></div>
       <div class="lvsearch">
         <input id="ipSearch" type="search" placeholder="Search channels" aria-label="Search channels" />
       </div>
@@ -709,6 +717,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     </div>
   </div>
 </section>
+
 
 
 
