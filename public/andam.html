@@ -1527,7 +1527,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       },15000);
     }
     /* Log the real HTTP status so relay/provider errors are debuggable. */
-    fetch(src,{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
+    fetch(src,isHls?{method:'GET'}:{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
       if(!r.ok){
         console.error('[player] playback endpoint returned',r.status,r.statusText,src);
         return r.text().then(function(t){ retryable('Stream error '+r.status+(t?' · '+t.slice(0,80):'')) });
