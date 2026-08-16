@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
+import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
@@ -51,6 +52,12 @@ const AuthenticatedAdminContentRoute =
     path: '/content',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminMonitoringRoute =
+  AuthenticatedAdminMonitoringRouteImport.update({
+    id: '/monitoring',
+    path: '/monitoring',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminProvidersRoute =
   AuthenticatedAdminProvidersRouteImport.update({
     id: '/providers',
@@ -83,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/admin/content': typeof AuthenticatedAdminContentRoute
+  '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
@@ -94,6 +102,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
+  '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
@@ -108,6 +117,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
+  '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin'
     | '/admin/content'
+    | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
     | '/api/public/tmdb-discover'
@@ -133,6 +144,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/admin/content'
+    | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
     | '/api/public/tmdb-discover'
@@ -146,6 +158,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admin'
     | '/_authenticated/admin/content'
+    | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
     | '/_authenticated/admin/users'
     | '/api/public/tmdb-discover'
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminContentRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/monitoring': {
+      id: '/_authenticated/admin/monitoring'
+      path: '/monitoring'
+      fullPath: '/admin/monitoring'
+      preLoaderRoute: typeof AuthenticatedAdminMonitoringRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/providers': {
       id: '/_authenticated/admin/providers'
       path: '/providers'
@@ -247,6 +267,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
+  AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -255,6 +276,7 @@ interface AuthenticatedAdminRouteRouteChildren {
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
+    AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
