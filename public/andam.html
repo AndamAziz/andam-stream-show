@@ -485,8 +485,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 /* layout: player up top on small screens, side-by-side from laptop up */
 .lvmain{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start}
+/* sticky + a compositor layer: without translateZ the blurred head and the
+   video repaint on every scroll frame, which is what flickered. */
 .lvplayer{position:sticky;top:152px;z-index:20;border-radius:14px;overflow:hidden;
-  border:1px solid var(--hair);background:#000;transition:max-width .2s ease}
+  border:1px solid var(--hair);background:#000;
+  transform:translateZ(0);backface-visibility:hidden;contain:paint}
 .lvstage{position:relative;aspect-ratio:16/9;background:#000}
 .lvstage video{position:absolute;inset:0;width:100%;height:100%;background:#000}
 .lvidle{position:absolute;inset:0;display:grid;place-items:center;gap:6px;text-align:center;
