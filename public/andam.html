@@ -1536,7 +1536,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(err){ console.error('[player] playback request failed',err); retryable('Network error') });
 
     function native(){
-      if(hls){ hls.destroy(); hls=null }
+      var dead=hls; hls=null;
+      if(dead) setTimeout(function(){ try{ dead.destroy() }catch(_){} },0);
       video.src=src; video.play().catch(function(){});
       video.addEventListener('error',function(){
         console.error('[player] native playback error',video.error&&video.error.code,src);
@@ -1551,7 +1552,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,
           d.response?('http '+d.response.code):'',d.url||'');
         if(!d.fatal||!alive()) return;
-        if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ native(); return }
+        if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(native,0); return }
         if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok&&!failed){
           setStatus('Stream unavailable, retrying…');
           setTimeout(function(){ if(alive()&&!ok&&!failed) hls.loadSource(src) },1200);
