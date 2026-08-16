@@ -17,6 +17,16 @@ import {
 import type { OverrideKind } from '@/lib/overrides.server';
 
 export const Route = createFileRoute('/_authenticated/admin/content')({
+  head: () => ({
+    meta: [
+      { title: 'Andam content controls' },
+      { name: 'description', content: 'Reorder, hide and re-logo live channels, movies and series per provider.' },
+      { property: 'og:title', content: 'Andam content controls' },
+      { property: 'og:description', content: 'Reorder, hide and re-logo live channels, movies and series per provider.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: ContentPage,
 });
 

@@ -6,6 +6,16 @@ import { Button } from '@/components/ui/button';
 import { getAdminOverview } from '@/lib/admin.functions';
 
 export const Route = createFileRoute('/_authenticated/admin/monitoring')({
+  head: () => ({
+    meta: [
+      { title: 'Andam monitoring' },
+      { name: 'description', content: 'Relay proxy health, playback errors and recent sign-in activity.' },
+      { property: 'og:title', content: 'Andam monitoring' },
+      { property: 'og:description', content: 'Relay proxy health, playback errors and recent sign-in activity.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: MonitoringPage,
 });
 

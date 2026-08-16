@@ -5,6 +5,16 @@ import { Panel, Stat } from '@/components/admin/AdminShell';
 import { getAdminOverview } from '@/lib/admin.functions';
 
 export const Route = createFileRoute('/_authenticated/admin/')({
+  head: () => ({
+    meta: [
+      { title: 'Andam admin overview' },
+      { name: 'description', content: 'Relay health, provider stats and recent activity for the Andam streaming service.' },
+      { property: 'og:title', content: 'Andam admin overview' },
+      { property: 'og:description', content: 'Relay health, provider stats and recent activity for the Andam streaming service.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: Overview,
 });
 

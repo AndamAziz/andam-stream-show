@@ -16,6 +16,16 @@ import {
 } from '@/lib/admin.functions';
 
 export const Route = createFileRoute('/_authenticated/admin/providers')({
+  head: () => ({
+    meta: [
+      { title: 'Andam provider management' },
+      { name: 'description', content: 'Add, edit and test the IPTV providers powering Andam Live TV.' },
+      { property: 'og:title', content: 'Andam provider management' },
+      { property: 'og:description', content: 'Add, edit and test the IPTV providers powering Andam Live TV.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: ProvidersPage,
 });
 

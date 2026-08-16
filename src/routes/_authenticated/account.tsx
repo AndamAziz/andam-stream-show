@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export const Route = createFileRoute('/_authenticated/account')({
+  head: () => ({
+    meta: [
+      { title: 'Your Andam account' },
+      { name: 'description', content: 'Manage your Andam password, role and provider access.' },
+      { property: 'og:title', content: 'Your Andam account' },
+      { property: 'og:description', content: 'Manage your Andam password, role and provider access.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: AccountPage,
 });
 

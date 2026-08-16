@@ -14,6 +14,16 @@ import {
 } from '@/lib/admin.functions';
 
 export const Route = createFileRoute('/_authenticated/admin/users')({
+  head: () => ({
+    meta: [
+      { title: 'Andam user management' },
+      { name: 'description', content: 'Promote, suspend and grant provider access to Andam accounts.' },
+      { property: 'og:title', content: 'Andam user management' },
+      { property: 'og:description', content: 'Promote, suspend and grant provider access to Andam accounts.' },
+      { property: 'og:type', content: 'website' },
+      { name: 'twitter:card', content: 'summary_large_image' },
+    ],
+  }),
   component: UsersPage,
 });
 
