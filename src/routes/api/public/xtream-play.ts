@@ -45,24 +45,34 @@ async function fetchOnce(url: string, request: Request, viaRelay: boolean): Prom
 }
 
 /**
- * Hosts that answered `country-not-allow` (456/459/403). Re-trying the direct
- * fetch on every segment burns one of the provider's connection slots
- * (`max_connections: 1` on this account) for nothing.
+ * Hosts that reject this server's IP.
+ *
+ * Verified 2026-08-16: the provider answers HTTP 456/459 with the body
+ * `country-not-allow` for EVERY request from our egress IPs — both the GCP
+ * Netherlands IPv4 address and the Cloudflare IPv6 range — for live m3u8, VOD
+ * .mp4 and .ts alike, with any User-Agent (absent, `VLC/3.0.20 LibVLC/3.0.20`,
+ * `AndamTV/1.0`, desktop Chrome). `player_api.php` from the same IP with the
+ * same credentials returns 200 / `auth: 1` / `status: Active`, so it is not a
+ * credential, rate-limit or User-Agent problem: it is a hosting/datacenter IP
+ * block. The `country-not-allow` string is just the panel's generic label.
+ *
+ * Re-trying the direct fetch on every segment also burns the account's single
+ * connection slot (`max_connections: 1`) for nothing, so hosts are remembered.
  */
-const geoBlocked = new Set<string>();
-const GEO_STATUS = new Set([403, 451, 456, 459]);
+const blockedHosts = new Set<string>();
+const BLOCK_STATUS = new Set([403, 451, 456, 459]);
 
-function isGeoBlocked(host: string): boolean {
-  return geoBlocked.has(host);
+function isHostBlocked(host: string): boolean {
+  return blockedHosts.has(host);
 }
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   const host = new URL(upstream).host;
-  if (!isGeoBlocked(host)) {
+  if (!isHostBlocked(host)) {
     try {
       const direct = await fetchOnce(upstream, request, false);
       if (direct.ok || direct.status === 206) return direct;
-      if (GEO_STATUS.has(direct.status)) geoBlocked.add(host);
+      if (BLOCK_STATUS.has(direct.status)) blockedHosts.add(host);
       console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
     } catch (err) {
       console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
@@ -130,9 +140,14 @@ export const Route = createFileRoute('/api/public/xtream-play')({
          * Movies and episodes are multi-megabyte progressive files. The relay
          * tops out around 85 KB/s, which is fine for a low-bitrate live
          * channel but far below a VOD bitrate — the player buffered forever and
-         * showed "Stream failed to load". When the provider geo-blocks this
-         * server (`country-not-allow`) there is no fast server-side path, so
-         * hand the file to the viewer's own connection with a redirect. Live
+         * showed "Stream failed to load". Measured 2026-08-16: the relay
+         * delivers ~37 KB/s for a provider .mp4 and ~94 KB/s for a 5 MB file
+         * from speed.cloudflare.com that this server fetches directly at
+         * 37 MB/s, i.e. the cap is the relay itself, not the provider. Since
+         * the provider also blocks this server's IP outright, there is no fast
+         * server-side path, so hand the file to the viewer's own connection
+         * with a redirect. Once the relay can sustain VOD bitrates this
+         * redirect can be removed and everything can flow through it. Live
          * manifests keep flowing through the proxy: hls.js needs same-origin
          * responses to fetch the rewritten segment URLs.
          */
@@ -142,12 +157,12 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         // cannot reach the provider either (their country is blocked too).
         if (progressive && url.searchParams.get('via') !== 'relay') {
 
-          if (!isGeoBlocked(host)) {
+          if (!isHostBlocked(host)) {
             try {
               const probe = await fetchOnce(upstream, new Request(request.url, {
                 headers: { range: 'bytes=0-1' },
               }), false);
-              if (GEO_STATUS.has(probe.status)) geoBlocked.add(host);
+              if (BLOCK_STATUS.has(probe.status)) blockedHosts.add(host);
               try {
                 await probe.body?.cancel();
               } catch {
@@ -157,7 +172,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
               /* fall through to the normal path */
             }
           }
-          if (isGeoBlocked(host)) {
+          if (isHostBlocked(host)) {
             return new Response(null, {
               status: 302,
               headers: { Location: upstream, 'Cache-Control': 'no-store' },
