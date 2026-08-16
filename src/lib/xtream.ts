@@ -41,19 +41,57 @@ function apiUrl(source: Source, params: Record<string, string>): string {
   return `${base}/player_api.php?${qs.toString()}`;
 }
 
-/** Calls player_api.php server-side. Never called from the browser. */
+/**
+ * Calls player_api.php server-side. Never called from the browser.
+ *
+ * Some panels reject a server IP intermittently (403/429/5xx) while the same
+ * request succeeds through the relay, so the direct call is retried once and
+ * then repeated through the relay before we report a failure.
+ */
 export async function playerApi<T>(source: Source, params: Record<string, string>): Promise<T> {
-  const res = await fetch(apiUrl(source, params), {
-    headers: { 'User-Agent': 'AndamTV/1.0', Accept: 'application/json' },
-  });
-  if (!res.ok) throw new Error(`provider responded ${res.status}`);
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error('provider returned a malformed response');
+  const target = apiUrl(source, params);
+  const attempts: Array<() => Promise<Response>> = [
+    () => fetch(target, { headers: { 'User-Agent': 'AndamTV/1.0', Accept: 'application/json' } }),
+    () => fetch(target, { headers: { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20', Accept: '*/*' } }),
+    () =>
+      fetch(relayUrl(target), {
+        headers: { ...relayHeaders(), 'User-Agent': 'AndamTV/1.0', Accept: 'application/json' },
+        redirect: 'follow',
+      }),
+  ];
+
+  let lastStatus = 0;
+  let lastError = '';
+  for (let i = 0; i < attempts.length; i += 1) {
+    let res: Response;
+    try {
+      res = await attempts[i]!();
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'network error';
+      continue;
+    }
+    if (!res.ok) {
+      lastStatus = res.status;
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* nothing to drain */
+      }
+      if (i < attempts.length - 1) await new Promise((r) => setTimeout(r, 400));
+      continue;
+    }
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      lastError = 'provider returned a malformed response';
+    }
   }
+  throw new Error(
+    lastStatus ? `provider responded ${lastStatus}` : lastError || 'provider unreachable',
+  );
 }
+
 
 export function liveStreamUrl(source: Source, streamId: string | number, ext = 'm3u8'): string {
   const base = source.base_url.replace(/\/+$/, '');
