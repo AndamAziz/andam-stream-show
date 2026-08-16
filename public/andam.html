@@ -490,6 +490,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lverr{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;
   background:rgba(8,9,12,.9);border:1px solid rgba(255,69,0,.4);border-radius:10px;color:#fff;
   font:500 12.5px/1.35 Inter,sans-serif;padding:10px 14px;cursor:pointer;text-align:center}
+/* swipe / arrow channel-hop feedback: small dark pill over the video */
+.lvswipe{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
+  display:flex;align-items:center;gap:9px;max-width:82%;pointer-events:none;
+  background:rgba(8,9,12,.82);border:1px solid rgba(255,69,0,.32);border-radius:999px;
+  padding:8px 14px;opacity:0;transition:opacity .15s ease,transform .15s ease;z-index:6}
+.lvswipe.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.lvswipe .ar{color:var(--ember);font-size:16px;line-height:1;flex:none}
+.lvswipe img{width:26px;height:26px;flex:none;border-radius:7px;object-fit:contain;padding:2px;
+  background:rgba(255,255,255,.07)}
+.lvswipe img:not([src]){display:none}
+.lvswipe .nm{font:600 13px/1.2 Inter,sans-serif;color:#fff;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvstage{touch-action:pan-y}
 /* slim now-playing bar: logo + name + category tag + LIVE badge + small icon actions */
 .lvbar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface);
   border-top:1px solid var(--hair)}
