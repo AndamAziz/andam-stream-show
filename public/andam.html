@@ -2352,6 +2352,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
       var pick=ip.sources.filter(function(s){return s.id===saved})[0]||ip.sources[0];
       setIpSource(pick.id);
+      loadIpHealth();
+      if(!ip.healthTimer) ip.healthTimer=setInterval(function(){
+        var el=document.getElementById('iptv');
+        if(el && !el.classList.contains('hide')) loadIpHealth();
+      },90000);
     }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
   };
 
