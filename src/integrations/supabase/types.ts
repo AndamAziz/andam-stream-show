@@ -118,6 +118,47 @@ export type Database = {
         }
         Relationships: []
       }
+      playlist_cache: {
+        Row: {
+          category_count: number
+          channel_count: number
+          channels: Json
+          created_at: string
+          fetched_at: string
+          id: string
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          category_count?: number
+          channel_count?: number
+          channels?: Json
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          category_count?: number
+          channel_count?: number
+          channels?: Json
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_cache_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: true
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -150,40 +191,46 @@ export type Database = {
       }
       sources: {
         Row: {
-          base_url: string
+          base_url: string | null
           created_at: string
           id: string
           is_active: boolean
           is_public: boolean
           name: string
-          password: string
+          password: string | null
+          playlist_url: string | null
           slug: string
           sort_order: number
-          username: string
+          type: string
+          username: string | null
         }
         Insert: {
-          base_url: string
+          base_url?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           is_public?: boolean
           name: string
-          password: string
+          password?: string | null
+          playlist_url?: string | null
           slug: string
           sort_order?: number
-          username: string
+          type?: string
+          username?: string | null
         }
         Update: {
-          base_url?: string
+          base_url?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
           is_public?: boolean
           name?: string
-          password?: string
+          password?: string | null
+          playlist_url?: string | null
           slug?: string
           sort_order?: number
-          username?: string
+          type?: string
+          username?: string | null
         }
         Relationships: []
       }
