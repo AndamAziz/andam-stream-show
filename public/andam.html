@@ -686,9 +686,6 @@ html.hppreview .nav{position:static}
   /* Hero + rows are populated from real provider/playlist data further down
      (see "HOME ROWS"). Nothing on this page ships placeholder content. */
 
-  function esc0(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] }); }
-
   function row(title,inner){
     return '<section class="row"><div class="rowhead"><h2>'+title+'</h2></div>'+
       '<div class="strip">'+inner+'</div></section>';
@@ -1863,6 +1860,217 @@ html.hppreview .nav{position:static}
       .then(function(d){ playToken(d.token,name,'● LIVE · IPTV playlist',true) })
       .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this channel.') });
   });
+  /* ================= HOME ROWS (real data only) =================
+     Live now / Trending movies / Popular shows come from the selected Xtream
+     provider, "Your IPTV channels" from the M3U playlist source, and Continue
+     watching from the signed-in user's watch history. Any row whose source is
+     empty stays hidden — nothing here is fabricated. */
+  var homeIp=null, heroItems=[], heroIdx=0, heroTimer=null;
+  var heroBg=document.getElementById('heroBg'), heroTitle=document.getElementById('heroTitle'),
+      heroMeta=document.getElementById('heroMeta'), heroTag=document.getElementById('heroTag'),
+      dotsEl=document.getElementById('dots');
+
+  function stripOf(id){ return document.querySelector('#'+id+' .strip') }
+  function showRow(id,on){ document.getElementById(id).classList.toggle('hide',!on) }
+
+  function homeCard(o){
+    var h='<button class="card'+(o.chan?' chan':'')+'" type="button"';
+    Object.keys(o.data||{}).forEach(function(k){ h+=' data-'+k+'="'+esc(o.data[k])+'"' });
+    h+=' aria-label="'+esc(o.title)+'">';
+    h+=o.image
+      ? '<img class="ph" loading="lazy" src="'+esc(o.image)+'" alt="" />'
+      : '<span class="ph noimg" style="background:'+esc(o.tint||'var(--surface-2)')+'">'+esc(o.initials||'')+'</span>';
+    h+='<div class="grad"></div>';
+    if(o.live) h+='<span class="tag live"><i class="dot"></i>LIVE</span>';
+    if(o.rate) h+='<span class="rate">★ '+esc(o.rate)+'</span>';
+    h+='<span class="cwplay" aria-hidden="true">▶</span>';
+    h+='<div class="txt"><div class="t">'+esc(o.title)+'</div>'+
+       (o.sub?'<div class="s">'+esc(o.sub)+'</div>':'')+'</div>';
+    return h+'</button>';
+  }
+
+  function initialsOf(name){
+    return String(name||'?').replace(/[^A-Za-z0-9 ]/g,' ').trim().split(/\s+/)
+      .slice(0,2).map(function(w){ return w[0] }).join('').toUpperCase()||'?';
+  }
+  var TINTS=['linear-gradient(140deg,#FF3B4E,#C4243A)','linear-gradient(140deg,#38E1C6,#1E9C8B)',
+    'linear-gradient(140deg,#F5C56B,#C9902F)','linear-gradient(140deg,#B79CFF,#6C7BFF)',
+    'linear-gradient(140deg,#5AD1FF,#2A6BE0)','linear-gradient(140deg,#7BE07B,#219653)'];
+  function tintFor(i){ return TINTS[i%TINTS.length] }
+
+  /* ---- hero: the provider's first live channels, real names/categories ---- */
+  function paintHero(){
+    var it=heroItems[heroIdx]; if(!it) return;
+    heroTag.classList.remove('hide');
+    heroTitle.textContent=it.name;
+    heroMeta.innerHTML=(it.category?'<span class="g">'+esc(it.category)+'</span><i class="sep"></i>':'')+
+      '<span>'+esc(it.provider)+'</span>'+
+      (it.archive?'<i class="sep"></i><span class="mono">REPLAY AVAILABLE</span>':'');
+    if(it.logo){ heroBg.src=it.logo; heroBg.classList.add('logo') }
+    else { heroBg.removeAttribute('src'); heroBg.classList.remove('logo') }
+    [].forEach.call(dotsEl.children,function(b,i){ b.classList.toggle('active',i===heroIdx) });
+  }
+  function setHero(items,providerName){
+    heroItems=items.slice(0,5).map(function(c){
+      return {id:c.id,name:c.name,logo:c.logo,category:c.category||'',archive:c.archive,provider:providerName};
+    });
+    if(!heroItems.length){
+      heroTitle.textContent='No live channels are available for your account yet';
+      heroMeta.textContent=''; heroTag.classList.add('hide'); dotsEl.innerHTML='';
+      document.getElementById('watchNow').classList.add('hide');
+      return;
+    }
+    dotsEl.innerHTML=heroItems.map(function(_,i){
+      return '<button aria-label="Featured channel '+(i+1)+'"></button>' }).join('');
+    heroIdx=0; paintHero();
+    clearInterval(heroTimer);
+    heroTimer=setInterval(function(){
+      if(document.hidden||overlay.classList.contains('open')) return;
+      heroIdx=(heroIdx+1)%heroItems.length; paintHero();
+    },9000);
+  }
+  dotsEl.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    heroIdx=[].indexOf.call(dotsEl.children,b); paintHero();
+  });
+  document.getElementById('watchNow').addEventListener('click',function(){
+    var it=heroItems[heroIdx]; if(!it) return;
+    playById('live',it.id,'',it.name,'● LIVE · '+it.provider,true);
+  });
+  document.getElementById('heroAll').addEventListener('click',function(){ showView('live') });
+
+  /* ---- rows ---- */
+  function loadHomeProvider(){
+    return api({action:'providers'}).then(function(d){
+      var provs=d.providers||[];
+      if(!provs.length) return null;
+      var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
+      var pick=provs.filter(function(p){return p.id===saved})[0]||provs[0];
+      if(!ltv.prov) ltv.prov=pick.id;
+      return pick;
+    }).catch(function(){ return null });
+  }
+
+  function loadHomeLive(prov){
+    return Promise.all([
+      api({action:'live',source:prov.id}),
+      api({action:'categories',type:'live',source:prov.id}).catch(function(){ return {categories:[]} })
+    ]).then(function(res){
+      var items=res[0].items||[], names={};
+      (res[1].categories||[]).forEach(function(c){ names[c.id]=c.name });
+      items.forEach(function(c){ c.category=names[c.categoryId]||'' });
+      setHero(items,prov.name);
+      var list=items.slice(0,18);
+      showRow('rowLive',!!list.length);
+      stripOf('rowLive').innerHTML=list.map(function(c,i){
+        return homeCard({title:c.name,sub:c.category||'',image:c.logo,live:true,chan:true,
+          initials:initialsOf(c.name),tint:tintFor(i),data:{live:c.id}});
+      }).join('');
+    }).catch(function(){ setHero([],prov.name); showRow('rowLive',false) });
+  }
+
+  function loadHomeMovies(prov){
+    return api({action:'vod',source:prov.id}).then(function(d){
+      var items=(d.items||[]).slice();
+      // Real signals only: newest "added" first, else provider rating, else order.
+      if(items.some(function(i){return i.added})) items.sort(function(a,b){ return Number(b.added||0)-Number(a.added||0) });
+      else if(items.some(function(i){return i.rating})) items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
+      var list=items.slice(0,18);
+      showRow('rowMovies',!!list.length);
+      stripOf('rowMovies').innerHTML=list.map(function(m,i){
+        var sub=[m.genre||'',m.year||''].filter(Boolean).join(' · ');
+        return homeCard({title:m.name,sub:sub,image:m.poster,rate:m.rating||'',
+          initials:initialsOf(m.name),tint:tintFor(i),data:{vod:m.id,ext:m.ext||'',title:m.name}});
+      }).join('');
+    }).catch(function(){ showRow('rowMovies',false) });
+  }
+
+  function loadHomeShows(prov){
+    return api({action:'series',source:prov.id}).then(function(d){
+      var items=(d.items||[]).slice();
+      if(items.some(function(i){return i.lastModified}))
+        items.sort(function(a,b){ return Number(b.lastModified||0)-Number(a.lastModified||0) });
+      else if(items.some(function(i){return i.rating}))
+        items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
+      var list=items.slice(0,18);
+      showRow('rowShows',!!list.length);
+      stripOf('rowShows').innerHTML=list.map(function(sh,i){
+        var bits=[];
+        if(sh.genre) bits.push(sh.genre);
+        if(sh.seasonCount) bits.push(sh.seasonCount+(sh.seasonCount===1?' season':' seasons'));
+        else if(sh.year) bits.push(sh.year);
+        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:sh.rating||'',
+          initials:initialsOf(sh.name),tint:tintFor(i),data:{series:sh.id,title:sh.name}});
+      }).join('');
+    }).catch(function(){ showRow('rowShows',false) });
+  }
+
+  function loadHomeIptv(){
+    return ipApi({action:'sources'}).then(function(d){
+      var srcs=d.sources||[];
+      if(!srcs.length){ showRow('rowIptv',false); return }
+      var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
+      var pick=srcs.filter(function(x){return x.id===saved})[0]||srcs[0];
+      homeIp=pick.id;
+      return ipApi({action:'channels',source:pick.id}).then(function(r){
+        var list=(r.channels||[]).slice(0,18);
+        showRow('rowIptv',!!list.length);
+        stripOf('rowIptv').innerHTML=list.map(function(c,i){
+          return homeCard({title:c.name,sub:c.group||'',image:c.logo,live:true,chan:true,
+            initials:initialsOf(c.name),tint:tintFor(i),data:{ipch:c.id,name:c.name}});
+        }).join('');
+      });
+    }).catch(function(){ showRow('rowIptv',false) });
+  }
+
+  /* ---- clicks on home cards go straight to playback ---- */
+  rowsEl.addEventListener('click',function(e){
+    if(e.target.closest('#cwRow')) return;   // continue watching has its own handler
+    var card=e.target.closest('.card'); if(!card) return;
+    var title=card.getAttribute('data-title')||(card.querySelector('.t')||{}).textContent||'Andam';
+    if(card.hasAttribute('data-live')){
+      playById('live',card.getAttribute('data-live'),'',title,'● LIVE · provider channel',true); return;
+    }
+    if(card.hasAttribute('data-vod')){
+      playById('vod',card.getAttribute('data-vod'),card.getAttribute('data-ext'),title,'Movie · provider VOD',false); return;
+    }
+    if(card.hasAttribute('data-series')){
+      showView('live');
+      if(window.ltvOpen) window.ltvOpen();
+      var id=card.getAttribute('data-series');
+      setTimeout(function(){ ltv.tab='series'; ltv.cat=''; renderTabs(); openSeries(id,title) },250);
+      return;
+    }
+    if(card.hasAttribute('data-ipch')){
+      var name=card.getAttribute('data-name');
+      setStatus('Preparing stream…');
+      ipApi({action:'play',source:homeIp,id:card.getAttribute('data-ipch')})
+        .then(function(d){ playToken(d.token,name,'● LIVE · IPTV playlist',true) })
+        .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this channel.') });
+    }
+  });
+
+  rowsEl.addEventListener('click',function(e){
+    var a=e.target.closest('[data-goto]'); if(!a) return;
+    e.preventDefault();
+    var to=a.getAttribute('data-goto');
+    if(to==='live'){ showView('live') }
+    else if(to==='iptv'){ showView('iptv') }
+    else if(to==='live-movies'||to==='live-series'){
+      showView('live'); if(window.ltvOpen) window.ltvOpen();
+      setTimeout(function(){ setTab(to==='live-movies'?'movies':'series') },250);
+    }
+  });
+
+  function loadHome(){
+    loadHomeProvider().then(function(prov){
+      if(!prov){ setHero([],''); showRow('rowLive',false); showRow('rowMovies',false); showRow('rowShows',false); return }
+      loadHomeLive(prov); loadHomeMovies(prov); loadHomeShows(prov);
+    });
+    loadHomeIptv();
+  }
+  loadHome();
+
 })();
 
 
