@@ -128,7 +128,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .card.chan .ph{object-fit:contain;padding:22px;background:radial-gradient(circle at 50% 40%,#22232B,#101014)}
 .card .ph.noimg{display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;
   font-size:26px;color:#0B0B10;letter-spacing:.5px}
-.hero img.bg.logo{object-fit:contain;padding:8vw 12vw;background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C);opacity:.85}
+.hero img.bg.logo{object-fit:contain;padding:16vh 30vw;background:radial-gradient(circle at 32% 45%,#20212A,#08090C);opacity:.5;filter:blur(1px) saturate(1.05)}
 #heroBg:not([src]){background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C)}
 
 .tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
@@ -1938,6 +1938,10 @@ html.hppreview .nav{position:static}
     return h+'</button>';
   }
 
+  function rateOf(v){
+    var n=parseFloat(v);
+    return isFinite(n)&&n>0 ? (Math.round(n*10)/10).toFixed(1) : '';
+  }
   function initialsOf(name){
     return String(name||'?').replace(/[^A-Za-z0-9 ]/g,' ').trim().split(/\s+/)
       .slice(0,2).map(function(w){ return w[0] }).join('').toUpperCase()||'?';
@@ -2028,7 +2032,7 @@ html.hppreview .nav{position:static}
       showRow('rowMovies',!!list.length);
       stripOf('rowMovies').innerHTML=list.map(function(m,i){
         var sub=[m.genre||'',m.year||''].filter(Boolean).join(' · ');
-        return homeCard({title:m.name,sub:sub,image:m.poster,rate:m.rating||'',
+        return homeCard({title:m.name,sub:sub,image:m.poster,rate:rateOf(m.rating),
           initials:initialsOf(m.name),tint:tintFor(i),data:{vod:m.id,ext:m.ext||'',title:m.name}});
       }).join('');
     }).catch(function(){ showRow('rowMovies',false) });
@@ -2048,7 +2052,7 @@ html.hppreview .nav{position:static}
         if(sh.genre) bits.push(sh.genre);
         if(sh.seasonCount) bits.push(sh.seasonCount+(sh.seasonCount===1?' season':' seasons'));
         else if(sh.year) bits.push(sh.year);
-        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:sh.rating||'',
+        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:rateOf(sh.rating),
           initials:initialsOf(sh.name),tint:tintFor(i),data:{series:sh.id,title:sh.name}});
       }).join('');
     }).catch(function(){ showRow('rowShows',false) });
