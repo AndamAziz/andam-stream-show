@@ -406,21 +406,40 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* ================= LIVE TV / IPTV SECTION (shared design) ================= */
 .ltv{display:none;padding:80px clamp(14px,3.5vw,44px) 72px}
 .ltv.open{display:block}
-.lvhead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px}
-.lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(21px,2.6vw,34px);margin:0;letter-spacing:-.5px}
-.lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--faint);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvhead{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-bottom:10px}
+.lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(17px,1.6vw,22px);margin:0;letter-spacing:-.3px}
+.lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
 
-/* one shared chip language for providers, tabs and categories */
-.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 8px;scroll-snap-type:x proximity}
+/* compact toolbar: dropdowns + search on one or two slim rows */
+.lvtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.lvsel{position:relative;display:inline-flex;align-items:center}
+.lvsel::after{content:"▾";position:absolute;right:10px;font-size:10px;color:var(--muted);pointer-events:none}
+.lvsel select,.repbox select,.repbox input[type=date],.repbox input[type=time]{
+  appearance:none;-webkit-appearance:none;min-height:34px;max-width:210px;
+  padding:0 26px 0 11px;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:#ededf0;font:500 12.5px/1 Inter,sans-serif;cursor:pointer;
+  text-overflow:ellipsis;transition:border-color .15s ease,background .15s ease}
+.lvsel select:hover{background:rgba(255,255,255,.09)}
+.lvsel select:focus{outline:none;border-color:var(--ember)}
+.lvsel select option{background:#111;color:#fff}
+.lvsel.accent select{border-color:rgba(255,69,0,.42);background:rgba(255,69,0,.12);color:#ffd9c9}
+.lvsel[hidden]{display:none}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0}
 .chips::-webkit-scrollbar{display:none}
-.chips .pill,.repbox .pill{flex:0 0 auto;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--hair);
-  background:rgba(255,255,255,.04);color:#e8e8e8;font:600 13.5px/1 Inter,sans-serif;cursor:pointer;
-  scroll-snap-align:start;white-space:nowrap;transition:background .15s ease,color .15s ease,border-color .15s ease}
-.chips .pill:active,.repbox .pill:active{transform:scale(.97)}
-.chips .pill.on{background:linear-gradient(120deg,var(--ember),#ff6a2b);border-color:transparent;color:#0b0b0b}
-.chips.tabs .pill.on{background:var(--teal);color:#fff}
-.chips.cats .pill.on{background:rgba(0,128,128,.28);border-color:rgba(56,225,198,.4);color:#fff}
+.chips .pill,.repbox .pill{flex:0 0 auto;min-height:34px;padding:0 13px;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:#dfdfe4;font:600 12.5px/1 Inter,sans-serif;cursor:pointer;
+  white-space:nowrap;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.chips .pill:hover,.repbox .pill:hover{background:rgba(255,255,255,.1)}
+.chips .pill:active,.repbox .pill:active{transform:scale(.98)}
+.chips .pill.on{background:linear-gradient(120deg,var(--ember),#ff6a2b);border-color:transparent;color:#140a05}
+/* segmented control for Direct/Movies/Series/Replay */
+.seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;border:1px solid var(--hair);background:rgba(255,255,255,.04)}
+.seg .pill{min-height:28px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);
+  font:600 12.5px/1 Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.seg .pill:hover{color:#fff;background:rgba(255,255,255,.07)}
+.seg .pill.on{background:var(--ember);color:#140a05}
+
 
 
 /* layout: player up top on small screens, side-by-side from laptop up */
@@ -438,18 +457,35 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lverr{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;
   background:rgba(8,9,12,.9);border:1px solid rgba(255,69,0,.4);border-radius:10px;color:#fff;
   font:500 12.5px/1.35 Inter,sans-serif;padding:10px 14px;cursor:pointer;text-align:center}
-.lvbar{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface);
+/* slim now-playing bar: logo + name + category tag + LIVE badge + small icon actions */
+.lvbar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface);
   border-top:1px solid var(--hair)}
-.lvbar .ld{width:7px;height:7px;border-radius:50%;background:var(--ember);flex:none;animation:pulse 1.4s ease-in-out infinite}
-.lvbar .nm{font:600 13.5px/1.2 Inter,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lvbar .sb{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint);margin-left:auto;flex:none}
+.lvbar .lgo{width:26px;height:26px;flex:none;border-radius:7px;object-fit:contain;padding:2px;
+  background:rgba(255,255,255,.06)}
+.lvbar .lgo:not([src]){display:none}
+.lvbar .nm{font:600 12.5px/1.2 Inter,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvbar .tg{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--hair);border-radius:5px;padding:3px 6px;flex:none;
+  max-width:26%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lvbar .tg:empty{display:none}
+.lvbar .live{display:inline-flex;align-items:center;gap:5px;flex:none;margin-left:auto;
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--ember);
+  border:1px solid rgba(255,69,0,.4);background:rgba(255,69,0,.12);border-radius:999px;padding:3px 8px}
+.lvbar .live[hidden]{display:none}
+.lvbar .live .ld{width:5px;height:5px;border-radius:50%;background:var(--ember);animation:pulse 1.4s ease-in-out infinite}
+.lvbar .ib{margin-left:auto;width:28px;height:28px;flex:none;border-radius:8px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:var(--muted);font-size:12px;display:grid;place-items:center;cursor:pointer}
+.lvbar .live:not([hidden])+.ib{margin-left:6px}
+.lvbar .ib:hover{color:#fff;background:rgba(255,255,255,.1)}
+.lvbar .sb{display:none}
 
 /* channel browsing column */
 .lvbrowse{display:flex;flex-direction:column;gap:10px;min-width:0}
 .lvsearch{display:flex;gap:8px}
-.lvsearch input{flex:1;min-width:0;min-height:48px;padding:12px 14px;border-radius:12px;
-  border:1px solid var(--hair);background:rgba(255,255,255,.04);color:#fff;font:400 14px Inter,sans-serif}
+.lvsearch input{flex:1;min-width:0;min-height:38px;padding:9px 12px;border-radius:10px;
+  border:1px solid var(--hair);background:rgba(255,255,255,.04);color:#fff;font:400 13px Inter,sans-serif}
 .lvsearch input:focus{outline:none;border-color:var(--ember)}
+
 .lvlist{display:flex;flex-direction:column;gap:10px}
 .chanrow{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:8px 14px;
   border:1px solid var(--hair);border-left:3px solid transparent;border-radius:14px;
@@ -467,8 +503,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .vodgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
 .ltvmsg{padding:22px;text-align:center;color:var(--muted);font:400 14px Inter,sans-serif}
 .repbox{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.repbox select,.repbox input[type=date],.repbox input[type=time]{min-height:48px;padding:10px 12px;
-  border-radius:12px;border:1px solid var(--hair);background:#0d0d0d;color:#fff;font:400 13px Inter,sans-serif}
+.repbox select,.repbox input[type=date],.repbox input[type=time]{min-height:34px;padding:0 10px;
+  border-radius:9px;border:1px solid var(--hair);background:#0d0d0d;color:#fff;font:400 12.5px Inter,sans-serif}
+.repbox .btn,.repbox button{min-height:34px;padding:0 14px;border-radius:9px;font:600 12.5px/1 Inter,sans-serif}
 .epilist{display:flex;flex-direction:column;gap:10px}
 .epirow{display:flex;gap:12px;align-items:center;text-align:left;min-height:60px;padding:10px 14px;
   border:1px solid var(--hair);border-radius:14px;background:rgba(255,255,255,.03);color:#eaeaea;cursor:pointer}
@@ -477,11 +514,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .epirow .nm{font:600 14px/1.3 Inter,sans-serif;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lvmore{display:flex;justify-content:center}
 
-/* mobile: mini player once the user scrolls into the list */
+/* mobile: dropdowns go full width in their own row; mini player on scroll */
+@media (max-width:719px){
+  .lvhead{gap:8px}
+  .lvhead .sub{display:none}
+  .lvtools{width:100%;margin-left:0}
+  .lvtools .lvsel{flex:1 1 130px;min-width:0}
+  .lvtools .lvsel select{max-width:none;width:100%}
+  .seg{width:100%;justify-content:space-between}
+  .seg .pill{flex:1 1 0;text-align:center}
+}
 @media (max-width:1099px){
   .lvplayer.mini{max-width:210px;margin-left:auto;box-shadow:0 18px 40px rgba(0,0,0,.6)}
-  .lvplayer.mini .lvbar{padding:8px 10px}
-  .lvplayer.mini .lvbar .sb{display:none}
+  .lvplayer.mini .lvbar{padding:6px 8px}
+  .lvplayer.mini .lvbar .tg,.lvplayer.mini .lvbar .ib{display:none}
 }
 /* laptop and up: player left, list scrolls on its own */
 @media (min-width:1100px){
@@ -490,19 +536,23 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   .lvbrowse{position:sticky;top:80px;max-height:calc(100vh - 100px)}
   .lvbrowse>.chips,.lvbrowse>.lvsearch,.lvbrowse>.repbox{flex:0 0 auto}
   .lvscroll{overflow-y:auto;min-height:0;flex:1 1 auto;padding-right:4px;overscroll-behavior:contain}
-
-
 }
 @media (min-width:1536px){
   .ltv{padding:7vh 5vw 5vh}
   .lvmain{grid-template-columns:minmax(0,1fr) 34%}
-  .chips .pill,.repbox .pill{min-height:56px;font-size:16px;padding:14px 22px}
+  .lvhead h1{font-size:28px}
+  .lvsel select,.repbox select,.repbox input[type=date],.repbox input[type=time]{min-height:48px;font-size:16px;max-width:280px}
+  .chips .pill,.repbox .pill,.repbox button{min-height:48px;font-size:15px;padding:0 20px}
+  .seg .pill{min-height:42px;font-size:15px;padding:0 18px}
   .chanrow{min-height:84px}
   .chanrow .lg{width:60px;height:60px}
   .chanrow .nm{font-size:18px}
-  .lvsearch input{min-height:58px;font-size:17px}
+  .lvsearch input{min-height:48px;font-size:16px}
+  .lvbar .nm{font-size:17px}
+  .lvbar .lgo{width:36px;height:36px}
   .vodgrid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
 }
+
 
 </style>
 
@@ -590,8 +640,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 <section class="ltv" id="ltv" aria-label="Live TV">
   <div class="lvhead">
-    <div><h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div></div>
-    <div class="chips" id="provBar" role="tablist" aria-label="Providers"></div>
+    <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
+    <div class="lvtools">
+      <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
+      <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
+    </div>
   </div>
   <div class="lvmain">
     <div class="lvplayer" id="ltvPlayer">
@@ -601,12 +655,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvspin hide" id="ltvSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ltvErr" role="button" tabindex="0"></div>
       </div>
-      <div class="lvbar"><span class="ld"></span><span class="nm" id="ltvNow">Nothing playing</span>
-        <span class="sb" id="ltvNowSub">Andam relay</span></div>
+      <div class="lvbar">
+        <img class="lgo" id="ltvNowLogo" alt="" />
+        <span class="nm" id="ltvNow">Nothing playing</span>
+        <span class="tg" id="ltvNowTag"></span>
+        <span class="live" id="ltvLive" hidden><span class="ld"></span>LIVE</span>
+        <button class="ib" id="ltvFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+        <span class="sb" id="ltvNowSub">Andam relay</span>
+      </div>
     </div>
     <div class="lvbrowse">
-      <div class="chips tabs" id="ltvTabs" role="tablist" aria-label="Sections"></div>
-      <div class="chips cats" id="ltvCats" role="tablist" aria-label="Categories"></div>
       <div class="lvsearch" id="ltvSearchWrap">
         <input id="ltvSearch" type="search" placeholder="Search in this section" aria-label="Search in this section" />
       </div>
@@ -626,10 +684,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   </div>
 </section>
 
+
 <section class="ltv" id="iptv" aria-label="IPTV playlist channels">
   <div class="lvhead">
-    <div><h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div></div>
-    <div class="chips" id="ipBar" role="tablist" aria-label="IPTV sources"></div>
+    <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
+    <div class="lvtools">
+      <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
+      <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
+    </div>
   </div>
   <div class="lvmain">
     <div class="lvplayer" id="ipPlayer">
@@ -639,11 +701,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvspin hide" id="ipSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ipErr" role="button" tabindex="0"></div>
       </div>
-      <div class="lvbar"><span class="ld"></span><span class="nm" id="ipNow">Nothing playing</span>
-        <span class="sb" id="ipNowSub">Andam relay</span></div>
+      <div class="lvbar">
+        <img class="lgo" id="ipNowLogo" alt="" />
+        <span class="nm" id="ipNow">Nothing playing</span>
+        <span class="tg" id="ipNowTag"></span>
+        <span class="live" id="ipLive" hidden><span class="ld"></span>LIVE</span>
+        <button class="ib" id="ipFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+        <span class="sb" id="ipNowSub">Andam relay</span>
+      </div>
     </div>
     <div class="lvbrowse">
-      <div class="chips cats" id="ipCats" role="tablist" aria-label="Groups"></div>
       <div class="lvsearch">
         <input id="ipSearch" type="search" placeholder="Search channels" aria-label="Search channels" />
       </div>
@@ -652,6 +719,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     </div>
   </div>
 </section>
+
 
 
 
@@ -983,9 +1051,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     ' .dots button, .rowhead a, .rowhead button, .card, .tile, .pcard, .cwrm,'+
     ' #catSearch, #catMore, .drawer button, .drawer a, .drawer select, .vp button,'+
     ' .modal button, .modal a, .pchan, #pSearch,'+
-    ' .chips .pill, .chanrow, .epirow, .lvsearch input, .repbox select, .repbox input, .repbox button';
+    ' .chips .pill, .seg .pill, .lvsel select, .lvbar .ib, .chanrow, .epirow,'+
+    ' .lvsearch input, .repbox select, .repbox input, .repbox button';
   var GROUPSEL='.nav, .hero .cta, .dots, .rowhead, .strip, .grid, .catbar, .drawer, .vp, .modal, .menu,'+
-    ' .chips, .lvlist, .epilist, .repbox, .vodgrid';
+    ' .chips, .seg, .lvtools, .lvlist, .epilist, .repbox, .vodgrid';
+
 
 
   /* ---- TV mode detection ---- */
@@ -1505,8 +1575,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      /api/public/xtream-play (bytes). Provider credentials and the relay token
      stay server-side; the browser only ever holds opaque play tokens. */
   var LTV_API='/api/public/xtream';
-  var provBar=document.getElementById('provBar'), ltvTabs=document.getElementById('ltvTabs'),
-      ltvCats=document.getElementById('ltvCats'), ltvBody=document.getElementById('ltvBody'),
+  var provSel=document.getElementById('provSel'), ltvTabs=document.getElementById('ltvTabs'),
+      ltvCatSel=document.getElementById('ltvCatSel'), ltvCatWrap=document.getElementById('ltvCatWrap'),
+      ltvBody=document.getElementById('ltvBody'),
+
       ltvMsg=document.getElementById('ltvMsg'), ltvSearch=document.getElementById('ltvSearch'),
       ltvSub=document.getElementById('ltvSub'), repBox=document.getElementById('repBox'),
       repChan=document.getElementById('repChan'), repDate=document.getElementById('repDate'),
@@ -1549,14 +1621,39 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       err:document.getElementById(p+'Err'),
       now:document.getElementById(p+'Now'),
       sub:document.getElementById(p+'NowSub'),
+      logo:document.getElementById(p+'NowLogo'),
+      tag:document.getElementById(p+'NowTag'),
+      live:document.getElementById(p+'Live'),
+      fs:document.getElementById(p+'Fs'),
       hls:null,session:0,last:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
+    s.fs.addEventListener('click',function(){
+      var v=s.video;
+      try{ (v.requestFullscreen||v.webkitRequestFullscreen||v.webkitEnterFullscreen||function(){}).call(v) }catch(_){}
+    });
     SURF[kind]=s; return s;
   }
   function busy(s,on){ s.spin.classList.toggle('hide',!on) }
   function fail(s,msg){ s.err.textContent=(msg||'Stream failed to load')+' — tap to retry'; s.err.classList.remove('hide'); busy(s,false) }
   function clearFail(s){ s.err.classList.add('hide') }
+  /* slim now-playing bar: logo + name + category tag + LIVE badge */
+  function setNow(s,title,sub,logo){
+    s.now.textContent=title||'Andam';
+    var txt=(sub||'').replace(/^●\s*/,'');
+    s.sub.textContent=txt||'Andam relay';
+    var isLive=/live/i.test(txt);
+    s.live.hidden=!isLive;
+    var parts=txt.split('·').map(function(x){return x.trim()}).filter(function(x){return x&&!/^live$/i.test(x)});
+    s.tag.textContent=parts.length?parts[parts.length-1]:'';
+    if(logo){ s.logo.setAttribute('src',logo) } else { s.logo.removeAttribute('src') }
+  }
+  function nowLogoOf(kind){
+    var host=document.getElementById(kind==='iptv'?'ipBody':'ltvBody');
+    var img=host&&host.querySelector('.chanrow.on img.lg');
+    return img?img.getAttribute('src'):'';
+  }
+
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
@@ -1574,8 +1671,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
     s.idle.classList.add('hide');
-    s.now.textContent=title||'Andam';
-    s.sub.textContent=(sub||'Andam relay').replace(/^●\s*/,'');
+    setNow(s,title,sub,nowLogoOf(kind));
+
     clearFail(s); busy(s,true);
     s.last={token:token,title:title,sub:sub,isHls:isHls};
     var ok=false,timer=null;
@@ -1670,19 +1767,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).join('');
   }
   function renderProviders(){
-    provBar.innerHTML=ltv.providers.map(function(p){
-      return '<button class="pill'+(ltv.prov===p.id?' on':'')+'" data-prov="'+esc(p.id)+'" role="tab">'+esc(p.name)+'</button>';
+    provSel.innerHTML=ltv.providers.map(function(p){
+      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+esc(p.name)+'</option>';
     }).join('');
   }
   function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:14px;margin-bottom:10px"></div>'; return h; }
 
-  /* Categories are a single horizontal chip row on every device. */
+  /* Categories are one compact dropdown on every device. */
   function renderCats(cats){
-    ltvCats.innerHTML='<button class="pill'+(ltv.cat?'':' on')+'" data-cat="" role="tab">All</button>'+
-      cats.map(function(c){
-        return '<button class="pill'+(ltv.cat===c.id?' on':'')+'" data-cat="'+esc(c.id)+'" role="tab">'+esc(c.name)+'</button>';
+    ltv.cats=cats||[];
+    ltvCatSel.innerHTML='<option value=""'+(ltv.cat?'':' selected')+'>All categories</option>'+
+      ltv.cats.map(function(c){
+        return '<option value="'+esc(c.id)+'"'+(ltv.cat===c.id?' selected':'')+'>'+esc(c.name)+
+          (c.count?' ('+c.count+')':'')+'</option>';
       }).join('');
   }
+  function catName(id){
+    var m=(ltv.cats||[]).filter(function(c){return c.id===id})[0];
+    return m?m.name:'';
+  }
+
 
   function filtered(items,field){
     var q=ltv.q.toLowerCase();
@@ -1760,8 +1864,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var my=++ltv.req;
     repBox.classList.toggle('hide',ltv.tab!=='replay');
     ltvSearch.parentNode.classList.toggle('hide',ltv.tab==='replay');
-    if(ltv.tab==='replay'){ ltvCats.classList.add('hide'); renderReplay(); return }
-    ltvCats.classList.remove('hide');
+    if(ltv.tab==='replay'){ ltvCatWrap.hidden=true; renderReplay(); return }
+    ltvCatWrap.hidden=false;
+
     ltvBody.innerHTML=skelRows(8); ltvSet('');
     var type=ltv.tab==='direct'?'live':(ltv.tab==='movies'?'vod':'series');
     api({action:'categories',type:type,source:ltv.prov})
@@ -1809,16 +1914,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   };
 
   /* ---- interactions ---- */
-  provBar.addEventListener('click',function(e){
-    var b=e.target.closest('[data-prov]'); if(b) setProvider(b.getAttribute('data-prov'));
-  });
+  provSel.addEventListener('change',function(){ setProvider(this.value) });
   ltvTabs.addEventListener('click',function(e){
     var b=e.target.closest('[data-tab]'); if(b) setTab(b.getAttribute('data-tab'));
   });
-  ltvCats.addEventListener('click',function(e){
-    var b=e.target.closest('[data-cat]'); if(!b) return;
-    ltv.cat=b.getAttribute('data-cat'); loadTab();
-  });
+  ltvCatSel.addEventListener('change',function(){ ltv.cat=this.value; loadTab() });
+
   var stq=null;
   ltvSearch.addEventListener('input',function(){
     clearTimeout(stq); var v=this.value.trim();
@@ -1890,7 +1991,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   /* ================= IPTV (M3U playlist sources) ================= */
   var IPTV_API='/api/public/iptv', IP_KEY='andam:iptv-source';
-  var ipBar=document.getElementById('ipBar'), ipCats=document.getElementById('ipCats'),
+  var ipSrcSel=document.getElementById('ipSrcSel'), ipGroupSel=document.getElementById('ipGroupSel'),
       ipBody=document.getElementById('ipBody'), ipMsg=document.getElementById('ipMsg'),
       ipSearch=document.getElementById('ipSearch'), ipSub=document.getElementById('ipSub');
   var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false};
@@ -1908,18 +2009,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   function renderIpSources(){
-    ipBar.innerHTML=ip.sources.map(function(s){
-      return '<button class="pill'+(ip.src===s.id?' on':'')+'" data-ipsrc="'+esc(s.id)+'" role="tab">'+esc(s.name)+'</button>';
+    ipSrcSel.innerHTML=ip.sources.map(function(s){
+      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+esc(s.name)+'</option>';
     }).join('');
   }
 
   function renderIpGroups(){
-    ipCats.innerHTML='<button class="pill'+(ip.group?'':' on')+'" data-ipgroup="" role="tab">All ('+ip.channels.length+')</button>'+
+    ipGroupSel.innerHTML='<option value=""'+(ip.group?'':' selected')+'>All groups ('+ip.channels.length+')</option>'+
       ip.groups.map(function(g){
-        return '<button class="pill'+(ip.group===g.name?' on':'')+'" data-ipgroup="'+esc(g.name)+'" role="tab">'+
-          esc(g.name)+' ('+g.count+')</button>';
+        return '<option value="'+esc(g.name)+'"'+(ip.group===g.name?' selected':'')+'>'+
+          esc(g.name)+' ('+g.count+')</option>';
       }).join('');
   }
+
 
   function renderIpChannels(){
     var q=ip.q.toLowerCase();
@@ -1980,13 +2082,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
   };
 
-  ipBar.addEventListener('click',function(e){
-    var b=e.target.closest('[data-ipsrc]'); if(b) setIpSource(b.getAttribute('data-ipsrc'));
+  ipSrcSel.addEventListener('change',function(){ setIpSource(this.value) });
+  ipGroupSel.addEventListener('change',function(){
+    ip.group=this.value; renderIpChannels();
   });
-  ipCats.addEventListener('click',function(e){
-    var b=e.target.closest('[data-ipgroup]'); if(!b) return;
-    ip.group=b.getAttribute('data-ipgroup'); renderIpGroups(); renderIpChannels();
-  });
+
   var ipq=null;
   ipSearch.addEventListener('input',function(){
     clearTimeout(ipq); var v=this.value.trim();
