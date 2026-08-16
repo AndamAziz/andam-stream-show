@@ -466,48 +466,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 }
 </style>
 
-<style>
-/* ---- header preview mode ---- */
-#hpLaunch{position:fixed;right:14px;bottom:14px;z-index:900;display:inline-flex;align-items:center;gap:8px;
-  height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--hair);background:rgba(10,10,10,.86);
-  backdrop-filter:blur(12px);color:var(--muted);font:600 12px/1 'Inter',sans-serif;letter-spacing:.04em;cursor:pointer}
-#hpLaunch:hover{color:var(--text);border-color:rgba(255,69,0,.45)}
-#hpPanel{position:fixed;inset:0;z-index:950;display:none;background:rgba(3,3,3,.92);backdrop-filter:blur(12px);
-  padding:22px;overflow:auto}
-#hpPanel[data-open="1"]{display:block}
-.hpbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:20px}
-.hpbar h3{font:700 16px/1 'Space Grotesk','Inter',sans-serif;color:var(--text);margin:0 8px 0 0}
-.hpbtn{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--hair);background:transparent;
-  color:var(--muted);font:600 12px/1 'IBM Plex Mono',monospace;cursor:pointer}
-.hpbtn[aria-pressed="true"]{color:var(--ember);border-color:rgba(255,69,0,.45);background:var(--ember-dim)}
-.hpbtn:hover{color:var(--text)}
-.hpclose{margin-left:auto}
-.hpstage{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
-.hpframe{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#050505;flex:0 0 auto}
-.hpframe figcaption{font:600 11px/1 'IBM Plex Mono',monospace;color:var(--muted);padding:8px 12px;
-  border-bottom:1px solid var(--hair);letter-spacing:.08em}
-.hpframe iframe{display:block;border:0;height:150px;background:#050505}
-html.hppreview #hpLaunch,html.hppreview #hpPanel{display:none!important}
-html.hppreview body>*:not(nav){display:none!important}
-html.hppreview body{overflow:hidden}
-html.hppreview .nav{position:static}
-</style>
 </head>
 <body>
 
-<button id="hpLaunch" type="button">Header preview</button>
-<div id="hpPanel" role="dialog" aria-label="Header preview" aria-hidden="true">
-  <div class="hpbar">
-    <h3>Header preview</h3>
-    <button class="hpbtn" type="button" data-w="375">375px</button>
-    <button class="hpbtn" type="button" data-w="768">768px</button>
-    <button class="hpbtn" type="button" data-w="1366">1366px</button>
-    <button class="hpbtn" type="button" data-w="all" aria-pressed="true">Compare all</button>
-    <button class="hpbtn" id="hpAdmin" type="button" aria-pressed="true">Admin signed in</button>
-    <button class="hpbtn hpclose" id="hpClose" type="button">Close ✕</button>
-  </div>
-  <div class="hpstage" id="hpStage"></div>
-</div>
 
 
 <nav class="nav" id="nav">
@@ -2148,57 +2109,6 @@ html.hppreview .nav{position:static}
   window.__andamApplySession=apply;
 })();
 
-/* ---------- header preview mode ---------- */
-(function(){
-  var q=new URLSearchParams(location.search);
-  if(q.get('hp')==='1'){
-    document.documentElement.classList.add('hppreview');
-    var isAdmin=q.get('admin')==='1';
-    var go=function(){ if(window.__andamApplySession) window.__andamApplySession({signedIn:isAdmin,role:isAdmin?'admin':'user'}) };
-    go(); setTimeout(go,60);
-    return;
-  }
-  var launch=document.getElementById('hpLaunch'), panel=document.getElementById('hpPanel'),
-      stage=document.getElementById('hpStage'), close=document.getElementById('hpClose'),
-      adminBtn=document.getElementById('hpAdmin');
-  if(!launch||!panel) return;
-  var WIDTHS=[375,768,1366], mode='all', asAdmin=true;
-  function render(){
-    var list=mode==='all'?WIDTHS:[parseInt(mode,10)];
-    var avail=Math.max(320,window.innerWidth-64);
-    stage.innerHTML='';
-    list.forEach(function(w){
-      var scale=Math.min(1,avail/w);
-      var fig=document.createElement('figure'); fig.className='hpframe';
-      fig.style.width=Math.round(w*scale)+'px';
-      var cap=document.createElement('figcaption'); cap.textContent=w+'px'+(scale<1?' · '+Math.round(scale*100)+'%':'');
-      var wrap=document.createElement('div');
-      wrap.style.cssText='width:'+w+'px;transform:scale('+scale+');transform-origin:top left;height:'+Math.round(150*scale)+'px';
-      var fr=document.createElement('iframe');
-      fr.setAttribute('title','Header at '+w+'px');
-      fr.style.width=w+'px';
-      fr.src=location.pathname+'?hp=1'+(asAdmin?'&admin=1':'');
-      wrap.appendChild(fr); fig.appendChild(cap); fig.appendChild(wrap); stage.appendChild(fig);
-    });
-  }
-  function setMode(m){
-    mode=m;
-    stage.parentNode.querySelectorAll('.hpbtn[data-w]').forEach(function(b){
-      b.setAttribute('aria-pressed', b.getAttribute('data-w')===m?'true':'false');
-    });
-    render();
-  }
-  function open(){ panel.setAttribute('data-open','1'); panel.setAttribute('aria-hidden','false'); render(); close.focus() }
-  function shut(){ panel.removeAttribute('data-open'); panel.setAttribute('aria-hidden','true'); stage.innerHTML=''; launch.focus() }
-  launch.addEventListener('click',open);
-  close.addEventListener('click',shut);
-  adminBtn.addEventListener('click',function(){ asAdmin=!asAdmin; adminBtn.setAttribute('aria-pressed',asAdmin?'true':'false'); adminBtn.textContent=asAdmin?'Admin signed in':'Guest'; render() });
-  panel.querySelectorAll('.hpbtn[data-w]').forEach(function(b){ b.addEventListener('click',function(){ setMode(b.getAttribute('data-w')) }) });
-  window.addEventListener('keydown',function(e){
-    if(e.key==='Escape'&&panel.hasAttribute('data-open')){ e.stopPropagation(); shut() }
-  },true);
-  window.addEventListener('resize',function(){ if(panel.hasAttribute('data-open')) render() });
-})();
 </script>
 
 </body>
