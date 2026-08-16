@@ -16,6 +16,7 @@ import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
+import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
@@ -56,6 +57,11 @@ const AuthenticatedAdminProvidersRoute =
     path: '/providers',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 const ApiPublicTmdbDiscoverRoute = ApiPublicTmdbDiscoverRouteImport.update({
   id: '/api/public/tmdb-discover',
   path: '/api/public/tmdb-discover',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/admin/content'
     | '/admin/providers'
+    | '/admin/users'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin/content'
     | '/admin/providers'
+    | '/admin/users'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/admin/content'
     | '/_authenticated/admin/providers'
+    | '/_authenticated/admin/users'
     | '/api/public/tmdb-discover'
     | '/api/public/xtream'
     | '/api/public/xtream-play'
@@ -202,6 +214,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProvidersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/users': {
+      id: '/_authenticated/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/api/public/tmdb-discover': {
       id: '/api/public/tmdb-discover'
       path: '/api/public/tmdb-discover'
@@ -229,6 +248,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
+  AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -236,6 +256,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
   {
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
+    AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
 
