@@ -406,21 +406,40 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* ================= LIVE TV / IPTV SECTION (shared design) ================= */
 .ltv{display:none;padding:80px clamp(14px,3.5vw,44px) 72px}
 .ltv.open{display:block}
-.lvhead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:12px}
-.lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(21px,2.6vw,34px);margin:0;letter-spacing:-.5px}
-.lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--faint);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvhead{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin-bottom:10px}
+.lvhead h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(17px,1.6vw,22px);margin:0;letter-spacing:-.3px}
+.lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
 
-/* one shared chip language for providers, tabs and categories */
-.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 8px;scroll-snap-type:x proximity}
+/* compact toolbar: dropdowns + search on one or two slim rows */
+.lvtools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.lvsel{position:relative;display:inline-flex;align-items:center}
+.lvsel::after{content:"▾";position:absolute;right:10px;font-size:10px;color:var(--muted);pointer-events:none}
+.lvsel select,.repbox select,.repbox input[type=date],.repbox input[type=time]{
+  appearance:none;-webkit-appearance:none;min-height:34px;max-width:210px;
+  padding:0 26px 0 11px;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:#ededf0;font:500 12.5px/1 Inter,sans-serif;cursor:pointer;
+  text-overflow:ellipsis;transition:border-color .15s ease,background .15s ease}
+.lvsel select:hover{background:rgba(255,255,255,.09)}
+.lvsel select:focus{outline:none;border-color:var(--ember)}
+.lvsel select option{background:#111;color:#fff}
+.lvsel.accent select{border-color:rgba(255,69,0,.42);background:rgba(255,69,0,.12);color:#ffd9c9}
+.lvsel[hidden]{display:none}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0}
 .chips::-webkit-scrollbar{display:none}
-.chips .pill,.repbox .pill{flex:0 0 auto;min-height:44px;padding:10px 16px;border-radius:999px;border:1px solid var(--hair);
-  background:rgba(255,255,255,.04);color:#e8e8e8;font:600 13.5px/1 Inter,sans-serif;cursor:pointer;
-  scroll-snap-align:start;white-space:nowrap;transition:background .15s ease,color .15s ease,border-color .15s ease}
-.chips .pill:active,.repbox .pill:active{transform:scale(.97)}
-.chips .pill.on{background:linear-gradient(120deg,var(--ember),#ff6a2b);border-color:transparent;color:#0b0b0b}
-.chips.tabs .pill.on{background:var(--teal);color:#fff}
-.chips.cats .pill.on{background:rgba(0,128,128,.28);border-color:rgba(56,225,198,.4);color:#fff}
+.chips .pill,.repbox .pill{flex:0 0 auto;min-height:34px;padding:0 13px;border-radius:9px;border:1px solid var(--hair);
+  background:rgba(255,255,255,.05);color:#dfdfe4;font:600 12.5px/1 Inter,sans-serif;cursor:pointer;
+  white-space:nowrap;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.chips .pill:hover,.repbox .pill:hover{background:rgba(255,255,255,.1)}
+.chips .pill:active,.repbox .pill:active{transform:scale(.98)}
+.chips .pill.on{background:linear-gradient(120deg,var(--ember),#ff6a2b);border-color:transparent;color:#140a05}
+/* segmented control for Direct/Movies/Series/Replay */
+.seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;border:1px solid var(--hair);background:rgba(255,255,255,.04)}
+.seg .pill{min-height:28px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:var(--muted);
+  font:600 12.5px/1 Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.seg .pill:hover{color:#fff;background:rgba(255,255,255,.07)}
+.seg .pill.on{background:var(--ember);color:#140a05}
+
 
 
 /* layout: player up top on small screens, side-by-side from laptop up */
