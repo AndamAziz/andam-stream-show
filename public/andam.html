@@ -2024,11 +2024,17 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     /* Start the network work off the click's task so the tap never janks. */
     setTimeout(function(){
       if(!alive()) return;
+      /* Movies/episodes are progressive files and the account allows a single
+         provider connection, so probing first would spend it (and the probe
+         cannot follow the provider redirect anyway). Hand it straight to the
+         native element. */
+      if(!isHls){ native(false); return }
       probeKind(src).then(function(p){
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
+
         ensureHls().then(function(Hls){
           if(!alive()) return;
           if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
