@@ -166,3 +166,10 @@ export const getProviderItems = createServerFn({ method: 'POST' })
     const ops = await guard(context.supabase, context.userId);
     return ops.listProviderItems(data.sourceId, data.kind, data.categoryId ?? '');
   });
+
+export const clearLoginActivity = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ops = await guard(context.supabase, context.userId);
+    return ops.clearLoginActivity();
+  });

@@ -445,3 +445,13 @@ export async function adminOverview() {
     recentErrors: errors.data ?? [],
   };
 }
+
+/** Wipes the login activity log (admin-only maintenance action). */
+export async function clearLoginActivity(): Promise<{ ok: true }> {
+  const { error } = await supabaseAdmin
+    .from('login_activity')
+    .delete()
+    .not('id', 'is', null);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+}
