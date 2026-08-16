@@ -43,28 +43,23 @@ export function applyOverrides<T extends { id: string; num?: number }>(
   overrides: OverrideMap,
   logoKey?: 'logo' | 'poster',
 ): T[] {
-  const out = items
+  const decorated = items
     .filter((item) => !overrides.get(item.id)?.hidden)
     .map((item, index) => {
       const rule = overrides.get(item.id);
-      const next = { ...item } as T & Record<string, unknown>;
-      if (rule?.logo_url && logoKey) next[logoKey] = rule.logo_url;
-      const order = rule?.sort_order;
-      next['__order'] = order ?? (typeof item.num === 'number' ? item.num : index + 1);
-      return next;
+      const record: Record<string, unknown> = { ...item };
+      if (rule?.logo_url && logoKey) record[logoKey] = rule.logo_url;
+      const order = rule?.sort_order ?? (typeof item.num === 'number' ? item.num : index + 1);
+      return { order, record };
     });
 
-  out.sort((a, b) => Number(a['__order']) - Number(b['__order']));
-  return out.map((item, index) => {
-    const { __order, ...rest } = item as Record<string, unknown>;
-    void __order;
-    const clean = rest as T;
-    if (typeof (clean as { num?: number }).num === 'number') {
-      (clean as { num: number }).num = index + 1;
-    }
-    return clean;
+  decorated.sort((a, b) => a.order - b.order);
+  return decorated.map(({ record }, index) => {
+    if (typeof record['num'] === 'number') record['num'] = index + 1;
+    return record as T;
   });
 }
+
 
 /** Records a playback failure for the monitoring dashboard. */
 export async function logPlaybackError(entry: {
