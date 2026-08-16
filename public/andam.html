@@ -520,11 +520,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <div class="strip"></div>
   </section>
   <section class="row hide" id="rowMovies">
-    <div class="rowhead"><h2>Trending movies</h2><a href="#" data-goto="live-movies">See all</a></div>
+    <div class="rowhead"><h2>Trending movies</h2><a href="#" data-goto="movies">See all</a></div>
     <div class="strip"></div>
   </section>
   <section class="row hide" id="rowShows">
-    <div class="rowhead"><h2>Popular shows</h2><a href="#" data-goto="live-series">See all</a></div>
+    <div class="rowhead"><h2>Popular shows</h2><a href="#" data-goto="series">See all</a></div>
+
     <div class="strip"></div>
   </section>
   <section class="row hide" id="rowIptv">
@@ -1983,41 +1984,37 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(){ setHero([],prov.name); showRow('rowLive',false) });
   }
 
-  function loadHomeMovies(prov){
-    return api({action:'vod',source:prov.id}).then(function(d){
-      var items=(d.items||[]).slice();
-      // Real signals only: newest "added" first, else provider rating, else order.
-      if(items.some(function(i){return i.added})) items.sort(function(a,b){ return Number(b.added||0)-Number(a.added||0) });
-      else if(items.some(function(i){return i.rating})) items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
-      var list=items.slice(0,18);
-      showRow('rowMovies',!!list.length);
-      stripOf('rowMovies').innerHTML=list.map(function(m,i){
-        var sub=[m.genre||'',m.year||''].filter(Boolean).join(' · ');
-        return homeCard({title:m.name,sub:sub,image:m.poster,rate:rateOf(m.rating),
-          initials:initialsOf(m.name),tint:tintFor(i),data:{vod:m.id,ext:m.ext||'',title:m.name}});
-      }).join('');
-    }).catch(function(){ showRow('rowMovies',false) });
+  /* Trending movies + Popular shows come straight from TMDB and refresh
+     automatically (on load, on tab focus, and every 30 minutes). */
+  function tmdb(kind,sort){
+    return fetch('/api/public/tmdb-discover?kind='+kind+'&sort='+sort+'&page=1&_='+Date.now(),
+      {headers:{accept:'application/json'},cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(d){ return Array.isArray(d.items)?d.items:[] });
+  }
+  function tmdbCards(rowId,items){
+    var list=items.slice(0,18);
+    showRow(rowId,!!list.length);
+    if(!list.length) return;
+    stripOf(rowId).innerHTML=list.map(function(m,i){
+      var sub=[m.year||'',(m.type==='tv'?'Series':'Movie')].filter(Boolean).join(' · ');
+      return homeCard({title:m.title,sub:sub,image:m.poster||m.backdrop,rate:rateOf(m.rating),
+        initials:initialsOf(m.title),tint:tintFor(i),
+        data:{tmdb:m.tmdbId,type:m.type,title:m.title,poster:m.poster||''}});
+    }).join('');
+  }
+  function loadHomeMovies(){
+    return tmdb('movies','trending')
+      .then(function(items){ tmdbCards('rowMovies',items) })
+      .catch(function(){ showRow('rowMovies',false) });
   }
 
-  function loadHomeShows(prov){
-    return api({action:'series',source:prov.id}).then(function(d){
-      var items=(d.items||[]).slice();
-      if(items.some(function(i){return i.lastModified}))
-        items.sort(function(a,b){ return Number(b.lastModified||0)-Number(a.lastModified||0) });
-      else if(items.some(function(i){return i.rating}))
-        items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
-      var list=items.slice(0,18);
-      showRow('rowShows',!!list.length);
-      stripOf('rowShows').innerHTML=list.map(function(sh,i){
-        var bits=[];
-        if(sh.genre) bits.push(sh.genre);
-        if(sh.seasonCount) bits.push(sh.seasonCount+(sh.seasonCount===1?' season':' seasons'));
-        else if(sh.year) bits.push(sh.year);
-        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:rateOf(sh.rating),
-          initials:initialsOf(sh.name),tint:tintFor(i),data:{series:sh.id,title:sh.name}});
-      }).join('');
-    }).catch(function(){ showRow('rowShows',false) });
+  function loadHomeShows(){
+    return tmdb('series','popularity.desc')
+      .then(function(items){ tmdbCards('rowShows',items) })
+      .catch(function(){ showRow('rowShows',false) });
   }
+
 
   function loadHomeIptv(){
     return ipApi({action:'sources'}).then(function(d){
@@ -2042,6 +2039,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(e.target.closest('#cwRow')) return;   // continue watching has its own handler
     var card=e.target.closest('.card'); if(!card) return;
     var title=card.getAttribute('data-title')||(card.querySelector('.t')||{}).textContent||'Andam';
+    if(card.hasAttribute('data-tmdb')){
+      openDrawer(card.getAttribute('data-tmdb'),card.getAttribute('data-type')||'movie',
+        title,card.getAttribute('data-poster')||'');
+      return;
+    }
     if(card.hasAttribute('data-live')){
       playById('live',card.getAttribute('data-live'),'',title,'● LIVE · provider channel',true); return;
     }
@@ -2070,6 +2072,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var to=a.getAttribute('data-goto');
     if(to==='live'){ showView('live') }
     else if(to==='iptv'){ showView('iptv') }
+    else if(to==='movies'||to==='series'){ showView('catalog',to) }
     else if(to==='live-movies'||to==='live-series'){
       showView('live'); if(window.ltvOpen) window.ltvOpen();
       setTimeout(function(){ setTab(to==='live-movies'?'movies':'series') },250);
@@ -2078,12 +2081,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function loadHome(){
     loadHomeProvider().then(function(prov){
-      if(!prov){ setHero([],''); showRow('rowLive',false); showRow('rowMovies',false); showRow('rowShows',false); return }
-      loadHomeLive(prov); loadHomeMovies(prov); loadHomeShows(prov);
+      if(!prov){ setHero([],''); showRow('rowLive',false); return }
+      loadHomeLive(prov);
     });
+    loadHomeMovies(); loadHomeShows();
     loadHomeIptv();
   }
   loadHome();
+
+  /* keep TMDB rows fresh: every 30 minutes, and whenever the tab regains focus
+     after being away for more than 10 minutes */
+  var tmdbFresh=Date.now();
+  function refreshTmdbRows(){
+    tmdbFresh=Date.now();
+    loadHomeMovies(); loadHomeShows();
+  }
+  setInterval(function(){ if(!document.hidden) refreshTmdbRows() },30*60*1000);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden && Date.now()-tmdbFresh>10*60*1000) refreshTmdbRows();
+  });
+
 
 })();
 
