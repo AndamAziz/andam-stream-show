@@ -299,6 +299,32 @@ export async function setUserSuspended(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Sets a new password for any account without an email round-trip, then revokes
+ * that user's refresh tokens so old sessions stop working immediately.
+ * Session revocation is best-effort: a failure there must not hide the fact the
+ * password itself was changed successfully.
+ */
+export async function setUserPassword(userId: string, password: string): Promise<void> {
+  if (password.length < 8) throw new Error('Password must be at least 8 characters');
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+  if (error) throw new Error(error.message);
+
+  const url = process.env['SUPABASE_URL'];
+  const key = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  if (!url || !key) return;
+  try {
+    const res = await fetch(`${url}/auth/v1/admin/users/${userId}/logout`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) console.warn('[admin] could not revoke sessions', res.status);
+  } catch (err) {
+    console.warn('[admin] session revocation failed', err);
+  }
+}
+
 export async function setUserAccess(
   userId: string,
   sourceId: string,
