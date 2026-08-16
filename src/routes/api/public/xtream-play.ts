@@ -132,8 +132,28 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           const value = res.headers.get(key);
           if (value) headers.set(key, value);
         }
+        // Some providers answer a suffix range (`bytes=-N`, which browsers use to
+        // find the moov atom of non-faststart MP4s) with a malformed
+        // `Content-Range: bytes -N/total`. Chrome/Safari reject that and the
+        // movie/episode never starts, so normalise it into a real byte range.
+        const cr = headers.get('content-range');
+        if (cr && !/^bytes \d+-\d+\/\d+$/.test(cr.trim())) {
+          const total = Number((cr.match(/\/(\d+)\s*$/) ?? [])[1] ?? NaN);
+          const req = (request.headers.get('range') ?? '').match(/bytes=(\d*)-(\d*)/);
+          if (Number.isFinite(total) && req) {
+            const suffix = !req[1] && req[2] ? Number(req[2]) : NaN;
+            const start = Number.isFinite(suffix)
+              ? Math.max(0, total - suffix)
+              : Number(req[1] || 0);
+            const end = Number.isFinite(suffix) ? total - 1 : Number(req[2] || total - 1);
+            headers.set('Content-Range', `bytes ${start}-${end}/${total}`);
+          } else {
+            headers.delete('Content-Range');
+          }
+        }
         headers.set('Cache-Control', 'no-store');
         headers.set('Access-Control-Allow-Origin', '*');
+
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
           const text = await res.text();

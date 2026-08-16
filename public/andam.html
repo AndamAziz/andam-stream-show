@@ -1868,26 +1868,41 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.last={token:token,title:title,sub:sub,isHls:isHls};
     var ok=false,timer=null;
 
+    /* Movies/series are progressive files. The element ships with
+       preload="none", so unless we opt back in (and call load()) the browser
+       fetches nothing and the watchdog fires a bogus "Stream failed to load".
+       Autoplay may also be blocked because playback starts off the click task,
+       so metadata/canplay counts as success too — the user can press play. */
+    function settled(){
+      if(!alive()||ok) return;
+      ok=true; clearTimeout(timer); busy(s,false); clearFail(s);
+    }
     function onProgress(){
       if(!alive()||s.video.currentTime<=0.05) return;
-      ok=true; clearTimeout(timer); busy(s,false); clearFail(s);
-      s.video.removeEventListener('timeupdate',onProgress);
+      settled(); s.video.removeEventListener('timeupdate',onProgress);
     }
     s.video.addEventListener('timeupdate',onProgress);
+    s.video.addEventListener('loadeddata',settled,{once:true});
+    s.video.addEventListener('canplay',settled,{once:true});
     function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
     timer=setTimeout(function(){
-      if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
+      if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<2) retryable('Stream failed to load');
     },15000);
 
     function native(){
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
-      s.video.src=src; s.video.play().catch(function(){});
+      s.video.preload='auto';
+      s.video.setAttribute('preload','auto');
+      s.video.src=src;
+      try{ s.video.load() }catch(_){}
+      s.video.play().catch(function(){});
       s.video.addEventListener('error',function(){
         console.error('[player] native playback error',s.video.error&&s.video.error.code,src);
         retryable('This stream cannot be played here');
       },{once:true});
     }
+
 
     /* Start the network work off the click's task so the tap never janks. */
     setTimeout(function(){
