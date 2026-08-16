@@ -144,7 +144,7 @@ export async function renewCode(input: {
   const { data: row } = await supabaseAdmin
     .from('activation_codes')
     .select('id, uses, max_uses')
-    .eq('id', id_of(input))
+    .eq('id', input.id)
     .maybeSingle();
   if (!row) throw new Error('Code not found');
 
@@ -160,8 +160,6 @@ export async function renewCode(input: {
   if (error) throw new Error(error.message);
   return { expiresAt };
 }
-
-const id_of = (input: { id: string }) => input.id;
 
 /** Manual override so an admin can unlock or re-lock a viewer without a code. */
 export async function setEntitlement(
