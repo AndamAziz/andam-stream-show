@@ -509,7 +509,7 @@ html.hppreview .nav{position:static}
   <div class="brand"><div class="mark">H</div><div class="word">Andam</div></div>
   <div class="links">
     <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
-    <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+    <a href="#">Shows</a><a href="#">IPTV</a>
   </div>
   <div class="navright">
     <span class="chip mono">15 Aug · GB</span>
@@ -526,7 +526,7 @@ html.hppreview .nav{position:static}
 <div class="menu" id="menu" role="dialog" aria-label="Main menu" aria-hidden="true">
   <button class="menuclose" id="menuClose" aria-label="Close menu">✕</button>
   <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
-  <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+  <a href="#">Shows</a><a href="#">IPTV</a>
   <a id="mAdmin" href="/admin" target="_top" hidden>Admin</a>
   <a id="mAccount" href="/auth" target="_top">Sign in</a>
 </div>
@@ -534,34 +534,38 @@ html.hppreview .nav{position:static}
 
 
 <header class="hero" id="hero">
-  <img class="bg" src="https://picsum.photos/seed/andam-hero-stadium/1600/900" alt="Floodlit football stadium at night" />
+  <img class="bg" id="heroBg" src="" alt="" />
   <div class="scrim"></div>
   <div class="inner">
-    <span class="pill"><i class="dot"></i>LIVE NOW</span>
-    <h1>Real Madrid vs Man City</h1>
-    <div class="meta">
-      <span class="g">Champions League · Semi-Final, 2nd Leg</span><i class="sep"></i>
-      <span class="mono" id="clock">62'</span><i class="sep"></i>
-      <span class="mono">1–1</span><i class="sep"></i><span>Full HD</span>
-    </div>
-    <div class="watchers">
-      <div class="stack"><span></span><span></span><span></span></div>
-      <span class="mono">2.1M watching now</span>
-    </div>
-    <p class="desc">A one-goal aggregate lead evaporates in Madrid as both sides trade chances in a semi-final heading for extra time.</p>
+    <span class="pill" id="heroTag"><i class="dot"></i>LIVE NOW</span>
+    <h1 id="heroTitle">Loading your live channels…</h1>
+    <div class="meta" id="heroMeta"></div>
     <div class="cta">
       <button class="btn primary" id="watchNow">▶ Watch now</button>
-      <button class="btn glass">ⓘ More info</button>
-      <button class="btn round" aria-label="Add to my list">+</button>
+      <button class="btn glass" id="heroAll">All live channels</button>
     </div>
   </div>
-  <div class="dots" id="dots">
-    <button class="active" aria-label="Slide 1"></button><button aria-label="Slide 2"></button>
-    <button aria-label="Slide 3"></button><button aria-label="Slide 4"></button>
-  </div>
+  <div class="dots" id="dots"></div>
 </header>
 
-<main class="rows" id="rows"></main>
+<main class="rows" id="rows">
+  <section class="row hide" id="rowLive">
+    <div class="rowhead"><h2>Live now</h2><a href="#" data-goto="live">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowMovies">
+    <div class="rowhead"><h2>Trending movies</h2><a href="#" data-goto="live-movies">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowShows">
+    <div class="rowhead"><h2>Popular shows</h2><a href="#" data-goto="live-series">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowIptv">
+    <div class="rowhead"><h2>Your IPTV channels</h2><a href="#" data-goto="iptv">See all</a></div>
+    <div class="strip"></div>
+  </section>
+</main>
 
 <section class="catalog" id="catalog" aria-label="Catalog">
   <div class="cathead">
