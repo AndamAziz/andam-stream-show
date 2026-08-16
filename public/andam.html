@@ -638,8 +638,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 <section class="ltv" id="ltv" aria-label="Live TV">
   <div class="lvhead">
-    <div><h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div></div>
-    <div class="chips" id="provBar" role="tablist" aria-label="Providers"></div>
+    <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
+    <div class="lvtools">
+      <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
+      <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
+    </div>
   </div>
   <div class="lvmain">
     <div class="lvplayer" id="ltvPlayer">
@@ -649,12 +653,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvspin hide" id="ltvSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ltvErr" role="button" tabindex="0"></div>
       </div>
-      <div class="lvbar"><span class="ld"></span><span class="nm" id="ltvNow">Nothing playing</span>
-        <span class="sb" id="ltvNowSub">Andam relay</span></div>
+      <div class="lvbar">
+        <img class="lgo" id="ltvNowLogo" alt="" />
+        <span class="nm" id="ltvNow">Nothing playing</span>
+        <span class="tg" id="ltvNowTag"></span>
+        <span class="live" id="ltvLive" hidden><span class="ld"></span>LIVE</span>
+        <button class="ib" id="ltvFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
+        <span class="sb" id="ltvNowSub">Andam relay</span>
+      </div>
     </div>
     <div class="lvbrowse">
-      <div class="chips tabs" id="ltvTabs" role="tablist" aria-label="Sections"></div>
-      <div class="chips cats" id="ltvCats" role="tablist" aria-label="Categories"></div>
       <div class="lvsearch" id="ltvSearchWrap">
         <input id="ltvSearch" type="search" placeholder="Search in this section" aria-label="Search in this section" />
       </div>
@@ -673,6 +681,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     </div>
   </div>
 </section>
+
 
 <section class="ltv" id="iptv" aria-label="IPTV playlist channels">
   <div class="lvhead">
