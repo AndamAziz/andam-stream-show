@@ -16,7 +16,6 @@ import { relayHeaders, relayUrl } from '@/lib/xtream';
 const SAFE_HEADERS = [
   'content-type',
   'content-range',
-  'accept-ranges',
   'content-disposition',
   'last-modified',
   'etag',
@@ -117,7 +116,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           return new Response(body, { status: 200, headers });
         }
 
-        headers.set('Accept-Ranges', res.headers.get('accept-ranges') ?? 'bytes');
+        headers.set('Accept-Ranges', 'bytes');
         return new Response(res.body, { status: res.status, headers });
 
       },
