@@ -821,27 +821,99 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     });
   });
 
-  /* remote / D-pad navigation inside card strips and grids */
+  /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
+     Moves focus predictably across nav items, row headers ("See all"),
+     hero CTAs and individual cards. Enter/OK activates the focused item. */
+  var NAVSEL='.links a, .menu a, .navright button, .navright .avatar, .burger, .hero .cta .btn,'+
+    ' .rowhead a, .rowhead button, .card, .tile, .pcard, #catSearch, #catMore, .dots button,'+
+    ' .drawer button, .drawer a, .vp button, .modal button, .modal a, .pchan';
+
+  function visible(el){
+    if(!el||el.disabled) return false;
+    if(el.offsetParent===null && el.getClientRects().length===0) return false;
+    var r=el.getBoundingClientRect();
+    if(r.width<2||r.height<2) return false;
+    if(el.closest('.hide')) return false;
+    if(getComputedStyle(el).visibility==='hidden') return false;
+    return true;
+  }
+
+  function activeScope(){
+    var layers=['.vp.open','.drawer.open','#overlay.open','.menu.open'];
+    for(var i=0;i<layers.length;i++){ var n=document.querySelector(layers[i]); if(n) return n; }
+    return document;
+  }
+
+  function navItems(){
+    return [].slice.call(activeScope().querySelectorAll(NAVSEL)).filter(visible);
+  }
+
+  function focusable(el){
+    return el.closest('.card, .tile, .pcard, a, button, input, [tabindex]')||el;
+  }
+
+  function center(el){ var r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,r:r}; }
+
+  function pickNext(cur,dir){
+    var items=navItems();
+    if(items.indexOf(cur)<0) return items[0]||null;
+    var c=center(cur), best=null, bestScore=Infinity;
+    var horiz=(dir==='ArrowLeft'||dir==='ArrowRight');
+    items.forEach(function(el){
+      if(el===cur) return;
+      var t=center(el);
+      var dx=t.x-c.x, dy=t.y-c.y;
+      if(dir==='ArrowRight'&&dx<=2) return;
+      if(dir==='ArrowLeft'&&dx>=-2) return;
+      if(dir==='ArrowDown'&&dy<=2) return;
+      if(dir==='ArrowUp'&&dy>=-2) return;
+      var along=Math.abs(horiz?dx:dy), across=Math.abs(horiz?dy:dx);
+      // same visual line/column strongly preferred, then nearest along the axis
+      var overlap=horiz
+        ? (t.r.bottom>c.r.top+4 && t.r.top<c.r.bottom-4)
+        : (t.r.right>c.r.left+4 && t.r.left<c.r.right-4);
+      var score=along+across*(overlap?0.2:6);
+      if(score<bestScore){ bestScore=score; best=el; }
+    });
+    return best;
+  }
+
+  function moveFocus(el){
+    if(!el) return;
+    el.focus({preventScroll:true});
+    var strip=el.closest('.strip');
+    el.scrollIntoView({block:'nearest',inline:strip?'center':'nearest',behavior:'smooth'});
+  }
+
   document.addEventListener('keydown',function(e){
-    var keys=['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'];
-    if(keys.indexOf(e.key)<0) return;
+    if(e.altKey||e.ctrlKey||e.metaKey) return;
     var el=document.activeElement;
-    if(!el||!el.closest) return;
-    var container=el.closest('.strip, .grid');
-    if(!container) return;
-    var items=[].slice.call(container.children).filter(function(c){return c.tabIndex>=0||c.tagName==='BUTTON'||c.tagName==='ARTICLE'});
-    var i=items.indexOf(el.closest('.card, .tile, .pcard'));
-    if(i<0) return;
-    var isStrip=container.classList.contains('strip');
-    var next=null;
-    if(e.key==='ArrowRight') next=items[i+1];
-    else if(e.key==='ArrowLeft') next=items[i-1];
-    else if(!isStrip){
-      var cols=Math.max(1,Math.round(container.clientWidth/(items[i].clientWidth||1)));
-      next=items[e.key==='ArrowDown'?i+cols:i-cols];
+    var typing=el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA');
+
+    if(e.key==='Enter'||e.key===' '||e.key==='OK'){
+      if(!el||typing) return;
+      var target=el.closest('.card, .tile, .pcard');
+      if(target&&target.tagName!=='BUTTON'&&target.tagName!=='A'){
+        e.preventDefault();
+        target.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
+      }
+      return;
     }
-    if(next){ e.preventDefault(); next.focus(); next.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'}); }
+
+    var dirs=['ArrowRight','ArrowLeft','ArrowUp','ArrowDown'];
+    if(dirs.indexOf(e.key)<0) return;
+    if(typing&&(e.key==='ArrowLeft'||e.key==='ArrowRight')) return;
+
+    var cur=el&&el!==document.body?focusable(el):null;
+    if(!cur||!visible(cur)){
+      var first=navItems()[0];
+      if(first){ e.preventDefault(); moveFocus(first); }
+      return;
+    }
+    var next=pickNext(cur,e.key);
+    if(next){ e.preventDefault(); moveFocus(next); }
   });
+
 
 
   /* ---------- DETAILS DRAWER ---------- */
