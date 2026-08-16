@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -26,65 +27,46 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function AuthBadge() {
+function useSessionBridge(frame: React.RefObject<HTMLIFrameElement | null>) {
   const { data } = useQuery({
     queryKey: ["home-session"],
     queryFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) return null;
-      return syncMyAccount({ data: { recordLogin: false } });
+      if (!userData.user) return { signedIn: false, role: "guest" as string };
+      const account = await syncMyAccount({ data: { recordLogin: false } });
+      return { signedIn: true, role: account?.role ?? "user" };
     },
     staleTime: 60_000,
   });
 
-  const style = {
-    position: "fixed" as const,
-    top: 14,
-    right: 16,
-    zIndex: 50,
-    display: "inline-flex",
-    minHeight: 44,
-    alignItems: "center",
-    gap: 8,
-    padding: "0 16px",
-    borderRadius: 999,
-    background: "rgba(5,5,5,.72)",
-    backdropFilter: "blur(12px)",
-    border: "1px solid rgba(255,69,0,.45)",
-    color: "#fff",
-    fontFamily: "Inter, system-ui, sans-serif",
-    fontSize: 14,
-    textDecoration: "none",
-  };
+  const post = useCallback(() => {
+    const win = frame.current?.contentWindow;
+    if (!win || !data) return;
+    win.postMessage({ type: "andam:session", ...data }, "*");
+  }, [data, frame]);
 
-  if (!data) {
-    return (
-      <Link to="/auth" style={style}>
-        Sign in
-      </Link>
-    );
-  }
-
-  return (
-    <div style={{ ...style, gap: 12 }}>
-      {data.role === "admin" && (
-        <Link to="/admin" style={{ color: "#FF4500", textDecoration: "none" }}>
-          Admin
-        </Link>
-      )}
-      <Link to="/account" style={{ color: "#fff", textDecoration: "none" }}>
-        Account
-      </Link>
-    </div>
-  );
+  useEffect(() => {
+    post();
+    const onMessage = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === "andam:ready") post();
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [post]);
 }
 
 function Index() {
+  const frame = useRef<HTMLIFrameElement>(null);
+  useSessionBridge(frame);
+
   return (
     <>
-      <AuthBadge />
       <iframe
+      ref={frame}
       src="/andam.html"
+      onLoad={() => {
+        frame.current?.contentWindow?.postMessage({ type: "andam:ping" }, "*");
+      }}
       title="Andam streaming homepage"
       style={{
         position: "fixed",
