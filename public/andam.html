@@ -250,6 +250,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   padding:8px 10px;color:var(--text);font-size:12.5px}
 @media (max-width:820px){.mbody{flex-direction:column}.chanlist{width:100%;flex:1 1 auto;max-height:38vh;border-left:0;border-top:1px solid var(--hair)}}
 /* ===== HAMBURGER / MOBILE MENU ===== */
+.status.retry{cursor:pointer;color:var(--ember);border:1px solid rgba(255,69,0,.45);background:rgba(255,69,0,.12);border-radius:999px;padding:10px 18px;min-height:44px;display:inline-flex;align-items:center}
 .burger{display:none;width:44px;height:44px;border-radius:10px;border:1px solid var(--hair);
   background:rgba(255,255,255,.03);color:var(--text);font-size:18px;place-items:center}
 .menu{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,10,.94);backdrop-filter:blur(12px);
@@ -729,7 +730,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   function relay(u){ return RELAY+encodeURIComponent(u); }
   function isRelay(u){ return u.indexOf(RELAY)===0; }
   function upstream(u){ return isRelay(u)?decodeURIComponent(u.slice(RELAY.length)):u; }
-  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); }
+  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); if(!msg) pStatus.classList.remove('retry'); }
 
   function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
 
@@ -1506,31 +1507,76 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var alive=function(){ return mySession===session };
     pTitle.textContent=title||'Andam'; pSub.textContent=sub||'● Andam relay';
     setStatus('Loading stream…');
-    var ok=false;
-    video.addEventListener('timeupdate',function(){ if(alive()){ ok=true; setStatus('') } },{once:true});
-    function fail(msg){
+    var ok=false,failed=false,timer=null;
+    video.addEventListener('timeupdate',function(){ if(alive()){ ok=true; failed=false; clearTimeout(timer); setStatus('') } },{once:true});
+
+    /* One visible failure state, never an endless spinner. Tap to retry. */
+    function retryable(msg){
       if(!alive()||ok) return;
-      setStatus(msg||'Stream unavailable — retrying…');
+      failed=true; clearTimeout(timer);
+      setStatus((msg||'Stream failed to load')+' — tap to retry');
+      pStatus.classList.add('retry');
     }
+    function armTimeout(){
+      clearTimeout(timer);
+      timer=setTimeout(function(){
+        if(alive()&&!ok&&video.currentTime===0){
+          console.warn('[player] no playback after 15s',{src:src,readyState:video.readyState});
+          retryable('Stream failed to load');
+        }
+      },15000);
+    }
+    /* Log the real HTTP status so relay/provider errors are debuggable. */
+    fetch(src,{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
+      if(!r.ok){
+        console.error('[player] playback endpoint returned',r.status,r.statusText,src);
+        return r.text().then(function(t){ retryable('Stream error '+r.status+(t?' · '+t.slice(0,80):'')) });
+      }
+      console.info('[player] playback endpoint ok',r.status,r.headers.get('content-type'));
+    }).catch(function(err){ console.error('[player] playback request failed',err); retryable('Network error') });
+
+    function native(){
+      if(hls){ hls.destroy(); hls=null }
+      video.src=src; video.play().catch(function(){});
+      video.addEventListener('error',function(){
+        console.error('[player] native playback error',video.error&&video.error.code,src);
+        retryable('This stream cannot be played here');
+      },{once:true});
+    }
+
     if(isHls && window.Hls && window.Hls.isSupported()){
-      // Manifests are already rewritten server-side, so the default loader is fine.
       hls=new window.Hls({lowLatencyMode:true});
       hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(alive()) video.play().catch(function(){}) });
       hls.on(window.Hls.Events.ERROR,function(e,d){
+        console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,
+          d.response?('http '+d.response.code):'',d.url||'');
         if(!d.fatal||!alive()) return;
-        if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
+        if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ native(); return }
+        if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok&&!failed){
           setStatus('Stream unavailable, retrying…');
-          setTimeout(function(){ if(alive()&&!ok) hls.loadSource(src) },1200);
-        }else fail('This stream is unavailable right now.');
+          setTimeout(function(){ if(alive()&&!ok&&!failed) hls.loadSource(src) },1200);
+        }else if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){
+          hls.recoverMediaError();
+        }else retryable('Stream failed to load');
       });
-      hls.loadSource(src); hls.attachMedia(video);
+      hls.attachMedia(video); hls.loadSource(src);
     }else{
-      video.src=src;
-      video.play().catch(function(){});
-      video.addEventListener('error',function(){ fail('This stream is unavailable right now.') },{once:true});
+      native();
     }
-    setTimeout(function(){ if(alive()&&!ok&&video.currentTime===0) fail('Still buffering — the provider may be slow.'); },14000);
+    armTimeout();
+
+    if(!pStatus.dataset['retrywired']){
+      pStatus.dataset['retrywired']='1';
+      pStatus.addEventListener('click',function(){
+        if(!pStatus.classList.contains('retry')) return;
+        pStatus.classList.remove('retry');
+        if(lastPlay) playToken(lastPlay.token,lastPlay.title,lastPlay.sub,lastPlay.isHls);
+      });
+    }
+    lastPlay={token:token,title:title,sub:sub,isHls:isHls};
+    pStatus.classList.remove('retry');
   }
+  var lastPlay=null;
 
   function playById(type,id,ext,title,sub,isHls){
     setStatus('Preparing stream…');
