@@ -26,6 +26,11 @@ function MonitoringPage() {
     refetchInterval: 30_000,
   });
 
+  const clearLogs = useMutation({
+    mutationFn: () => clearLoginActivity(),
+    onSuccess: () => refetch(),
+  });
+
   const providerName = (id: string | null) =>
     (data?.providers ?? []).find((p) => p.id === id)?.name ?? '—';
 
