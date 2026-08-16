@@ -2009,9 +2009,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function renderProviders(){
     provSel.innerHTML=ltv.providers.map(function(p){
-      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+esc(p.name)+'</option>';
+      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+
+        esc(p.name)+healthSuffix(ltv.health[p.id])+'</option>';
     }).join('');
+    paintHealth(provHealth,ltv.health[ltv.prov]);
   }
+  /* Provider reachability, refreshed while the section is on screen. */
+  function loadLtvHealth(){
+    paintHealth(provHealth,ltv.health[ltv.prov]);
+    return api({action:'health'}).then(function(d){
+      (d.health||[]).forEach(function(h){ ltv.health[h.id]=h });
+      renderProviders();
+    }).catch(function(){});
+  }
+
   function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:14px;margin-bottom:10px"></div>'; return h; }
 
   /* Categories are one compact dropdown on every device. */
@@ -2151,8 +2162,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
       var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
       setProvider(pick.id);
+      loadLtvHealth();
+      if(!ltv.healthTimer) ltv.healthTimer=setInterval(function(){
+        if(ltvEl && !ltvEl.classList.contains('hide')) loadLtvHealth();
+      },90000);
     }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
   };
+
 
   /* ---- interactions ---- */
   provSel.addEventListener('change',function(){ setProvider(this.value) });
