@@ -23,9 +23,14 @@ const SAFE_HEADERS = [
 
 
 function isManifest(url: string, contentType: string | null): boolean {
-  if (/\.m3u8(\?|$)/i.test(url)) return true;
   const ct = (contentType ?? '').toLowerCase();
-  return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
+  // Some providers serve MPEG-TS fragments from URLs that retain a .m3u8
+  // suffix. The returned media type is authoritative in that case; treating
+  // the fragment as text leaves res.text() waiting forever for the live socket.
+  if (ct.includes('mp2t') || ct.startsWith('video/')) return false;
+  if (ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl')) return true;
+  if (/\.m3u8(\?|$)/i.test(url)) return true;
+  return false;
 }
 
 /**
@@ -42,8 +47,17 @@ async function fetchOnce(url: string, request: Request, viaRelay: boolean): Prom
   const headers = new Headers(viaRelay ? relayHeaders() : {});
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
-  if (range) headers.set('Range', range);
-  return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
+  // The relay/provider can leave MPEG-TS responses open forever. A bounded
+  // default range gives every HLS fragment a concrete upstream boundary while
+  // preserving explicit browser Range requests for VOD seeking.
+  headers.set('Range', range ?? 'bytes=0-8388607');
+  const controller = new AbortController();
+  if (!range) setTimeout(() => controller.abort(), MAX_FRAGMENT_OPEN_MS);
+  return fetch(viaRelay ? relayUrl(url) : url, {
+    headers,
+    redirect: 'follow',
+    signal: controller.signal,
+  });
 }
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
@@ -75,42 +89,52 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
 
 /** Idle window after which a length-less upstream body is considered complete. */
 const IDLE_CLOSE_MS = 1500;
+/** Provider fragments advertise 10s in their manifests but may never EOF. */
+const MAX_FRAGMENT_OPEN_MS = 11_000;
 
 /**
  * Streams `body` through, but ends the response when no chunk has arrived for
  * IDLE_CLOSE_MS. Segments arrive in one burst, so this closes them promptly
  * while a genuinely continuous stream keeps flowing.
  */
-function closeOnIdle(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+async function readBoundedFragment(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const reader = body.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
+  const openedAt = Date.now();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (Date.now() - openedAt < MAX_FRAGMENT_OPEN_MS) {
+      const remaining = MAX_FRAGMENT_OPEN_MS - (Date.now() - openedAt);
       let timer: ReturnType<typeof setTimeout> | undefined;
       const idle = new Promise<'idle'>((resolve) => {
-        timer = setTimeout(() => resolve('idle'), IDLE_CLOSE_MS);
+        timer = setTimeout(() => resolve('idle'), Math.min(IDLE_CLOSE_MS, remaining));
       });
       try {
         const result = await Promise.race([reader.read(), idle]);
-        if (result === 'idle') {
-          await reader.cancel().catch(() => {});
-          controller.close();
-          return;
-        }
-        if (result.done) {
-          controller.close();
-          return;
-        }
-        controller.enqueue(result.value);
-      } catch (err) {
-        controller.error(err);
+        if (result === 'idle' || result.done) break;
+        chunks.push(result.value);
+        length += result.value.byteLength;
+        // A continuously-ready reader can otherwise create an endless
+        // microtask chain that prevents the wall-clock timeout from firing.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       } finally {
         if (timer) clearTimeout(timer);
       }
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
+    }
+  } catch (error) {
+    // The upstream timeout deliberately aborts live fragment sockets. Bytes
+    // already received are a valid MPEG-TS fragment; only fail if none arrived.
+    if (length === 0) throw error;
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
+  const out = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 
@@ -204,9 +228,14 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         // after the last byte of a segment, so hls.js waited forever on a
         // fragment that had in fact fully arrived (endless spinner, then 502s
         // once the provider's connection slots ran out). Close the response
-        // ourselves once the upstream goes quiet for a moment.
-        if (res.body && !res.headers.get('content-length')) {
-          return new Response(closeOnIdle(res.body), { status: res.status, headers });
+        // ourselves once the upstream goes quiet or the advertised fragment
+        // window elapses. Buffering also lets us send a definite Content-Length.
+        const upstreamType = (res.headers.get('content-type') ?? '').toLowerCase();
+        const isTransportStream = upstreamType.includes('mp2t') || /\.ts(\?|$)/i.test(upstream);
+        if (res.body && (!res.headers.get('content-length') || isTransportStream)) {
+          const fragment = await readBoundedFragment(res.body);
+          headers.set('Content-Length', String(fragment.byteLength));
+          return new Response(fragment.buffer as ArrayBuffer, { status: res.status, headers });
         }
         return new Response(res.body, { status: res.status, headers });
 
