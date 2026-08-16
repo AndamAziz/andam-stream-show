@@ -324,7 +324,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       pTitle=document.getElementById('pTitle'),pSub=document.getElementById('pSub'),
       pStatus=document.getElementById('pStatus'),pChans=document.getElementById('pChans'),
       pSearch=document.getElementById('pSearch');
-  var hls=null,channels=[],loaded=false,current=null;
+  var hls=null,channels=[],loaded=false,current=null,session=0;
 
   function relay(u){ return RELAY+encodeURIComponent(u); }
   function isRelay(u){ return u.indexOf(RELAY)===0; }
