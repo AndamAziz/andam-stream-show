@@ -125,6 +125,11 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   background:rgba(255,59,78,.9);color:#0B0B0D;display:grid;place-items:center;font-size:14px;
   opacity:0;transition:opacity .2s ease}
 .card:hover .cwplay{opacity:1}
+.card.chan .ph{object-fit:contain;padding:22px;background:radial-gradient(circle at 50% 40%,#22232B,#101014)}
+.card .ph.noimg{display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;
+  font-size:26px;color:#0B0B10;letter-spacing:.5px}
+.hero img.bg.logo{object-fit:contain;padding:16vh 30vw;background:radial-gradient(circle at 32% 45%,#20212A,#08090C);opacity:.5;filter:blur(1px) saturate(1.05)}
+#heroBg:not([src]){background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C)}
 
 .tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;transition:transform .25s ease,background .25s ease}
@@ -509,7 +514,7 @@ html.hppreview .nav{position:static}
   <div class="brand"><div class="mark">H</div><div class="word">Andam</div></div>
   <div class="links">
     <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
-    <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+    <a href="#">Shows</a><a href="#">IPTV</a>
   </div>
   <div class="navright">
     <span class="chip mono">15 Aug · GB</span>
@@ -526,7 +531,7 @@ html.hppreview .nav{position:static}
 <div class="menu" id="menu" role="dialog" aria-label="Main menu" aria-hidden="true">
   <button class="menuclose" id="menuClose" aria-label="Close menu">✕</button>
   <a href="#" class="active">Home</a><a href="#">Live TV</a><a href="#">Movies</a>
-  <a href="#">Shows</a><a href="#">IPTV</a><a href="#">Prayer &amp; Qibla</a>
+  <a href="#">Shows</a><a href="#">IPTV</a>
   <a id="mAdmin" href="/admin" target="_top" hidden>Admin</a>
   <a id="mAccount" href="/auth" target="_top">Sign in</a>
 </div>
@@ -534,34 +539,38 @@ html.hppreview .nav{position:static}
 
 
 <header class="hero" id="hero">
-  <img class="bg" src="https://picsum.photos/seed/andam-hero-stadium/1600/900" alt="Floodlit football stadium at night" />
+  <img class="bg" id="heroBg" src="" alt="" />
   <div class="scrim"></div>
   <div class="inner">
-    <span class="pill"><i class="dot"></i>LIVE NOW</span>
-    <h1>Real Madrid vs Man City</h1>
-    <div class="meta">
-      <span class="g">Champions League · Semi-Final, 2nd Leg</span><i class="sep"></i>
-      <span class="mono" id="clock">62'</span><i class="sep"></i>
-      <span class="mono">1–1</span><i class="sep"></i><span>Full HD</span>
-    </div>
-    <div class="watchers">
-      <div class="stack"><span></span><span></span><span></span></div>
-      <span class="mono">2.1M watching now</span>
-    </div>
-    <p class="desc">A one-goal aggregate lead evaporates in Madrid as both sides trade chances in a semi-final heading for extra time.</p>
+    <span class="pill" id="heroTag"><i class="dot"></i>LIVE NOW</span>
+    <h1 id="heroTitle">Loading your live channels…</h1>
+    <div class="meta" id="heroMeta"></div>
     <div class="cta">
       <button class="btn primary" id="watchNow">▶ Watch now</button>
-      <button class="btn glass">ⓘ More info</button>
-      <button class="btn round" aria-label="Add to my list">+</button>
+      <button class="btn glass" id="heroAll">All live channels</button>
     </div>
   </div>
-  <div class="dots" id="dots">
-    <button class="active" aria-label="Slide 1"></button><button aria-label="Slide 2"></button>
-    <button aria-label="Slide 3"></button><button aria-label="Slide 4"></button>
-  </div>
+  <div class="dots" id="dots"></div>
 </header>
 
-<main class="rows" id="rows"></main>
+<main class="rows" id="rows">
+  <section class="row hide" id="rowLive">
+    <div class="rowhead"><h2>Live now</h2><a href="#" data-goto="live">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowMovies">
+    <div class="rowhead"><h2>Trending movies</h2><a href="#" data-goto="live-movies">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowShows">
+    <div class="rowhead"><h2>Popular shows</h2><a href="#" data-goto="live-series">See all</a></div>
+    <div class="strip"></div>
+  </section>
+  <section class="row hide" id="rowIptv">
+    <div class="rowhead"><h2>Your IPTV channels</h2><a href="#" data-goto="iptv">See all</a></div>
+    <div class="strip"></div>
+  </section>
+</main>
 
 <section class="catalog" id="catalog" aria-label="Catalog">
   <div class="cathead">
@@ -679,86 +688,13 @@ html.hppreview .nav{position:static}
   function onScroll(){ nav.classList.toggle('solid', window.scrollY>40); }
   window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
 
-  var min=62, clock=document.getElementById('clock');
-  setInterval(function(){ if(min<90){min++; clock.textContent=min+"'";} },15000);
-
-  document.getElementById('dots').addEventListener('click',function(e){
-    var b=e.target.closest('button'); if(!b) return;
-    [].forEach.call(this.children,function(c){c.classList.remove('active')});
-    b.classList.add('active');
-  });
-
-  var img=function(seed){return 'https://picsum.photos/seed/'+seed+'/500/282';};
-
-  var live=[["Man City vs Real Madrid","Champions League · 62'","live-mcfc"],
-    ["PGA Tour Final Round","Golf · Round 4","live-pga"],
-    ["Erbil FC vs Duhok SC","Iraqi Premier League","live-erbil"],
-    ["World Snooker Final","Snooker · Session 3","live-snooker"],
-    ["BBC News Live","News · English","live-bbcnews"],
-    ["Al Jazeera English","News · English","live-ajenglish"]];
-
-  var cont=[["Nightfall Protocol","S2 · Ep 4 · 28 min left",64,"cw-nightfall"],
-    ["The Last Caravan","Movie · 1h 04m left",38,"cw-caravan"],
-    ["Echoes of Erbil","S1 · Ep 8 · 7 min left",88,"cw-echoes"],
-    ["Glass Horizon","Movie · 1h 38m left",20,"cw-glass"],
-    ["Desert Static","S3 · Ep 2 · 24 min left",50,"cw-desert"]];
-
-  var movies=[["Neon Heist","Crime · 1h 52m","8.4",true,"mv-neon"],
-    ["Glass Horizon","Sci-Fi · 2h 05m","7.9",false,"mv-glass"],
-    ["The Last Caravan","Drama · 1h 47m","8.1",false,"mv-caravan"],
-    ["Salt & Silence","Thriller · 1h 39m","7.6",true,"mv-salt"],
-    ["Ember Road","Action · 2h 11m","8.7",false,"mv-ember"],
-    ["Midnight in Sulav","Romance · 1h 34m","7.3",false,"mv-sulav"]];
-
-  var shows=[["Nightfall Protocol","Thriller · 3 seasons","8.9",false,"sh-nightfall"],
-    ["Echoes of Erbil","Drama · 1 season","8.2",true,"sh-echoes"],
-    ["Desert Static","Mystery · 3 seasons","7.8",false,"sh-desert"],
-    ["House of Zagros","Historical · 2 seasons","8.5",false,"sh-zagros"],
-    ["Border Signal","Crime · 1 season","7.7",false,"sh-border"]];
-
-  var chans=[["NRT","NR","linear-gradient(140deg,#FF3B4E,#C4243A)"],
-    ["Kurdsat","KS","linear-gradient(140deg,#38E1C6,#1E9C8B)"],
-    ["Rudaw","RD","linear-gradient(140deg,#F5C56B,#C9902F)"],
-    ["KurdMax","KM","linear-gradient(140deg,#B79CFF,#6C7BFF)"],
-    ["BBC","BB","linear-gradient(140deg,#8E9BB3,#4A5468)"],
-    ["Al Araby","AA","linear-gradient(140deg,#5AD1FF,#2A6BE0)"],
-    ["beIN 1","B1","linear-gradient(140deg,#7BE07B,#219653)"],
-    ["MBC","MB","linear-gradient(140deg,#FF9F6B,#D9541F)"]];
-
-  function card(t,s,seed,opts){
-    opts=opts||{};
-    var h='<article class="card'+(opts.feat?' feat':'')+'" tabindex="0">';
-    h+='<img class="ph" loading="lazy" src="'+img(seed)+'" alt="'+t+'" />';
-    h+='<div class="grad"></div>';
-    if(opts.live) h+='<span class="tag live"><i class="dot"></i>LIVE</span>';
-    if(opts.isNew) h+='<span class="tag new">NEW</span>';
-    if(opts.rate) h+='<span class="rate">★ '+opts.rate+'</span>';
-    if(opts.icon) h+='<span class="ic" style="background:'+opts.iconBg+';color:'+opts.iconFg+'">'+opts.icon+'</span>';
-    h+='<div class="txt"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>';
-    if(opts.progress!=null) h+='<div class="bar"><i style="width:'+opts.progress+'%"></i></div>';
-    return h+'</article>';
-  }
+  /* Hero + rows are populated from real provider/playlist data further down
+     (see "HOME ROWS"). Nothing on this page ships placeholder content. */
 
   function row(title,inner){
-    return '<section class="row"><div class="rowhead"><h2>'+title+'</h2><a href="#">See all</a></div>'+
+    return '<section class="row"><div class="rowhead"><h2>'+title+'</h2></div>'+
       '<div class="strip">'+inner+'</div></section>';
   }
-
-  var html='';
-  html+=row('Live now', live.map(function(c){return card(c[0],c[1],c[2],{live:true})}).join(''));
-  html+=row('Continue watching', cont.map(function(c){return card(c[0],c[1],c[3],{progress:c[2]})}).join(''));
-  html+=row('Trending movies', movies.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
-  html+=row('Popular shows', shows.map(function(c){return card(c[0],c[1],c[4],{rate:c[2],isNew:c[3]})}).join(''));
-  html+=row('Your IPTV channels', chans.map(function(c){
-    return '<button class="tile"><span class="m" style="background:'+c[2]+'">'+c[1]+'</span><span class="n">'+c[0]+'</span></button>';
-  }).join(''));
-  html+=row('Also on Andam',
-    card('Prayer Times & Qibla','Maghrib in 1h 42m · Erbil','feat-prayer',
-      {feat:true,icon:'✧',iconBg:'var(--lavender-dim)',iconFg:'var(--lavender)'})+
-    card('The Holy Quran','Continue Surah Al-Kahf','feat-quran',
-      {feat:true,icon:'❖',iconBg:'var(--teal-dim)',iconFg:'var(--teal)'}));
-
-  document.getElementById('rows').innerHTML=html;
 
   /* ---------- PLAYER ---------- */
   var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
@@ -892,27 +828,6 @@ html.hppreview .nav{position:static}
   document.getElementById('pClose').addEventListener('click',close);
   overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
-
-  document.getElementById('watchNow').addEventListener('click',function(){
-    open(null,'Real Madrid vs Man City',"● LIVE · Champions League · "+min+"'");
-  });
-
-  // Live cards and IPTV tiles open the player too
-  document.getElementById('rows').addEventListener('click',function(e){
-    var tile=e.target.closest('.tile');
-    if(tile){ var n=tile.querySelector('.n').textContent;
-      loadChannels().then(function(){
-        var m=channels.filter(function(c){return c.name.toLowerCase().indexOf(n.toLowerCase())>-1})[0];
-        overlay.classList.add('open'); document.body.style.overflow='hidden';
-        if(m) play(m.url,m.name,'● LIVE · IPTV');
-        else open(null,n,'● LIVE · IPTV');
-      });
-      return;
-    }
-    var c=e.target.closest('.card'); if(!c) return;
-    var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
-    open(null,t,s);
-  });
 
   /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
   var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
@@ -1355,9 +1270,50 @@ html.hppreview .nav{position:static}
       var all=allProg(), key=type+':'+id, prev=all[key]||{};
       all[key]=Object.assign({tmdbId:id,type:type,season:1,episode:1,position:0,duration:0},prev,extra||{},{updated:Date.now()});
       localStorage.setItem(PKEY,JSON.stringify(all));
+      pushProgress(all[key]);
     }catch(_){}
     try{ renderContinue() }catch(_){}
   }
+  /* ---- cross-device sync: the host page bridges the session token in ---- */
+  var WP_API='/api/public/watch-progress', authToken=null, pushTimer=null;
+  window.__andamSetToken=function(t){
+    var had=!!authToken; authToken=t||null;
+    if(!authToken||had) return;
+    pullProgress();
+    try{ lcache={}; loadHome() }catch(_){}   // private sources may now be visible
+  };
+  function wpFetch(opts){
+    if(!authToken) return Promise.reject(new Error('no session'));
+    opts=opts||{};
+    opts.headers=Object.assign({accept:'application/json'},opts.headers||{},
+      {Authorization:'Bearer '+authToken});
+    return fetch(WP_API,opts).then(function(r){ return r.json() });
+  }
+  function pullProgress(){
+    wpFetch({}).then(function(d){
+      var items=(d&&d.items)||[]; if(!items.length){ renderContinue(); return }
+      var all=allProg(), changed=false;
+      items.forEach(function(it){
+        var key=it.type+':'+it.tmdbId, prev=all[key];
+        if(!prev||(prev.updated||0)<it.updated){ all[key]=it; changed=true }
+      });
+      if(changed) try{ localStorage.setItem(PKEY,JSON.stringify(all)) }catch(_){}
+      renderContinue();
+    }).catch(function(){});
+  }
+  function pushProgress(entry){
+    if(!authToken||!entry) return;
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(function(){
+      wpFetch({method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(entry)})
+        .catch(function(){});
+    },1200);
+  }
+  function wpRemove(type,id){ if(authToken) wpFetch({method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({remove:true,type:type,tmdbId:id})}).catch(function(){}); }
+  function wpClear(){ if(authToken) wpFetch({method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({clear:true})}).catch(function(){}); }
+
   function fmtTime(sec){
     sec=Math.max(0,Math.round(sec||0));
     var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
@@ -1486,14 +1442,15 @@ html.hppreview .nav{position:static}
     sec.querySelector('#cwClear').addEventListener('click',function(e){
       e.preventDefault();
       try{ localStorage.removeItem(PKEY) }catch(_){}
-      renderContinue();
+      wpClear(); renderContinue();
     });
     strip.addEventListener('click',function(e){
       var rm=e.target.closest('[data-rm]');
       if(rm){
         e.stopPropagation();
+        var pair=rm.getAttribute('data-rm').split(':');
         try{ var all=allProg(); delete all[rm.getAttribute('data-rm')]; localStorage.setItem(PKEY,JSON.stringify(all)) }catch(_){}
-        renderContinue(); return;
+        wpRemove(pair[0],pair[1]); renderContinue(); return;
       }
       var c=e.target.closest('.card'); if(!c) return;
       resume(c.getAttribute('data-id'),c.getAttribute('data-type'),c.getAttribute('data-title'),
@@ -1537,7 +1494,9 @@ html.hppreview .nav{position:static}
     var key=qs;
     var hit=lcache[key];
     if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
-    return fetch(LTV_API+'?'+qs,{headers:{accept:'application/json'}})
+    var h={accept:'application/json'};
+    if(authToken) h.Authorization='Bearer '+authToken;
+    return fetch(LTV_API+'?'+qs,{headers:h})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(v){ if(v&&v.error) throw new Error(v.error); lcache[key]={t:Date.now(),v:v}; return v });
   }
@@ -1855,7 +1814,7 @@ html.hppreview .nav{position:static}
     var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]) }).join('&');
     var hit=ipCache[qs];
     if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
-    return fetch(IPTV_API+'?'+qs,{headers:{accept:'application/json'}})
+    return fetch(IPTV_API+'?'+qs,{headers:(function(){var h={accept:'application/json'};if(authToken)h.Authorization='Bearer '+authToken;return h})()})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(v){ if(v&&v.error) throw new Error(v.error); ipCache[qs]={t:Date.now(),v:v}; return v });
   }
@@ -1950,6 +1909,221 @@ html.hppreview .nav{position:static}
       .then(function(d){ playToken(d.token,name,'● LIVE · IPTV playlist',true) })
       .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this channel.') });
   });
+  /* ================= HOME ROWS (real data only) =================
+     Live now / Trending movies / Popular shows come from the selected Xtream
+     provider, "Your IPTV channels" from the M3U playlist source, and Continue
+     watching from the signed-in user's watch history. Any row whose source is
+     empty stays hidden — nothing here is fabricated. */
+  var homeIp=null, heroItems=[], heroIdx=0, heroTimer=null;
+  var heroBg=document.getElementById('heroBg'), heroTitle=document.getElementById('heroTitle'),
+      heroMeta=document.getElementById('heroMeta'), heroTag=document.getElementById('heroTag'),
+      dotsEl=document.getElementById('dots');
+
+  function stripOf(id){ return document.querySelector('#'+id+' .strip') }
+  function showRow(id,on){ document.getElementById(id).classList.toggle('hide',!on) }
+
+  function homeCard(o){
+    var h='<button class="card'+(o.chan?' chan':'')+'" type="button"';
+    Object.keys(o.data||{}).forEach(function(k){ h+=' data-'+k+'="'+esc(o.data[k])+'"' });
+    h+=' aria-label="'+esc(o.title)+'">';
+    h+=o.image
+      ? '<img class="ph" loading="lazy" src="'+esc(o.image)+'" alt="" />'
+      : '<span class="ph noimg" style="background:'+esc(o.tint||'var(--surface-2)')+'">'+esc(o.initials||'')+'</span>';
+    h+='<div class="grad"></div>';
+    if(o.live) h+='<span class="tag live"><i class="dot"></i>LIVE</span>';
+    if(o.rate) h+='<span class="rate">★ '+esc(o.rate)+'</span>';
+    h+='<span class="cwplay" aria-hidden="true">▶</span>';
+    h+='<div class="txt"><div class="t">'+esc(o.title)+'</div>'+
+       (o.sub?'<div class="s">'+esc(o.sub)+'</div>':'')+'</div>';
+    return h+'</button>';
+  }
+
+  function rateOf(v){
+    var n=parseFloat(v);
+    return isFinite(n)&&n>0 ? (Math.round(n*10)/10).toFixed(1) : '';
+  }
+  function initialsOf(name){
+    return String(name||'?').replace(/[^A-Za-z0-9 ]/g,' ').trim().split(/\s+/)
+      .slice(0,2).map(function(w){ return w[0] }).join('').toUpperCase()||'?';
+  }
+  var TINTS=['linear-gradient(140deg,#FF3B4E,#C4243A)','linear-gradient(140deg,#38E1C6,#1E9C8B)',
+    'linear-gradient(140deg,#F5C56B,#C9902F)','linear-gradient(140deg,#B79CFF,#6C7BFF)',
+    'linear-gradient(140deg,#5AD1FF,#2A6BE0)','linear-gradient(140deg,#7BE07B,#219653)'];
+  function tintFor(i){ return TINTS[i%TINTS.length] }
+
+  /* ---- hero: the provider's first live channels, real names/categories ---- */
+  function paintHero(){
+    var it=heroItems[heroIdx]; if(!it) return;
+    heroTag.classList.remove('hide');
+    heroTitle.textContent=it.name;
+    heroMeta.innerHTML=(it.category?'<span class="g">'+esc(it.category)+'</span><i class="sep"></i>':'')+
+      '<span>'+esc(it.provider)+'</span>'+
+      (it.archive?'<i class="sep"></i><span class="mono">REPLAY AVAILABLE</span>':'');
+    if(it.logo){ heroBg.src=it.logo; heroBg.classList.add('logo') }
+    else { heroBg.removeAttribute('src'); heroBg.classList.remove('logo') }
+    [].forEach.call(dotsEl.children,function(b,i){ b.classList.toggle('active',i===heroIdx) });
+  }
+  function setHero(items,providerName){
+    heroItems=items.slice(0,5).map(function(c){
+      return {id:c.id,name:c.name,logo:c.logo,category:c.category||'',archive:c.archive,provider:providerName};
+    });
+    if(!heroItems.length){
+      heroTitle.textContent='No live channels are available for your account yet';
+      heroMeta.textContent=''; heroTag.classList.add('hide'); dotsEl.innerHTML='';
+      document.getElementById('watchNow').classList.add('hide');
+      return;
+    }
+    dotsEl.innerHTML=heroItems.map(function(_,i){
+      return '<button aria-label="Featured channel '+(i+1)+'"></button>' }).join('');
+    heroIdx=0; paintHero();
+    clearInterval(heroTimer);
+    heroTimer=setInterval(function(){
+      if(document.hidden||overlay.classList.contains('open')) return;
+      heroIdx=(heroIdx+1)%heroItems.length; paintHero();
+    },9000);
+  }
+  dotsEl.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    heroIdx=[].indexOf.call(dotsEl.children,b); paintHero();
+  });
+  document.getElementById('watchNow').addEventListener('click',function(){
+    var it=heroItems[heroIdx]; if(!it) return;
+    playById('live',it.id,'',it.name,'● LIVE · '+it.provider,true);
+  });
+  document.getElementById('heroAll').addEventListener('click',function(){ showView('live') });
+
+  /* ---- rows ---- */
+  function loadHomeProvider(){
+    return api({action:'providers'}).then(function(d){
+      var provs=d.providers||[];
+      if(!provs.length) return null;
+      var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
+      var pick=provs.filter(function(p){return p.id===saved})[0]||provs[0];
+      if(!ltv.prov) ltv.prov=pick.id;
+      return pick;
+    }).catch(function(){ return null });
+  }
+
+  function loadHomeLive(prov){
+    return Promise.all([
+      api({action:'live',source:prov.id}),
+      api({action:'categories',type:'live',source:prov.id}).catch(function(){ return {categories:[]} })
+    ]).then(function(res){
+      var items=res[0].items||[], names={};
+      (res[1].categories||[]).forEach(function(c){ names[c.id]=c.name });
+      items.forEach(function(c){ c.category=names[c.categoryId]||'' });
+      setHero(items,prov.name);
+      var list=items.slice(0,18);
+      showRow('rowLive',!!list.length);
+      stripOf('rowLive').innerHTML=list.map(function(c,i){
+        return homeCard({title:c.name,sub:c.category||'',image:c.logo,live:true,chan:true,
+          initials:initialsOf(c.name),tint:tintFor(i),data:{live:c.id}});
+      }).join('');
+    }).catch(function(){ setHero([],prov.name); showRow('rowLive',false) });
+  }
+
+  function loadHomeMovies(prov){
+    return api({action:'vod',source:prov.id}).then(function(d){
+      var items=(d.items||[]).slice();
+      // Real signals only: newest "added" first, else provider rating, else order.
+      if(items.some(function(i){return i.added})) items.sort(function(a,b){ return Number(b.added||0)-Number(a.added||0) });
+      else if(items.some(function(i){return i.rating})) items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
+      var list=items.slice(0,18);
+      showRow('rowMovies',!!list.length);
+      stripOf('rowMovies').innerHTML=list.map(function(m,i){
+        var sub=[m.genre||'',m.year||''].filter(Boolean).join(' · ');
+        return homeCard({title:m.name,sub:sub,image:m.poster,rate:rateOf(m.rating),
+          initials:initialsOf(m.name),tint:tintFor(i),data:{vod:m.id,ext:m.ext||'',title:m.name}});
+      }).join('');
+    }).catch(function(){ showRow('rowMovies',false) });
+  }
+
+  function loadHomeShows(prov){
+    return api({action:'series',source:prov.id}).then(function(d){
+      var items=(d.items||[]).slice();
+      if(items.some(function(i){return i.lastModified}))
+        items.sort(function(a,b){ return Number(b.lastModified||0)-Number(a.lastModified||0) });
+      else if(items.some(function(i){return i.rating}))
+        items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
+      var list=items.slice(0,18);
+      showRow('rowShows',!!list.length);
+      stripOf('rowShows').innerHTML=list.map(function(sh,i){
+        var bits=[];
+        if(sh.genre) bits.push(sh.genre);
+        if(sh.seasonCount) bits.push(sh.seasonCount+(sh.seasonCount===1?' season':' seasons'));
+        else if(sh.year) bits.push(sh.year);
+        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:rateOf(sh.rating),
+          initials:initialsOf(sh.name),tint:tintFor(i),data:{series:sh.id,title:sh.name}});
+      }).join('');
+    }).catch(function(){ showRow('rowShows',false) });
+  }
+
+  function loadHomeIptv(){
+    return ipApi({action:'sources'}).then(function(d){
+      var srcs=d.sources||[];
+      if(!srcs.length){ showRow('rowIptv',false); return }
+      var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
+      var pick=srcs.filter(function(x){return x.id===saved})[0]||srcs[0];
+      homeIp=pick.id;
+      return ipApi({action:'channels',source:pick.id}).then(function(r){
+        var list=(r.channels||[]).slice(0,18);
+        showRow('rowIptv',!!list.length);
+        stripOf('rowIptv').innerHTML=list.map(function(c,i){
+          return homeCard({title:c.name,sub:c.group||'',image:c.logo,live:true,chan:true,
+            initials:initialsOf(c.name),tint:tintFor(i),data:{ipch:c.id,name:c.name}});
+        }).join('');
+      });
+    }).catch(function(){ showRow('rowIptv',false) });
+  }
+
+  /* ---- clicks on home cards go straight to playback ---- */
+  rowsEl.addEventListener('click',function(e){
+    if(e.target.closest('#cwRow')) return;   // continue watching has its own handler
+    var card=e.target.closest('.card'); if(!card) return;
+    var title=card.getAttribute('data-title')||(card.querySelector('.t')||{}).textContent||'Andam';
+    if(card.hasAttribute('data-live')){
+      playById('live',card.getAttribute('data-live'),'',title,'● LIVE · provider channel',true); return;
+    }
+    if(card.hasAttribute('data-vod')){
+      playById('vod',card.getAttribute('data-vod'),card.getAttribute('data-ext'),title,'Movie · provider VOD',false); return;
+    }
+    if(card.hasAttribute('data-series')){
+      showView('live');
+      if(window.ltvOpen) window.ltvOpen();
+      var id=card.getAttribute('data-series');
+      setTimeout(function(){ ltv.tab='series'; ltv.cat=''; renderTabs(); openSeries(id,title) },250);
+      return;
+    }
+    if(card.hasAttribute('data-ipch')){
+      var name=card.getAttribute('data-name');
+      setStatus('Preparing stream…');
+      ipApi({action:'play',source:homeIp,id:card.getAttribute('data-ipch')})
+        .then(function(d){ playToken(d.token,name,'● LIVE · IPTV playlist',true) })
+        .catch(function(){ overlay.classList.add('open'); setStatus('Could not start this channel.') });
+    }
+  });
+
+  rowsEl.addEventListener('click',function(e){
+    var a=e.target.closest('[data-goto]'); if(!a) return;
+    e.preventDefault();
+    var to=a.getAttribute('data-goto');
+    if(to==='live'){ showView('live') }
+    else if(to==='iptv'){ showView('iptv') }
+    else if(to==='live-movies'||to==='live-series'){
+      showView('live'); if(window.ltvOpen) window.ltvOpen();
+      setTimeout(function(){ setTab(to==='live-movies'?'movies':'series') },250);
+    }
+  });
+
+  function loadHome(){
+    loadHomeProvider().then(function(prov){
+      if(!prov){ setHero([],''); showRow('rowLive',false); showRow('rowMovies',false); showRow('rowShows',false); return }
+      loadHomeLive(prov); loadHomeMovies(prov); loadHomeShows(prov);
+    });
+    loadHomeIptv();
+  }
+  loadHome();
+
 })();
 
 
@@ -1966,7 +2140,9 @@ html.hppreview .nav{position:static}
     if(mAcct){ mAcct.textContent=signedIn?'Account':'Sign in'; mAcct.setAttribute('href',signedIn?'/account':'/auth') }
   }
   window.addEventListener('message',function(e){
-    var d=e.data; if(d&&d.type==='andam:session') apply(d);
+    var d=e.data; if(!d||d.type!=='andam:session') return;
+    apply(d);
+    if(window.__andamSetToken) window.__andamSetToken(d.token||null);
   });
   try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'andam:ready'},'*') }catch(_){}
   window.__andamApplySession=apply;

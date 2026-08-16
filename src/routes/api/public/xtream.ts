@@ -40,6 +40,8 @@ type VodStream = {
   container_extension?: string;
   year?: string | number;
   added?: string;
+  genre?: string;
+  category_id?: string;
 };
 
 type SeriesItem = {
@@ -50,6 +52,10 @@ type SeriesItem = {
   plot?: string;
   releaseDate?: string;
   last_modified?: string;
+  genre?: string;
+  category_id?: string;
+  season?: number | string;
+  seasons?: unknown[];
 };
 
 type SeriesEpisode = {
@@ -178,6 +184,7 @@ export const Route = createFileRoute('/api/public/xtream')({
               logo: s.stream_icon || '',
               archive: num(s.tv_archive) === 1,
               archiveDays: num(s.tv_archive_duration),
+              categoryId: s.category_id ? String(s.category_id) : '',
             }));
             const visibleItems = applyOverrides(
               items,
@@ -203,6 +210,9 @@ export const Route = createFileRoute('/api/public/xtream')({
               poster: s.stream_icon || '',
               rating: s.rating ? String(s.rating) : '',
               year: s.year ? String(s.year) : '',
+              genre: s.genre ? String(s.genre) : '',
+              added: s.added ? String(s.added) : '',
+              categoryId: s.category_id ? String(s.category_id) : '',
               ext: s.container_extension || 'mp4',
             }));
             return json({
@@ -222,6 +232,15 @@ export const Route = createFileRoute('/api/public/xtream')({
               poster: s.cover || '',
               rating: s.rating ? String(s.rating) : '',
               year: (s.releaseDate || '').slice(0, 4),
+              genre: s.genre ? String(s.genre) : '',
+              categoryId: s.category_id ? String(s.category_id) : '',
+              // Only surfaced when the provider actually reports it.
+              seasonCount: Array.isArray(s.seasons)
+                ? s.seasons.length
+                : s.season
+                  ? num(s.season)
+                  : 0,
+              lastModified: s.last_modified ? String(s.last_modified) : '',
             }));
             return json({
               items: applyOverrides(items, await loadOverrides(source.id, 'series'), 'poster'),
