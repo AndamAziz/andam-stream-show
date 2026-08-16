@@ -8,17 +8,23 @@ import { supabaseAdmin, maskSecret, probeProvider, relayHealth, verifyOwnPasswor
 import { playerApi, type Source } from '@/lib/xtream';
 import type { OverrideKind } from '@/lib/overrides.server';
 
+export type SourceType = 'xtream' | 'm3u';
+
 export type ProviderRow = {
   id: string;
   slug: string;
   name: string;
+  type: SourceType;
   base_url: string;
   username: string;
+  playlist_url: string;
   passwordMasked: string;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
   created_at: string;
+  /** Playlist cache stats, for m3u sources only. */
+  playlist?: { channelCount: number; categoryCount: number; fetchedAt: string } | undefined;
 };
 
 const slugify = (value: string) =>
@@ -29,80 +35,93 @@ const slugify = (value: string) =>
     .slice(0, 48) || `provider-${Date.now()}`;
 
 export async function listProviders(): Promise<ProviderRow[]> {
-  const { data, error } = await supabaseAdmin
-    .from('sources')
-    .select('id, slug, name, base_url, username, password, is_active, is_public, sort_order, created_at')
-    .order('sort_order', { ascending: true });
+  const { playlistCacheStats } = await import('@/lib/m3u.server');
+  const [{ data, error }, stats] = await Promise.all([
+    supabaseAdmin
+      .from('sources')
+      .select(
+        'id, slug, name, type, base_url, username, password, playlist_url, is_active, is_public, sort_order, created_at',
+      )
+      .order('sort_order', { ascending: true }),
+    playlistCacheStats(),
+  ]);
   if (error) throw new Error(error.message);
   return (data ?? []).map((s) => ({
     id: s.id,
     slug: s.slug,
     name: s.name,
-    base_url: s.base_url,
-    username: s.username,
-    passwordMasked: maskSecret(s.password),
+    type: (s.type === 'm3u' ? 'm3u' : 'xtream') as SourceType,
+    base_url: s.base_url ?? '',
+    username: s.username ?? '',
+    playlist_url: s.playlist_url ?? '',
+    passwordMasked: maskSecret(s.password ?? ''),
     is_active: s.is_active,
     is_public: s.is_public,
     sort_order: s.sort_order,
     created_at: s.created_at,
+    playlist: stats[s.id],
   }));
 }
 
 export type ProviderInput = {
   id?: string | undefined;
+  type?: SourceType | undefined;
   name: string;
   slug?: string | undefined;
-  base_url: string;
-  username: string;
+  base_url?: string | undefined;
+  username?: string | undefined;
   password?: string | undefined;
+  playlist_url?: string | undefined;
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
 };
 
 export async function saveProvider(input: ProviderInput): Promise<{ id: string }> {
-  const base_url = input.base_url.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(base_url)) throw new Error('Base URL must start with http:// or https://');
+  const type: SourceType = input.type === 'm3u' ? 'm3u' : 'xtream';
   if (!input.name.trim()) throw new Error('Name is required');
 
+  const patch: Record<string, unknown> = {
+    name: input.name.trim(),
+    type,
+    is_active: input.is_active,
+    is_public: input.is_public,
+    sort_order: input.sort_order,
+  };
+
+  if (type === 'm3u') {
+    const playlist = (input.playlist_url ?? '').trim();
+    if (!/^https?:\/\//i.test(playlist)) {
+      throw new Error('Playlist URL must start with http:// or https://');
+    }
+    patch['playlist_url'] = playlist;
+    patch['base_url'] = null;
+    patch['username'] = null;
+    patch['password'] = null;
+  } else {
+    const base_url = (input.base_url ?? '').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(base_url)) {
+      throw new Error('Base URL must start with http:// or https://');
+    }
+    patch['base_url'] = base_url;
+    patch['username'] = (input.username ?? '').trim();
+    patch['playlist_url'] = null;
+    if (input.password) patch['password'] = input.password;
+    else if (!input.id) throw new Error('Password is required for a new provider');
+  }
+
+  if (input.slug?.trim()) patch['slug'] = slugify(input.slug);
+
   if (input.id) {
-    const patch: {
-      name: string;
-      base_url: string;
-      username: string;
-      is_active: boolean;
-      is_public: boolean;
-      sort_order: number;
-      slug?: string;
-      password?: string;
-    } = {
-      name: input.name.trim(),
-      base_url,
-      username: input.username.trim(),
-      is_active: input.is_active,
-      is_public: input.is_public,
-      sort_order: input.sort_order,
-    };
-    if (input.slug?.trim()) patch.slug = slugify(input.slug);
-    if (input.password) patch.password = input.password;
     const { error } = await supabaseAdmin.from('sources').update(patch).eq('id', input.id);
     if (error) throw new Error(error.message);
     return { id: input.id };
   }
 
-  if (!input.password) throw new Error('Password is required for a new provider');
+  patch['slug'] = slugify(input.slug?.trim() || input.name);
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .insert({
-      slug: slugify(input.slug?.trim() || input.name),
-      name: input.name.trim(),
-      base_url,
-      username: input.username.trim(),
-      password: input.password,
-      is_active: input.is_active,
-      is_public: input.is_public,
-      sort_order: input.sort_order,
-    })
+    .insert(patch as never)
     .select('id')
     .single();
   if (error) throw new Error(error.message);
@@ -114,6 +133,19 @@ export async function deleteProvider(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Re-fetches and re-parses an M3U source, returning the resulting counts. */
+export async function refreshProviderPlaylist(id: string) {
+  const { loadPlaylistSource, refreshPlaylist } = await import('@/lib/m3u.server');
+  const source = await loadPlaylistSource(id);
+  if (!source) throw new Error('That source is not an M3U playlist source');
+  const result = await refreshPlaylist(source);
+  return {
+    channelCount: result.channelCount,
+    categoryCount: result.categoryCount,
+    fetchedAt: result.fetchedAt,
+  };
+}
+
 async function loadSourceById(id: string): Promise<Source> {
   const { data, error } = await supabaseAdmin
     .from('sources')
@@ -121,7 +153,14 @@ async function loadSourceById(id: string): Promise<Source> {
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
-  return data as Source;
+  return {
+    id: data.id,
+    slug: data.slug,
+    name: data.name,
+    base_url: data.base_url ?? '',
+    username: data.username ?? '',
+    password: data.password ?? '',
+  };
 }
 
 export async function testProvider(input: {
