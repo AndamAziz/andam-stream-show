@@ -2334,7 +2334,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function hopChannel(kind,dir){
     /* only meaningful for a live channel list (Live TV "Direct" tab / IPTV) */
-    if(kind==='live'&&ltv.tab!=='live') return false;
+    if(kind==='live'&&ltv.tab!=='direct') return false;
     var now=Date.now();
     if(now-hopAt[kind]<350) return false;
     var els=chanEls(kind);
