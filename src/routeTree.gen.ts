@@ -16,10 +16,12 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as AuthenticatedAdminCodesRouteImport } from './routes/_authenticated/admin/codes'
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
+import { Route as ApiPublicAccessRouteImport } from './routes/api/public/access'
 import { Route as ApiPublicIptvRouteImport } from './routes/api/public/iptv'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
 import { Route as ApiPublicWatchProgressRouteImport } from './routes/api/public/watch-progress'
@@ -60,6 +62,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
+const AuthenticatedAdminCodesRoute = AuthenticatedAdminCodesRouteImport.update({
+  id: '/codes',
+  path: '/codes',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
 const AuthenticatedAdminContentRoute =
   AuthenticatedAdminContentRouteImport.update({
     id: '/content',
@@ -82,6 +89,11 @@ const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const ApiPublicAccessRoute = ApiPublicAccessRouteImport.update({
+  id: '/api/public/access',
+  path: '/api/public/access',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicIptvRoute = ApiPublicIptvRouteImport.update({
   id: '/api/public/iptv',
@@ -115,10 +127,12 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
+  '/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/watch-progress': typeof ApiPublicWatchProgressRoute
@@ -131,10 +145,12 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/account': typeof AuthenticatedAccountRoute
+  '/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/watch-progress': typeof ApiPublicWatchProgressRoute
@@ -150,10 +166,12 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_authenticated/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
   '/api/public/watch-progress': typeof ApiPublicWatchProgressRoute
@@ -169,10 +187,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/admin'
     | '/account'
+    | '/admin/codes'
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
+    | '/api/public/access'
     | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/watch-progress'
@@ -185,10 +205,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/account'
+    | '/admin/codes'
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
     | '/admin/users'
+    | '/api/public/access'
     | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/watch-progress'
@@ -203,10 +225,12 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/account'
+    | '/_authenticated/admin/codes'
     | '/_authenticated/admin/content'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
     | '/_authenticated/admin/users'
+    | '/api/public/access'
     | '/api/public/iptv'
     | '/api/public/tmdb-discover'
     | '/api/public/watch-progress'
@@ -220,6 +244,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicAccessRoute: typeof ApiPublicAccessRoute
   ApiPublicIptvRoute: typeof ApiPublicIptvRoute
   ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
   ApiPublicWatchProgressRoute: typeof ApiPublicWatchProgressRoute
@@ -278,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/codes': {
+      id: '/_authenticated/admin/codes'
+      path: '/codes'
+      fullPath: '/admin/codes'
+      preLoaderRoute: typeof AuthenticatedAdminCodesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/content': {
       id: '/_authenticated/admin/content'
       path: '/content'
@@ -305,6 +337,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users'
       preLoaderRoute: typeof AuthenticatedAdminUsersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/api/public/access': {
+      id: '/api/public/access'
+      path: '/api/public/access'
+      fullPath: '/api/public/access'
+      preLoaderRoute: typeof ApiPublicAccessRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/iptv': {
       id: '/api/public/iptv'
@@ -345,6 +384,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteRouteChildren {
+  AuthenticatedAdminCodesRoute: typeof AuthenticatedAdminCodesRoute
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
@@ -354,6 +394,7 @@ interface AuthenticatedAdminRouteRouteChildren {
 
 const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren =
   {
+    AuthenticatedAdminCodesRoute: AuthenticatedAdminCodesRoute,
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
     AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
@@ -384,6 +425,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicAccessRoute: ApiPublicAccessRoute,
   ApiPublicIptvRoute: ApiPublicIptvRoute,
   ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
   ApiPublicWatchProgressRoute: ApiPublicWatchProgressRoute,

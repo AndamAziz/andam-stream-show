@@ -9,6 +9,7 @@ const NAV = [
   { to: '/admin', label: 'Overview' },
   { to: '/admin/providers', label: 'Providers' },
   { to: '/admin/content', label: 'Content' },
+  { to: '/admin/codes', label: 'Activation codes' },
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/monitoring', label: 'Monitoring' },
 ] as const;

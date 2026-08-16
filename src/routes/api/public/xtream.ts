@@ -78,24 +78,6 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-/**
- * Providers a caller may use: every public+active source, plus any private
- * source explicitly granted to the signed-in user via user_source_access.
- */
-async function allowedSourceIds(request: Request): Promise<Set<string> | null> {
-  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data: userData } = await supabaseAdmin.auth.getUser(token);
-  const userId = userData?.user?.id;
-  if (!userId) return null;
-  const { data } = await supabaseAdmin
-    .from('user_source_access')
-    .select('source_id')
-    .eq('user_id', userId);
-  return new Set((data ?? []).map((r) => String(r.source_id)));
-}
-
 async function loadSources(): Promise<Source[]> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
@@ -116,16 +98,21 @@ async function loadSources(): Promise<Source[]> {
   })) as Source[];
 }
 
-function visible(sources: Source[], granted: Set<string> | null): Source[] {
-  return sources.filter(
-    (s) => (s as Source & { is_public?: boolean }).is_public !== false || granted?.has(s.id),
-  );
+/**
+ * Live TV providers the caller may use. `'all'` (admins, or a code issued for
+ * all providers) keeps the public/private rule; a list means the caller was
+ * activated for those providers only and sees nothing else.
+ */
+function visible(sources: Source[], allowed: string[] | 'all'): Source[] {
+  if (allowed === 'all') return sources;
+  return sources.filter((s) => allowed.includes(s.id));
 }
 
-async function loadSource(slugOrId: string, granted: Set<string> | null): Promise<Source | null> {
-  const sources = visible(await loadSources(), granted);
+async function loadSource(slugOrId: string, allowed: string[] | 'all'): Promise<Source | null> {
+  const sources = visible(await loadSources(), allowed);
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
+
 
 const num = (v: unknown, fallback = 0) => {
   const n = Number(v);
@@ -140,7 +127,12 @@ export const Route = createFileRoute('/api/public/xtream')({
         const action = url.searchParams.get('action') ?? 'providers';
 
         try {
-          const granted = await allowedSourceIds(request);
+          // Live TV is gated: locked viewers get no providers, categories or
+          // channel data at all — not just a hidden UI.
+          const { canOpen, lockedResponse, resolveAccess } = await import('@/lib/access.server');
+          const access = await resolveAccess(request);
+          if (!canOpen(access, 'live')) return lockedResponse('live');
+          const granted = access.liveSources;
 
           if (action === 'providers') {
             const sources = visible(await loadSources(), granted);
