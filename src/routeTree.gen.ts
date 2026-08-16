@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/tmdb-discover'
+import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const ApiPublicTmdbDiscoverRoute = ApiPublicTmdbDiscoverRouteImport.update({
   path: '/api/public/tmdb-discover',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicXtreamRoute = ApiPublicXtreamRouteImport.update({
+  id: '/api/public/xtream',
+  path: '/api/public/xtream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
+  '/api/public/xtream': typeof ApiPublicXtreamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
+  '/api/public/xtream': typeof ApiPublicXtreamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/tmdb-discover': typeof ApiPublicTmdbDiscoverRoute
+  '/api/public/xtream': typeof ApiPublicXtreamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/tmdb-discover'
+  fullPaths: '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/tmdb-discover'
-  id: '__root__' | '/' | '/api/public/tmdb-discover'
+  to: '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
+  id: '__root__' | '/' | '/api/public/tmdb-discover' | '/api/public/xtream'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicTmdbDiscoverRoute: typeof ApiPublicTmdbDiscoverRoute
+  ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTmdbDiscoverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/xtream': {
+      id: '/api/public/xtream'
+      path: '/api/public/xtream'
+      fullPath: '/api/public/xtream'
+      preLoaderRoute: typeof ApiPublicXtreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicTmdbDiscoverRoute: ApiPublicTmdbDiscoverRoute,
+  ApiPublicXtreamRoute: ApiPublicXtreamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
