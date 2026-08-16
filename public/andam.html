@@ -129,6 +129,32 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .card,.card .ph,.tile{transition:none}
   .card:hover{transform:none}
 }
+/* CATALOG */
+.hide{display:none !important}
+.catalog{display:none;padding:88px var(--pad) 70px}
+.catalog.open{display:block}
+.cathead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.cathead h1{font-size:clamp(26px,3.4vw,38px);font-weight:700;letter-spacing:-.8px}
+.cathead .cnt{font-family:'IBM Plex Mono';font-size:11px;color:var(--faint);padding-bottom:6px}
+.cathead form{margin-left:auto;display:flex;gap:8px}
+.cathead input{background:var(--surface);border:1px solid var(--hair);border-radius:9px;padding:9px 12px;
+  color:var(--text);font-size:13px;min-width:210px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:18px}
+.pcard{position:relative;text-align:left;border-radius:12px;overflow:hidden;border:1px solid var(--hair);
+  background:var(--surface);transition:transform .22s ease,box-shadow .22s ease}
+.pcard:hover,.pcard:focus-visible{transform:translateY(-5px);box-shadow:0 20px 40px rgba(0,0,0,.6)}
+.pcard img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--surface-2)}
+.pcard .pi{padding:10px 11px 12px}
+.pcard .pt{font-family:'Space Grotesk';font-weight:600;font-size:13px;line-height:1.25;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard .pm{margin-top:5px;display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono';font-size:10.5px;color:var(--muted)}
+.pcard .pm b{color:var(--gold);font-weight:500}
+.catmsg{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--muted);padding:30px 0}
+.more{display:flex;justify-content:center;padding:30px 0 0}
+.skel{border-radius:12px;border:1px solid var(--hair);background:var(--surface);aspect-ratio:2/3.35;
+  animation:sk 1.3s ease-in-out infinite alternate}
+@keyframes sk{from{opacity:.45}to{opacity:.85}}
+
 /* PLAYER MODAL */
 .overlay{position:fixed;inset:0;z-index:80;display:none;background:rgba(4,5,7,.82);backdrop-filter:blur(8px);
   align-items:center;justify-content:center;padding:24px}
@@ -173,7 +199,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   </div>
 </nav>
 
-<header class="hero">
+<header class="hero" id="hero">
   <img class="bg" src="https://picsum.photos/seed/andam-hero-stadium/1600/900" alt="Floodlit football stadium at night" />
   <div class="scrim"></div>
   <div class="inner">
@@ -202,6 +228,20 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 </header>
 
 <main class="rows" id="rows"></main>
+
+<section class="catalog" id="catalog" aria-label="Catalog">
+  <div class="cathead">
+    <h1 id="catTitle">Movies</h1>
+    <span class="cnt mono" id="catCount"></span>
+    <form id="catForm" role="search">
+      <input id="catSearch" type="search" placeholder="Search titles" aria-label="Search titles" />
+      <button class="btn glass" type="submit">Search</button>
+    </form>
+  </div>
+  <div class="grid" id="catGrid"></div>
+  <div class="catmsg hide" id="catMsg"></div>
+  <div class="more"><button class="btn glass hide" id="catMore">Load more</button></div>
+</section>
 
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
   <div class="modal">
@@ -467,6 +507,84 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     var c=e.target.closest('.card'); if(!c) return;
     var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
     open(null,t,s);
+  });
+
+  /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
+  var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
+      rowsEl=document.getElementById('rows'), catGrid=document.getElementById('catGrid'),
+      catTitle=document.getElementById('catTitle'), catCount=document.getElementById('catCount'),
+      catMsg=document.getElementById('catMsg'), catMore=document.getElementById('catMore'),
+      catSearch=document.getElementById('catSearch'), catForm=document.getElementById('catForm');
+
+  var cat={kind:'movies',page:1,totalPages:1,q:'',items:[],busy:false,req:0};
+
+  function esc(v){ return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] }); }
+
+  function posterCard(it){
+    return '<button class="pcard" data-id="'+esc(it.tmdbId)+'" data-type="'+esc(it.type)+'" data-title="'+esc(it.title)+'">'+
+      '<img loading="lazy" src="'+esc(it.poster)+'" alt="'+esc(it.title)+' poster" />'+
+      '<span class="pi"><span class="pt">'+esc(it.title)+'</span>'+
+      '<span class="pm"><span>'+esc(it.year||'—')+'</span>'+
+      (it.rating?'<b>★ '+esc(it.rating)+'</b>':'')+'</span></span></button>';
+  }
+
+  function skeletons(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel"></div>'; return h; }
+
+  function setCatMsg(m){ catMsg.textContent=m||''; catMsg.classList.toggle('hide',!m); }
+
+  function fetchCatalog(reset){
+    if(cat.busy) return;
+    cat.busy=true; catMore.classList.add('hide'); setCatMsg('');
+    if(reset){ cat.page=1; cat.items=[]; catGrid.innerHTML=skeletons(12); catCount.textContent=''; }
+    var my=++cat.req;
+    var qs='kind='+cat.kind+'&page='+cat.page+(cat.q?'&q='+encodeURIComponent(cat.q):'');
+    fetch('/api/public/tmdb-discover?'+qs,{headers:{accept:'application/json'}})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(d){
+        if(my!==cat.req) return;
+        cat.totalPages=Number(d.totalPages||1);
+        var items=Array.isArray(d.items)?d.items:[];
+        cat.items=cat.items.concat(items);
+        if(reset) catGrid.innerHTML='';
+        catGrid.insertAdjacentHTML('beforeend',items.map(posterCard).join(''));
+        catCount.textContent=cat.items.length+' titles'+(cat.q?' · "'+cat.q+'"':'');
+        if(!cat.items.length) setCatMsg(cat.q?'No titles found for "'+cat.q+'".':'Nothing to show right now.');
+        catMore.classList.toggle('hide', cat.page>=cat.totalPages || !items.length);
+      })
+      .catch(function(){
+        if(my!==cat.req) return;
+        if(reset) catGrid.innerHTML='';
+        setCatMsg('Could not load the catalog. Try again in a moment.');
+      })
+      .then(function(){ cat.busy=false });
+  }
+
+  function showView(view,kind){
+    var isCat=view==='catalog';
+    hero.classList.toggle('hide',isCat); rowsEl.classList.toggle('hide',isCat);
+    catalog.classList.toggle('open',isCat);
+    window.scrollTo(0,0);
+    if(isCat && (kind!==cat.kind || !cat.items.length)){
+      cat.kind=kind; cat.q=''; catSearch.value='';
+      catTitle.textContent=kind==='movies'?'Movies':'Shows';
+      fetchCatalog(true);
+    }
+  }
+
+  catMore.addEventListener('click',function(){ if(cat.page<cat.totalPages){ cat.page++; fetchCatalog(false); } });
+  catForm.addEventListener('submit',function(e){ e.preventDefault(); cat.q=catSearch.value.trim(); fetchCatalog(true); });
+
+  [].forEach.call(document.querySelectorAll('.links a'),function(a){
+    a.addEventListener('click',function(e){
+      var label=a.textContent.trim();
+      if(label!=='Movies'&&label!=='Shows'&&label!=='Home') return;
+      e.preventDefault();
+      [].forEach.call(document.querySelectorAll('.links a'),function(x){x.classList.remove('active')});
+      a.classList.add('active');
+      if(label==='Home') showView('home');
+      else showView('catalog', label==='Movies'?'movies':'series');
+    });
   });
 })();
 </script>
