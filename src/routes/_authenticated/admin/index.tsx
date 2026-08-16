@@ -40,24 +40,11 @@ function Overview() {
         <Stat label="Recent errors" value={isLoading ? '—' : data?.recentErrors.length ?? 0} hint="last 15 logged" />
       </div>
 
-      <Panel title="Recent login activity">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : (data?.recentLogins.length ?? 0) === 0 ? (
-          <p className="text-sm text-muted-foreground">No sign-ins recorded yet.</p>
-        ) : (
-          <ul className="divide-y divide-border text-sm">
-            {data?.recentLogins.map((l, i) => (
-              <li key={i} className="flex flex-wrap justify-between gap-2 py-2">
-                <span>{l.email ?? 'unknown'}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {new Date(l.created_at).toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+      <p className="mb-6 text-sm">
+        <Link to="/admin/monitoring" className="text-accent hover:underline">
+          View login activity →
+        </Link>
+      </p>
 
       <Panel title="Providers" description="Active state per configured provider.">
         <ul className="divide-y divide-border text-sm">
