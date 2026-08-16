@@ -9,10 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   clearContentOverride,
+  getFeaturedChannels,
   getOverrides,
   getProviderItems,
   getProviders,
+  removeFeaturedChannel,
   saveContentOverride,
+  saveFeaturedChannel,
 } from '@/lib/admin.functions';
 import type { OverrideKind } from '@/lib/overrides.server';
 
@@ -97,6 +100,8 @@ function ContentPage() {
       <h1 className="mb-6 text-2xl font-semibold">Content</h1>
       {message && <p className="mb-4 text-sm text-accent">{message}</p>}
 
+      <FeaturedPanel />
+
       <Panel title="Provider & section">
         <div className="flex flex-wrap gap-2">
           {(providers.data ?? []).map((p) => (
@@ -171,6 +176,93 @@ function ContentPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+function FeaturedPanel() {
+  const qc = useQueryClient();
+  const [pattern, setPattern] = useState('');
+  const [order, setOrder] = useState('');
+
+  const list = useQuery({ queryKey: ['admin', 'featured'], queryFn: () => getFeaturedChannels() });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['admin', 'featured'] });
+
+  const save = useMutation({
+    mutationFn: (input: { pattern: string; sortOrder: number }) =>
+      saveFeaturedChannel({ data: input }),
+    onSuccess: () => {
+      setPattern('');
+      setOrder('');
+      invalidate();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => removeFeaturedChannel({ data: { id } }),
+    onSuccess: invalidate,
+  });
+
+  return (
+    <Panel
+      title="Featured priority (hero & Live now)"
+      description="Channel name patterns that lead the homepage hero and the Live now row, lowest number first. Matching is case-insensitive and partial, e.g. 'bein sports' matches 'beIN Sports 1 HD'."
+    >
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="space-y-2">
+          <Label>Name contains</Label>
+          <Input
+            value={pattern}
+            onChange={(e) => setPattern(e.target.value)}
+            placeholder="bein sports"
+            className="min-h-11 w-56"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Priority</Label>
+          <Input
+            value={order}
+            onChange={(e) => setOrder(e.target.value)}
+            placeholder="10"
+            className="min-h-11 w-24"
+          />
+        </div>
+        <Button
+          className="min-h-11"
+          disabled={!pattern.trim() || save.isPending}
+          onClick={() => save.mutate({ pattern: pattern.trim(), sortOrder: Number(order) || 100 })}
+        >
+          Add / update
+        </Button>
+      </div>
+
+      {list.isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <div className="space-y-2">
+          {(list.data ?? []).map((row) => (
+            <div
+              key={row.id}
+              className="flex items-center gap-3 rounded-lg border border-border p-3"
+            >
+              <span className="w-12 font-mono text-xs text-muted-foreground">{row.sort_order}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">{row.pattern}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="min-h-11"
+                onClick={() => remove.mutate(row.id)}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+          {(list.data ?? []).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No priority channels yet — the hero shows any live channel.
+            </p>
+          )}
+        </div>
+      )}
+    </Panel>
   );
 }
 

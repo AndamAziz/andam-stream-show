@@ -61,6 +61,27 @@ export type Database = {
           },
         ]
       }
+      featured_channels: {
+        Row: {
+          created_at: string
+          id: string
+          pattern: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pattern: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pattern?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       login_activity: {
         Row: {
           created_at: string

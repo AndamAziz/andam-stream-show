@@ -173,3 +173,31 @@ export const clearLoginActivity = createServerFn({ method: 'POST' })
     const ops = await guard(context.supabase, context.userId);
     return ops.clearLoginActivity();
   });
+
+export const getFeaturedChannels = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guard(context.supabase, context.userId);
+    const { listFeatured } = await import('@/lib/featured.server');
+    return listFeatured();
+  });
+
+export const saveFeaturedChannel = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { pattern: string; sortOrder: number }) => input)
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { saveFeatured } = await import('@/lib/featured.server');
+    await saveFeatured(data.pattern, data.sortOrder);
+    return { ok: true };
+  });
+
+export const removeFeaturedChannel = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { removeFeatured } = await import('@/lib/featured.server');
+    await removeFeatured(data.id);
+    return { ok: true };
+  });
