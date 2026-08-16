@@ -28,19 +28,40 @@ function isManifest(url: string, contentType: string | null): boolean {
   return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
 }
 
-async function fetchUpstream(upstream: string, request: Request, attempt = 0): Promise<Response> {
-  const headers = new Headers(relayHeaders());
+/**
+ * Fetches the provider bytes.
+ *
+ * Direct server-side fetch first: this route already hides the provider
+ * credentials, and the relay buffers whole segments (measured ~35s for a 1.6MB
+ * segment the provider serves in 0.15s), which starved the player. The relay is
+ * kept as a fallback for upstreams we cannot reach directly (geo/IP blocks).
+ */
+async function fetchOnce(url: string, request: Request, viaRelay: boolean): Promise<Response> {
+  const headers = new Headers(viaRelay ? relayHeaders() : {});
+  headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  const res = await fetch(relayUrl(upstream), { headers, redirect: 'follow' });
-  // 403/411 from the relay or provider are usually transient (token race,
-  // missing content-length on a rebuilt playlist) — retry once.
-  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500) && attempt < 2) {
-    await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
-    return fetchUpstream(upstream, request, attempt + 1);
+  return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
+}
+
+async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
+  try {
+    const direct = await fetchOnce(upstream, request, false);
+    if (direct.ok || direct.status === 206) return direct;
+    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
+  } catch (err) {
+    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+  }
+
+  let res = await fetchOnce(upstream, request, true);
+  // 403/411/5xx from the relay are usually transient — retry once.
+  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
+    await new Promise((r) => setTimeout(r, 350));
+    res = await fetchOnce(upstream, request, true);
   }
   return res;
 }
+
 
 /**
  * Rewrites manifest URIs to *relative* playback URLs. Absolute URLs built from
