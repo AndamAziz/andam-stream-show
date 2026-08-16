@@ -54,7 +54,7 @@ async function handle(request: Request) {
         append_to_response: "external_ids",
       });
       if (!res.ok) return Response.json({ error: "TMDB unavailable" }, { status: 502 });
-      const d = (await res.json()) as Record<string, any>;
+      const d = (await res.json()) as any;
       return Response.json({
         tmdbId: Number(d.id),
         type,
@@ -82,7 +82,7 @@ async function handle(request: Request) {
         return Response.json({ error: "id and season required" }, { status: 400 });
       const res = await authFetch(`/tv/${id}/season/${season}`, key, {});
       if (!res.ok) return Response.json({ error: "TMDB unavailable" }, { status: 502 });
-      const d = (await res.json()) as Record<string, any>;
+      const d = (await res.json()) as any;
       return Response.json({
         season,
         episodes: (d.episodes ?? []).map((e: any) => ({
