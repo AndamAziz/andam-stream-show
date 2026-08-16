@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      activation_code_redemptions: {
+        Row: {
+          code_id: string
+          created_at: string
+          email: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          code_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          code_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_code_redemptions_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "activation_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activation_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          max_uses: number
+          note: string | null
+          revoked: boolean
+          sections: string[]
+          source_id: string | null
+          uses: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          note?: string | null
+          revoked?: boolean
+          sections?: string[]
+          source_id?: string | null
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          note?: string | null
+          revoked?: boolean
+          sections?: string[]
+          source_id?: string | null
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activation_codes_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_overrides: {
         Row: {
           created_at: string
@@ -257,6 +339,48 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      user_entitlements: {
+        Row: {
+          code_id: string | null
+          created_at: string
+          id: string
+          section: string
+          source_id: string | null
+          user_id: string
+        }
+        Insert: {
+          code_id?: string | null
+          created_at?: string
+          id?: string
+          section: string
+          source_id?: string | null
+          user_id: string
+        }
+        Update: {
+          code_id?: string | null
+          created_at?: string
+          id?: string
+          section?: string
+          source_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_entitlements_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "activation_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_entitlements_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

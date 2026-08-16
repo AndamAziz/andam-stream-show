@@ -201,3 +201,58 @@ export const removeFeaturedChannel = createServerFn({ method: 'POST' })
     await removeFeatured(data.id);
     return { ok: true };
   });
+
+/* ---------------- Activation codes ---------------- */
+
+export const getActivationCodes = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guard(context.supabase, context.userId);
+    const { listCodes } = await import('@/lib/codes.server');
+    return listCodes();
+  });
+
+export const createActivationCode = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      sourceId: string | null;
+      sections: Array<'live' | 'movies' | 'series'>;
+      maxUses: number;
+      expiresAt: string | null;
+      note?: string;
+    }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { createCode } = await import('@/lib/codes.server');
+    return createCode({
+      createdBy: context.userId,
+      sourceId: data.sourceId,
+      sections: data.sections,
+      maxUses: data.maxUses,
+      expiresAt: data.expiresAt,
+      note: data.note ?? '',
+    });
+  });
+
+export const revokeActivationCode = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { revokeCode } = await import('@/lib/codes.server');
+    return revokeCode(data.id);
+  });
+
+export const changeUserSectionAccess = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { userId: string; section: 'live' | 'movies' | 'series'; grant: boolean }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    await guard(context.supabase, context.userId);
+    const { setEntitlement } = await import('@/lib/codes.server');
+    await setEntitlement(data.userId, data.section, data.grant);
+    return { ok: true };
+  });

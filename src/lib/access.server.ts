@@ -1,0 +1,175 @@
+/**
+ * Section entitlements.
+ *
+ * New viewers start with the IPTV section only. Live TV, Movies and Shows stay
+ * locked until an admin-issued activation code is redeemed. Every check here
+ * runs server-side against the database — a client flag unlocks nothing.
+ */
+import { supabaseAdmin } from '@/integrations/supabase/client.server';
+
+export type Section = 'live' | 'movies' | 'series';
+export const SECTIONS: Section[] = ['live', 'movies', 'series'];
+/** Always available, no code required. */
+export const OPEN_SECTIONS = ['iptv'] as const;
+
+export type Access = {
+  signedIn: boolean;
+  userId: string | null;
+  admin: boolean;
+  /** Sections the caller may open. */
+  sections: Section[];
+  /** Provider ids allowed for `live`; `'all'` means every provider. */
+  liveSources: string[] | 'all';
+};
+
+const LOCKED: Access = {
+  signedIn: false,
+  userId: null,
+  admin: false,
+  sections: [],
+  liveSources: [],
+};
+
+function bearer(request: Request): string {
+  return (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+}
+
+/** Resolves what the caller of a public API route is entitled to see. */
+export async function resolveAccess(request: Request): Promise<Access> {
+  const token = bearer(request);
+  if (!token) return { ...LOCKED };
+
+  const { data: userData } = await supabaseAdmin.auth.getUser(token);
+  const userId = userData?.user?.id ?? null;
+  if (!userId) return { ...LOCKED };
+
+  const [{ data: roles }, { data: rows }] = await Promise.all([
+    supabaseAdmin.from('user_roles').select('role').eq('user_id', userId),
+    supabaseAdmin.from('user_entitlements').select('section, source_id').eq('user_id', userId),
+  ]);
+
+  const admin = (roles ?? []).some((r) => r.role === 'admin');
+  if (admin) {
+    return { signedIn: true, userId, admin: true, sections: [...SECTIONS], liveSources: 'all' };
+  }
+
+  const sections = new Set<Section>();
+  let allSources = false;
+  const liveSources = new Set<string>();
+  for (const row of rows ?? []) {
+    const section = row.section as Section;
+    if (!SECTIONS.includes(section)) continue;
+    sections.add(section);
+    if (section !== 'live') continue;
+    if (row.source_id) liveSources.add(String(row.source_id));
+    else allSources = true;
+  }
+
+  return {
+    signedIn: true,
+    userId,
+    admin: false,
+    sections: [...sections],
+    liveSources: allSources ? 'all' : [...liveSources],
+  };
+}
+
+export function canOpen(access: Access, section: Section): boolean {
+  return access.admin || access.sections.includes(section);
+}
+
+export function canUseLiveSource(access: Access, sourceId: string): boolean {
+  if (!canOpen(access, 'live')) return false;
+  return access.liveSources === 'all' || access.liveSources.includes(sourceId);
+}
+
+export const lockedResponse = (section: Section) =>
+  new Response(
+    JSON.stringify({
+      error: 'This section requires provider access. Please contact the admin to activate it.',
+      locked: true,
+      section,
+    }),
+    { status: 403, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+  );
+
+export type RedeemResult = {
+  ok: boolean;
+  message: string;
+  sections?: Section[];
+  provider?: string;
+};
+
+/** Validates a code, records the redemption and writes the entitlement rows. */
+export async function redeemCode(
+  userId: string,
+  email: string | null,
+  rawCode: string,
+): Promise<RedeemResult> {
+  const code = rawCode.trim().toUpperCase();
+  if (!code) return { ok: false, message: 'Enter an activation code.' };
+
+  const { data: row } = await supabaseAdmin
+    .from('activation_codes')
+    .select('id, code, source_id, sections, expires_at, max_uses, uses, revoked')
+    .eq('code', code)
+    .maybeSingle();
+
+  if (!row) return { ok: false, message: 'That code is not valid.' };
+  if (row.revoked) return { ok: false, message: 'That code has been revoked.' };
+  if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+    return { ok: false, message: 'That code has expired.' };
+  }
+  if (row.uses >= row.max_uses) return { ok: false, message: 'That code has already been used.' };
+
+  const { data: mine } = await supabaseAdmin
+    .from('activation_code_redemptions')
+    .select('id')
+    .eq('code_id', row.id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (mine) return { ok: false, message: 'You have already redeemed this code.' };
+
+  const sections = (row.sections ?? []).filter((s): s is Section =>
+    SECTIONS.includes(s as Section),
+  );
+  if (!sections.length) return { ok: false, message: 'That code unlocks nothing.' };
+
+  await supabaseAdmin.from('user_entitlements').upsert(
+    sections.map((section) => ({
+      user_id: userId,
+      section,
+      // Movies/Shows come from TMDB, so they are never provider-scoped.
+      source_id: section === 'live' ? row.source_id : null,
+      code_id: row.id,
+    })),
+    { onConflict: 'user_id,section,source_id', ignoreDuplicates: true },
+  );
+
+  // Provider grant so private Live TV sources become visible too.
+  if (row.source_id && sections.includes('live')) {
+    await supabaseAdmin
+      .from('user_source_access')
+      .upsert({ user_id: userId, source_id: row.source_id }, { ignoreDuplicates: true });
+  }
+
+  await supabaseAdmin
+    .from('activation_code_redemptions')
+    .insert({ code_id: row.id, user_id: userId, email });
+  await supabaseAdmin
+    .from('activation_codes')
+    .update({ uses: row.uses + 1 })
+    .eq('id', row.id);
+
+  let provider = 'All providers';
+  if (row.source_id) {
+    const { data: src } = await supabaseAdmin
+      .from('sources')
+      .select('name')
+      .eq('id', row.source_id)
+      .maybeSingle();
+    provider = src?.name ?? 'Provider';
+  }
+
+  return { ok: true, message: 'Code accepted — access unlocked.', sections, provider };
+}

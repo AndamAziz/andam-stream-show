@@ -139,6 +139,33 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .feat .ic{position:absolute;top:11px;left:11px;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:14px}
 .feat .grad{background:linear-gradient(to top,rgba(8,9,12,.92),rgba(8,9,12,.5))}
 
+/* LOCKED SECTION GATE */
+.lockwrap{position:fixed;inset:0;z-index:120;display:none;place-items:center;padding:20px;
+  background:rgba(4,5,7,.82);backdrop-filter:blur(10px)}
+.lockwrap.open{display:grid}
+.lockcard{width:min(440px,100%);background:var(--surface);border:1px solid var(--hair);border-radius:18px;
+  padding:26px 22px;box-shadow:0 30px 90px rgba(0,0,0,.7);text-align:center}
+.lockicon{width:52px;height:52px;margin:0 auto 14px;border-radius:16px;display:grid;place-items:center;
+  font-size:22px;background:var(--ember-dim);border:1px solid rgba(255,59,78,.32)}
+.lockcard h2{font-size:20px;margin-bottom:8px}
+.lockmsg{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.5}
+.lockl{display:block;text-align:left;font-size:12px;color:var(--faint);margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.08em}
+.lockrow{display:flex;gap:8px}
+.lockrow input{flex:1;min-height:44px;padding:0 12px;border-radius:10px;background:var(--surface-2);
+  border:1px solid var(--hair);color:var(--text);font-size:14px;letter-spacing:.06em}
+.lockgo{min-height:44px;padding:0 16px;border-radius:10px;font-weight:600;font-size:13.5px;
+  background:var(--ember);color:#fff}
+.lockgo[disabled]{opacity:.6;cursor:default}
+.locknote{min-height:18px;margin-top:9px;font-size:12.5px;text-align:left;color:var(--muted)}
+.locknote.ok{color:var(--teal)}
+.locknote.bad{color:var(--ember)}
+.lockacts{display:flex;gap:8px;margin-top:18px}
+.lockacts button{flex:1;min-height:44px;border-radius:10px;font-size:13.5px;font-weight:500;
+  border:1px solid var(--hair);color:var(--muted)}
+.lockacts button:hover{color:var(--text)}
+@media (max-width:420px){ .lockrow{flex-direction:column} .lockgo{width:100%} }
+
 
 /* DETAILS DRAWER */
 .scrim2{position:fixed;inset:0;z-index:70;background:rgba(4,5,7,.72);backdrop-filter:blur(6px);opacity:0;
@@ -774,6 +801,30 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   </div>
 </div>
 
+<!-- Locked-section gate: shown when a viewer opens Live TV / Movies / Shows
+     without activation. No content of that section is fetched or rendered. -->
+<div class="lockwrap" id="lockWrap" role="dialog" aria-modal="true" aria-labelledby="lockTitle" aria-hidden="true">
+  <div class="lockcard">
+    <div class="lockicon" aria-hidden="true">🔒</div>
+    <h2 id="lockTitle">Live TV is locked</h2>
+    <p class="lockmsg" id="lockMsg">This section requires provider access. Please contact the admin to activate it.</p>
+    <form class="lockform" id="lockForm">
+      <label class="lockl" for="lockCode">Have an activation code?</label>
+      <div class="lockrow">
+        <input id="lockCode" class="mono" type="text" autocomplete="off" spellcheck="false"
+               placeholder="ABCD-EFGH-JKLM" aria-describedby="lockNote" />
+        <button class="lockgo" type="submit" id="lockGo">Activate</button>
+      </div>
+      <div class="locknote" id="lockNote"></div>
+    </form>
+    <div class="lockacts">
+      <button class="lockalt" id="lockIptv" type="button">Open IPTV instead</button>
+      <button class="lockclose" id="lockClose" type="button">Close</button>
+    </div>
+  </div>
+</div>
+
+
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 
 <script>
@@ -947,14 +998,28 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function setCatMsg(m){ catMsg.textContent=m||''; catMsg.classList.toggle('hide',!m); }
 
+  /* the catalog is entitlement-gated, so every TMDB call carries the session */
+  function tmdbHeaders(){
+    var h={accept:'application/json'};
+    if(authToken) h.Authorization='Bearer '+authToken;
+    return h;
+  }
+
+
+
   function fetchCatalog(reset){
     if(cat.busy) return;
     cat.busy=true; catMore.classList.add('hide'); setCatMsg('');
     if(reset){ cat.page=1; cat.items=[]; catGrid.innerHTML=skeletons(12); catCount.textContent=''; }
     var my=++cat.req;
     var qs='kind='+cat.kind+'&page='+cat.page+(cat.q?'&q='+encodeURIComponent(cat.q):'');
-    fetch('/api/public/tmdb-discover?'+qs,{headers:{accept:'application/json'}})
-      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+    fetch('/api/public/tmdb-discover?'+qs,{headers:tmdbHeaders()})
+      .then(function(r){
+        /* server said locked: fall back to the gate, never to stale content */
+        if(r.status===403){ catGrid.innerHTML=''; showView('home'); openLock(cat.kind); throw new Error('locked') }
+        if(!r.ok) throw new Error('http '+r.status);
+        return r.json();
+      })
       .then(function(d){
         if(my!==cat.req) return;
         cat.totalPages=Number(d.totalPages||1);
@@ -975,7 +1040,98 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   var ltvEl=document.getElementById('ltv'), iptvEl=document.getElementById('iptv');
+
+  /* ================= SECTION ACCESS GATE =================
+     IPTV is open to everyone. Live TV / Movies / Shows need an activation code.
+     This is UX only — every content API re-checks entitlements server-side. */
+  var ACC={ready:false,signedIn:false,admin:false,sections:[]};
+  var SECNAME={live:'Live TV',movies:'Movies',series:'Shows'};
+  var lockWrap=document.getElementById('lockWrap'), lockTitle=document.getElementById('lockTitle'),
+      lockMsg=document.getElementById('lockMsg'), lockForm=document.getElementById('lockForm'),
+      lockCode=document.getElementById('lockCode'), lockGo=document.getElementById('lockGo'),
+      lockNote=document.getElementById('lockNote'), lockClose=document.getElementById('lockClose'),
+      lockIptv=document.getElementById('lockIptv'), lockWant='live';
+
+  function allowed(section){ return ACC.admin || ACC.sections.indexOf(section)>-1 }
+  window.andamAllowed=allowed;
+
+  function setLockNote(msg,kind){
+    lockNote.textContent=msg||'';
+    lockNote.className='locknote'+(kind?' '+kind:'');
+  }
+  function openLock(section){
+    lockWant=section;
+    lockTitle.textContent=(SECNAME[section]||'This section')+' is locked';
+    lockMsg.textContent=ACC.signedIn
+      ? 'This section requires provider access. Please contact the admin to activate it.'
+      : 'This section requires provider access. Sign in, then enter an activation code or contact the admin to activate it.';
+    setLockNote('');
+    lockCode.value='';
+    lockWrap.classList.add('open');
+    lockWrap.setAttribute('aria-hidden','false');
+    setTimeout(function(){ lockCode.focus() },60);
+  }
+  function closeLock(){
+    lockWrap.classList.remove('open');
+    lockWrap.setAttribute('aria-hidden','true');
+  }
+  lockClose.addEventListener('click',closeLock);
+  lockIptv.addEventListener('click',function(){ closeLock(); showView('iptv') });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&lockWrap.classList.contains('open')) closeLock();
+  });
+  lockForm.addEventListener('submit',function(e){
+    e.preventDefault();
+    var code=lockCode.value.trim();
+    if(!code){ setLockNote('Enter an activation code.','bad'); return }
+    if(!authToken){ setLockNote('Sign in first, then redeem your code.','bad'); return }
+    lockGo.disabled=true; setLockNote('Checking…');
+    fetch('/api/public/access',{method:'POST',
+        headers:{'content-type':'application/json',accept:'application/json',Authorization:'Bearer '+authToken},
+        body:JSON.stringify({code:code})})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        if(!d||!d.ok){ setLockNote((d&&d.message)||'That code is not valid.','bad'); return }
+        setLockNote(d.message+' ('+(d.provider||'All providers')+')','ok');
+        return refreshAccess().then(function(){
+          try{ lcache={}; cat.items=[]; loadHome() }catch(_){}
+          setTimeout(function(){
+            closeLock();
+            if(allowed(lockWant)) showView(lockWant==='live'?'live':'catalog',lockWant);
+          },700);
+        });
+      })
+      .catch(function(){ setLockNote('Could not verify that code. Try again.','bad') })
+      .then(function(){ lockGo.disabled=false });
+  });
+
+  function refreshAccess(){
+    var h={accept:'application/json'};
+    if(authToken) h.Authorization='Bearer '+authToken;
+    return fetch('/api/public/access',{headers:h,cache:'no-store'})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        ACC={ready:true,signedIn:!!(d&&d.signedIn),admin:!!(d&&d.admin),
+             sections:(d&&Array.isArray(d.sections))?d.sections:[]};
+        paintLocks();
+        return ACC;
+      })
+      .catch(function(){ ACC.ready=true; return ACC });
+  }
+  /* a small padlock on locked nav items, so the gate is never a surprise */
+  function paintLocks(){
+    [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(a){
+      var label=a.textContent.replace(/\s*🔒$/,'').trim();
+      var sec=label==='Live TV'?'live':label==='Movies'?'movies':label==='Shows'?'series':null;
+      if(!sec) return;
+      a.textContent=label+(allowed(sec)?'':' 🔒');
+    });
+  }
+  window.__andamRefreshAccess=refreshAccess;
+
   function showView(view,kind){
+    var need=view==='live'?'live':view==='catalog'?(kind||cat.kind):null;
+    if(need && !allowed(need)){ openLock(need); return }
     var isCat=view==='catalog', isLtv=view==='live', isIptv=view==='iptv';
     var away=isCat||isLtv||isIptv;
     hero.classList.toggle('hide',away); rowsEl.classList.toggle('hide',away);
@@ -1290,13 +1446,15 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   function openDrawer(id,type,title,poster){
+    var sec=type==='tv'?'series':'movies';
+    if(!allowed(sec)){ openLock(sec); return }
     drawer.classList.add('open'); dScrim.classList.add('open');
     drawer.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
     dBack.src=poster||''; dBack.alt=title?title+' artwork':'';
     dBody.innerHTML='<h2>'+esc(title||'')+'</h2><p class="dload">Loading details…</p>';
     var my=++dReq;
     fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type='+encodeURIComponent(type),
-      {headers:{accept:'application/json'}})
+      {headers:tmdbHeaders()})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(d){
         if(my!==dReq) return;
@@ -1360,7 +1518,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(!sel) return;
     sel.innerHTML='<option>Loading…</option>';
     fetch('/api/public/tmdb-discover?kind=season&id='+encodeURIComponent(id)+'&season='+season,
-      {headers:{accept:'application/json'}})
+      {headers:tmdbHeaders()})
       .then(function(r){ return r.json() })
       .then(function(d){
         var eps=(d&&d.episodes)||[];
@@ -1399,10 +1557,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   /* ---- cross-device sync: the host page bridges the session token in ---- */
   var WP_API='/api/public/watch-progress', authToken=null, pushTimer=null;
   window.__andamSetToken=function(t){
-    var had=!!authToken; authToken=t||null;
-    if(!authToken||had) return;
-    pullProgress();
-    try{ lcache={}; loadHome() }catch(_){}   // private sources may now be visible
+    var same=(authToken||null)===(t||null);
+    authToken=t||null;
+    if(same) return;
+    if(authToken) pullProgress();
+    /* entitlements changed with the session: re-resolve, then repaint the home */
+    refreshAccess().then(function(){
+      try{ lcache={}; cat.items=[]; loadHome() }catch(_){}
+    });
   };
   function wpFetch(opts){
     if(!authToken) return Promise.reject(new Error('no session'));
@@ -1497,6 +1659,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   function openVid(item,season,episode,startAt){
+    var need=item&&item.type==='tv'?'series':'movies';
+    if(!allowed(need)){ openLock(need); return }
     var s=season||1, e=episode||1;
     var saved=getProg(item.tmdbId,item.type);
     if(startAt==null&&saved&&(item.type!=='tv'||((saved.season||1)===s&&(saved.episode||1)===e))) startAt=saved.position||0;
@@ -1585,7 +1749,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var base={tmdbId:id,type:type,title:title,poster:poster};
     if(type!=='tv'){ openVid(base,1,1,position||0); return }
     fetch('/api/public/tmdb-discover?kind=details&id='+encodeURIComponent(id)+'&type=tv',
-      {headers:{accept:'application/json'}})
+      {headers:tmdbHeaders()})
       .then(function(r){ return r.json() })
       .then(function(d){ openVid(Object.assign(base,{seasons:d&&d.seasons||[],title:(d&&d.title)||title},{type:'tv'}),season,episode,position||0) })
       .catch(function(){ openVid(base,season,episode,position||0) });
@@ -1621,7 +1785,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var h={accept:'application/json'};
     if(authToken) h.Authorization='Bearer '+authToken;
     return fetch(LTV_API+'?'+qs,{headers:h})
-      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(r){
+        if(r.status===403){ showView('home'); openLock('live'); throw new Error('locked') }
+        if(!r.ok) throw new Error('http '+r.status);
+        return r.json();
+      })
       .then(function(v){ if(v&&v.error) throw new Error(v.error); lcache[key]={t:Date.now(),v:v}; return v });
   }
 
@@ -2176,16 +2344,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     else { heroBg.removeAttribute('src'); heroBg.classList.remove('logo') }
     [].forEach.call(dotsEl.children,function(b,i){ b.classList.toggle('active',i===heroIdx) });
   }
-  function setHero(items,providerName){
+  var heroKind='live';
+  function setHero(items,providerName,kind){
+    heroKind=kind||'live';
     heroItems=items.slice(0,5).map(function(c){
       return {id:c.id,name:c.name,logo:c.logo,category:c.category||'',archive:c.archive,provider:providerName};
     });
     if(!heroItems.length){
-      heroTitle.textContent='No live channels are available for your account yet';
+      heroTitle.textContent=allowed('live')
+        ? 'No live channels are available for your account yet'
+        : 'Live TV is locked — enter an activation code to unlock it';
       heroTag.classList.add('hide'); dotsEl.innerHTML='';
       document.getElementById('watchNow').classList.add('hide');
       return;
     }
+    document.getElementById('watchNow').classList.remove('hide');
     dotsEl.innerHTML=heroItems.map(function(_,i){
       return '<button aria-label="Featured channel '+(i+1)+'"></button>' }).join('');
     heroIdx=0; paintHero();
@@ -2201,9 +2374,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   });
   document.getElementById('watchNow').addEventListener('click',function(){
     var it=heroItems[heroIdx]; if(!it) return;
+    if(heroKind==='iptv'){
+      showView('iptv');
+      var s=surf('iptv'); s.idle.classList.add('hide'); clearFail(s); busy(s,true);
+      s.now.textContent=it.name; s.sub.textContent='Preparing…';
+      ipApi({action:'play',source:homeIp,id:it.id})
+        .then(function(d){ lvPlay('iptv',d.token,it.name,'LIVE · IPTV playlist',true) })
+        .catch(function(){ fail(s,'Could not start this channel') });
+      return;
+    }
     playById('live',it.id,'',it.name,'● LIVE · '+it.provider,true);
   });
-  document.getElementById('heroAll').addEventListener('click',function(){ showView('live') });
+  document.getElementById('heroAll').addEventListener('click',function(){
+    showView(allowed('live')?'live':'iptv');
+  });
 
   /* ---- rows ---- */
   function loadHomeProvider(){
@@ -2268,7 +2452,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      automatically (on load, on tab focus, and every 30 minutes). */
   function tmdb(kind,sort){
     return fetch('/api/public/tmdb-discover?kind='+kind+'&sort='+sort+'&page=1&_='+Date.now(),
-      {headers:{accept:'application/json'},cache:'no-store'})
+      {headers:tmdbHeaders(),cache:'no-store'})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(d){ return Array.isArray(d.items)?d.items:[] });
   }
@@ -2283,13 +2467,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         data:{tmdb:m.tmdbId,type:m.type,title:m.title,poster:m.poster||''}});
     }).join('');
   }
+  /* Locked sections are not fetched at all — no titles, no channel names. */
   function loadHomeMovies(){
+    if(!allowed('movies')){ showRow('rowMovies',false); return Promise.resolve() }
     return tmdb('movies','trending')
       .then(function(items){ tmdbCards('rowMovies',items) })
       .catch(function(){ showRow('rowMovies',false) });
   }
 
   function loadHomeShows(){
+    if(!allowed('series')){ showRow('rowShows',false); return Promise.resolve() }
     return tmdb('series','popularity.desc')
       .then(function(items){ tmdbCards('rowShows',items) })
       .catch(function(){ showRow('rowShows',false) });
@@ -2304,12 +2491,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var pick=srcs.filter(function(x){return x.id===saved})[0]||srcs[0];
       homeIp=pick.id;
       return ipApi({action:'channels',source:pick.id}).then(function(r){
-        var list=(r.channels||[]).slice(0,18);
+        var chans=r.channels||[], list=chans.slice(0,18);
         showRow('rowIptv',!!list.length);
         stripOf('rowIptv').innerHTML=list.map(function(c,i){
           return homeCard({title:c.name,sub:c.group||'',image:c.logo,live:true,chan:true,
             initials:initialsOf(c.name),tint:tintFor(i),data:{ipch:c.id,name:c.name}});
         }).join('');
+        /* Live TV locked? The hero still has something real to feature. */
+        if(!allowed('live')) setHero(chans,'IPTV playlist','iptv');
       });
     }).catch(function(){ showRow('rowIptv',false) });
   }
@@ -2359,20 +2548,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     else if(to==='iptv'){ showView('iptv') }
     else if(to==='movies'||to==='series'){ showView('catalog',to) }
     else if(to==='live-movies'||to==='live-series'){
+      if(!allowed('live')){ openLock('live'); return }
       showView('live'); if(window.ltvOpen) window.ltvOpen();
       setTimeout(function(){ setTab(to==='live-movies'?'movies':'series') },250);
     }
   });
 
   function loadHome(){
-    loadHomeProvider().then(function(prov){
-      if(!prov){ setHero([],''); showRow('rowLive',false); return }
-      loadHomeLive(prov);
-    });
+    if(allowed('live')){
+      loadHomeProvider().then(function(prov){
+        if(!prov){ setHero([],''); showRow('rowLive',false); return }
+        loadHomeLive(prov);
+      });
+    }else{
+      setHero([],''); showRow('rowLive',false);
+    }
     loadHomeMovies(); loadHomeShows();
     loadHomeIptv();
   }
-  loadHome();
+  /* Resolve entitlements first so no locked row is ever fetched. */
+  refreshAccess().then(loadHome);
 
   /* keep TMDB rows fresh: every 30 minutes, and whenever the tab regains focus
      after being away for more than 10 minutes */

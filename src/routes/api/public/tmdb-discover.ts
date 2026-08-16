@@ -73,6 +73,25 @@ async function handle(request: Request) {
   if (!parsed.success) return Response.json({ error: "Invalid parameters" }, { status: 400 });
   const { kind, page, q, sort, genre, id, season } = parsed.data;
 
+  // Movies / Shows are activation-gated: a locked viewer gets no catalog data.
+  const { canOpen, lockedResponse, resolveAccess } = await import("@/lib/access.server");
+  const access = await resolveAccess(request);
+  const wants =
+    kind === "movies"
+      ? "movies"
+      : kind === "series"
+        ? "series"
+        : url.searchParams.get("type") === "tv" || kind === "season"
+          ? "series"
+          : "movies";
+  // Metadata lookups (details/season) are also used to enrich Live TV titles,
+  // so any unlocked section is enough for those.
+  const lookup = kind === "details" || kind === "season";
+  const ok = lookup
+    ? canOpen(access, "movies") || canOpen(access, "series") || canOpen(access, "live")
+    : canOpen(access, wants);
+  if (!ok) return lockedResponse(wants);
+
   try {
     if (kind === "details") {
       if (!id) return Response.json({ error: "id required" }, { status: 400 });
@@ -148,7 +167,8 @@ async function handle(request: Request) {
         totalPages: Math.min(Number(data.total_pages ?? 1), 500),
         items: (data.results ?? []).map((r) => mapItem(r, kind)).filter((i) => i.poster),
       },
-      { headers: { "Cache-Control": "public, max-age=600" } },
+      // Session-dependent (access-gated), so never cached by shared caches.
+      { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch {
     return Response.json({ error: "TMDB request failed" }, { status: 502 });
