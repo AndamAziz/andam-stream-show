@@ -122,23 +122,53 @@ export async function saveProvider(input: ProviderInput): Promise<{ id: string }
     else if (!input.id) throw new Error('Password is required for a new provider');
   }
 
-  if (input.slug?.trim()) patch['slug'] = slugify(input.slug);
+  // The slug is unique in the database. Admins usually type only a name, so a
+  // second provider with a similar name used to fail with a raw Postgres
+  // "duplicate key" error. Derive a free slug instead.
+  const desired = slugify(input.slug?.trim() || input.name);
+  const slug = await freeSlug(desired, input.id);
 
   if (input.id) {
-    const { error } = await supabaseAdmin.from('sources').update(patch).eq('id', input.id);
-    if (error) throw new Error(error.message);
+    const { error } = await supabaseAdmin
+      .from('sources')
+      .update({ ...patch, slug })
+      .eq('id', input.id);
+    if (error) throw new Error(friendlyError(error.message));
     return { id: input.id };
   }
 
-  const slug = slugify(input.slug?.trim() || input.name);
   const { data, error } = await supabaseAdmin
     .from('sources')
     .insert({ ...patch, slug })
     .select('id')
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyError(error.message));
   return { id: data.id };
 }
+
+/** First slug in the `base`, `base-2`, `base-3`… series not used by another provider. */
+async function freeSlug(base: string, ignoreId?: string): Promise<string> {
+  const { data } = await supabaseAdmin.from('sources').select('id, slug');
+  const taken = new Set(
+    (data ?? []).filter((r) => r.id !== ignoreId).map((r) => r.slug),
+  );
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 200; i += 1) {
+    const candidate = `${base.slice(0, 44)}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${base.slice(0, 40)}-${Date.now().toString(36)}`;
+}
+
+/** Turns database noise into something an admin can act on. */
+function friendlyError(message: string): string {
+  if (/duplicate key|sources_slug_key/i.test(message)) {
+    return 'A provider with that slug already exists — pick a different slug.';
+  }
+  if (/sources_type_check/i.test(message)) return 'Source type must be Xtream or M3U.';
+  return message;
+}
+
 
 export async function deleteProvider(id: string): Promise<void> {
   const { error } = await supabaseAdmin.from('sources').delete().eq('id', id);
