@@ -794,30 +794,85 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   function getProg(id,type){ return allProg()[type+':'+id]||null }
   function setProg(id,type,extra){
     try{
-      var all=allProg();
-      all[type+':'+id]=Object.assign({tmdbId:id,type:type,season:1,episode:1,updated:Date.now()},extra||{});
+      var all=allProg(), key=type+':'+id, prev=all[key]||{};
+      all[key]=Object.assign({tmdbId:id,type:type,season:1,episode:1,position:0,duration:0},prev,extra||{},{updated:Date.now()});
       localStorage.setItem(PKEY,JSON.stringify(all));
     }catch(_){}
     try{ renderContinue() }catch(_){}
+  }
+  function fmtTime(sec){
+    sec=Math.max(0,Math.round(sec||0));
+    var h=Math.floor(sec/3600), m=Math.floor(sec%3600/60), s=sec%60;
+    return (h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(s).padStart(2,'0');
+  }
+  function progPct(p){
+    if(!p) return 0;
+    var dur=p.duration||(p.type==='tv'?45*60:110*60);
+    return Math.max(2,Math.min(98,Math.round(100*(p.position||0)/dur)));
   }
 
   var vp=document.getElementById('vp'), vpFrame=document.getElementById('vpFrame'),
       vpTitle=document.getElementById('vpTitle'), vpSub=document.getElementById('vpSub'),
       vpPick=document.getElementById('vpPick');
 
-  function vidUrl(item,season,episode){
-    return item.type==='tv'
+  /* current playback session: accumulates watched time and persists it */
+  var cur=null, ticker=null;
+
+  function saveCur(){
+    if(!cur) return;
+    var now=Date.now();
+    cur.position += Math.max(0,(now-cur.tick)/1000);
+    cur.tick=now;
+    setProg(cur.id,cur.type,{season:cur.season,episode:cur.episode,position:Math.round(cur.position),
+      duration:cur.duration||0,title:cur.title,poster:cur.poster});
+  }
+  function startTracking(item,s,e,startAt){
+    stopTracking();
+    cur={id:item.tmdbId,type:item.type,title:item.title,poster:item.poster,season:s,episode:e,
+      position:startAt||0,duration:(item.runtime?item.runtime*60:0),tick:Date.now()};
+    ticker=setInterval(saveCur,5000);
+  }
+  function stopTracking(){
+    if(ticker){ clearInterval(ticker); ticker=null }
+    saveCur(); cur=null;
+  }
+  /* some embeds post timeupdate events — trust them over elapsed-time estimates */
+  window.addEventListener('message',function(ev){
+    if(!cur||!ev.data) return;
+    var d=ev.data; if(typeof d==='string'){ try{ d=JSON.parse(d) }catch(_){ return } }
+    var t=d.currentTime!=null?d.currentTime:(d.time!=null?d.time:(d.data&&d.data.currentTime));
+    if(typeof t==='number'&&isFinite(t)&&t>0){
+      cur.position=t; cur.tick=Date.now();
+      var du=d.duration!=null?d.duration:(d.data&&d.data.duration);
+      if(typeof du==='number'&&du>0) cur.duration=du;
+      saveCur();
+    }
+  });
+  window.addEventListener('beforeunload',saveCur);
+  document.addEventListener('visibilitychange',function(){ if(document.hidden) saveCur() });
+
+  function vidUrl(item,season,episode,startAt){
+    var u=item.type==='tv'
       ? 'https://vidapi.ru/embed/tv/'+item.tmdbId+'/'+(season||1)+'/'+(episode||1)
       : 'https://vidapi.ru/embed/movie/'+item.tmdbId;
+    var t=Math.round(startAt||0);
+    if(t>10) u+='?t='+t+'&start='+t+'#t='+t;
+    return u;
   }
 
-  function openVid(item,season,episode){
+  function openVid(item,season,episode,startAt){
     var s=season||1, e=episode||1;
+    var saved=getProg(item.tmdbId,item.type);
+    if(startAt==null&&saved&&(item.type!=='tv'||((saved.season||1)===s&&(saved.episode||1)===e))) startAt=saved.position||0;
+    startAt=startAt||0;
     vp.classList.add('open'); document.body.style.overflow='hidden';
     vpTitle.textContent=item.title||'Andam';
-    vpSub.textContent=item.type==='tv'?('VidAPI · S'+s+' E'+e):'VidAPI · Movie';
-    vpFrame.src=vidUrl(item,s,e);
-    setProg(item.tmdbId,item.type,{title:item.title,poster:item.poster,season:s,episode:e});
+    vpSub.textContent=(item.type==='tv'?('VidAPI · S'+s+' E'+e):'VidAPI · Movie')+
+      (startAt>10?(' · resuming at '+fmtTime(startAt)):'');
+    vpFrame.src=vidUrl(item,s,e,startAt);
+    startTracking(item,s,e,startAt);
+    setProg(item.tmdbId,item.type,{title:item.title,poster:item.poster,season:s,episode:e,
+      position:Math.round(startAt),duration:item.runtime?item.runtime*60:0});
     vpPick.innerHTML='';
     if(item.type==='tv'&&item.seasons&&item.seasons.length){
       var ss=document.createElement('select'); ss.setAttribute('aria-label','Season');
@@ -827,16 +882,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       vpPick.appendChild(ss); vpPick.appendChild(es);
       loadEpisodes(item.tmdbId,s,es,e);
       ss.addEventListener('change',function(){ loadEpisodes(item.tmdbId,+ss.value,es,1) });
-      es.addEventListener('change',function(){ openVid(item,+ss.value,+es.value) });
+      es.addEventListener('change',function(){ stopTracking(); openVid(item,+ss.value,+es.value,0) });
     }
   }
 
   function closeVid(){
+    stopTracking();
     vp.classList.remove('open'); vpFrame.src='about:blank'; document.body.style.overflow='';
   }
   document.getElementById('vpClose').addEventListener('click',closeVid);
   vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
+
 
   /* ---------- CONTINUE WATCHING ROW ---------- */
   function progList(){
