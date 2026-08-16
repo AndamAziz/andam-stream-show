@@ -190,7 +190,7 @@ function AuthPage() {
           type="button"
           variant="outline"
           disabled={busy}
-          onClick={signInWithGoogle}
+          onClick={() => signInWith('google')}
           className="mt-6 min-h-11 w-full gap-2"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -209,6 +209,19 @@ function AuthPage() {
             />
           </svg>
           Continue with Google
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy}
+          onClick={() => signInWith('apple')}
+          className="mt-3 min-h-11 w-full gap-2"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true" fill="currentColor">
+            <path d="M17.6 9.05c-.04-1.57.64-2.76 2.03-3.64-.77-1.1-1.93-1.7-3.45-1.8-1.44-.1-3.02.85-3.6.85-.6 0-2.04-.8-3.17-.8C6.12 3.78 4 5.74 4 8.74c0 1.23.45 2.5 1.02 3.4.9 1.38 1.92 2.92 3.3 2.86.6-.02 1.03-.42 1.83-.42.78 0 1.18.42 1.88.4 1.55-.04 2.57-1.4 3.45-2.78.6-.9.85-1.78.86-1.82-.05-.02-1.66-.63-1.68-2.5-.02-1.56 1.26-2.3 1.32-2.34-.74-1.07-1.9-1.2-2.3-1.22-1.04-.08-2.04.58-2.58.58-.55 0-1.42-.55-2.34-.55C7.13 4.65 5 6.67 5 9.88c0 1.9.7 3.9 2.1 5.3 1.1 1.1 2.44 1.65 3.9 1.65 1.57 0 2.96-.64 3.9-1.65-.76-.48-1.4-1.15-1.9-1.94z" />
+          </svg>
+          Continue with Apple
         </Button>
 
 
