@@ -12,10 +12,13 @@ export const syncMyAccount = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { syncAccount } = await import('@/lib/account.server');
     const email = typeof context.claims['email'] === 'string' ? context.claims['email'] : '';
+    const sessionId =
+      typeof context.claims['session_id'] === 'string' ? context.claims['session_id'] : null;
     return syncAccount(
       context.userId,
       email,
       getRequestHeader('user-agent') ?? null,
       data.recordLogin,
+      sessionId,
     );
   });
