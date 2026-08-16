@@ -129,6 +129,32 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   .card,.card .ph,.tile{transition:none}
   .card:hover{transform:none}
 }
+/* PLAYER MODAL */
+.overlay{position:fixed;inset:0;z-index:80;display:none;background:rgba(4,5,7,.82);backdrop-filter:blur(8px);
+  align-items:center;justify-content:center;padding:24px}
+.overlay.open{display:flex}
+.modal{width:min(1100px,100%);max-height:90vh;background:var(--surface);border:1px solid var(--hair);
+  border-radius:16px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 40px 90px rgba(0,0,0,.7)}
+.mhead{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--hair)}
+.mhead .mt{font-family:'Space Grotesk';font-weight:600;font-size:15px}
+.mhead .ms{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--muted)}
+.mhead .close{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);font-size:16px;color:var(--muted)}
+.mhead .close:hover{color:var(--text);background:var(--surface-2)}
+.mbody{display:flex;min-height:0;flex:1}
+.stage{flex:1;min-width:0;background:#000;position:relative;aspect-ratio:16/9}
+.stage video{width:100%;height:100%;display:block;background:#000}
+.status{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px;
+  font-size:12.5px;color:var(--muted);font-family:'IBM Plex Mono';pointer-events:none}
+.status.hide{display:none}
+.chanlist{width:250px;flex:0 0 250px;border-left:1px solid var(--hair);overflow-y:auto;background:var(--void)}
+.chanlist h3{font-size:11px;letter-spacing:.12em;color:var(--faint);padding:12px 14px 8px;font-family:'IBM Plex Mono';font-weight:500}
+.chanlist button{display:block;width:100%;text-align:left;padding:9px 14px;font-size:12.5px;color:var(--muted);border-bottom:1px solid rgba(255,255,255,.04)}
+.chanlist button:hover{background:var(--surface-2);color:var(--text)}
+.chanlist button.playing{color:var(--ember);background:var(--ember-dim)}
+.searchwrap{padding:10px 14px}
+.searchwrap input{width:100%;background:var(--surface);border:1px solid var(--hair);border-radius:8px;
+  padding:8px 10px;color:var(--text);font-size:12.5px}
+@media (max-width:820px){.mbody{flex-direction:column}.chanlist{width:100%;flex:1 1 auto;max-height:38vh;border-left:0;border-top:1px solid var(--hair)}}
 </style>
 </head>
 <body>
@@ -164,7 +190,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     </div>
     <p class="desc">A one-goal aggregate lead evaporates in Madrid as both sides trade chances in a semi-final heading for extra time.</p>
     <div class="cta">
-      <button class="btn primary">▶ Watch now</button>
+      <button class="btn primary" id="watchNow">▶ Watch now</button>
       <button class="btn glass">ⓘ More info</button>
       <button class="btn round" aria-label="Add to my list">+</button>
     </div>
@@ -176,6 +202,31 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 </header>
 
 <main class="rows" id="rows"></main>
+
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
+  <div class="modal">
+    <div class="mhead">
+      <div>
+        <div class="mt" id="pTitle">Real Madrid vs Man City</div>
+        <div class="ms" id="pSub">● LIVE · Andam stream</div>
+      </div>
+      <button class="close" id="pClose" aria-label="Close player">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="stage">
+        <video id="pVideo" controls autoplay playsinline></video>
+        <div class="status" id="pStatus">Loading stream…</div>
+      </div>
+      <aside class="chanlist">
+        <h3>CHANNELS</h3>
+        <div class="searchwrap"><input id="pSearch" type="search" placeholder="Search channels" /></div>
+        <div id="pChans"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
 
 <script>
 (function(){
@@ -263,6 +314,160 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       {feat:true,icon:'❖',iconBg:'var(--teal-dim)',iconFg:'var(--teal)'}));
 
   document.getElementById('rows').innerHTML=html;
+
+  /* ---------- PLAYER ---------- */
+  var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
+  var RELAY='https://relay.andam.uk:8443/proxy?url=';
+  var RELAY_TOKEN='009c95e9a8c6e50d992b8313bb90b01948b4a58e870bd69504a640b32306a5da';
+
+  var overlay=document.getElementById('overlay'),video=document.getElementById('pVideo'),
+      pTitle=document.getElementById('pTitle'),pSub=document.getElementById('pSub'),
+      pStatus=document.getElementById('pStatus'),pChans=document.getElementById('pChans'),
+      pSearch=document.getElementById('pSearch');
+  var hls=null,channels=[],loaded=false,current=null,session=0;
+
+  function relay(u){ return RELAY+encodeURIComponent(u); }
+  function isRelay(u){ return u.indexOf(RELAY)===0; }
+  function upstream(u){ return isRelay(u)?decodeURIComponent(u.slice(RELAY.length)):u; }
+  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); }
+
+  function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
+
+  // Playlists come back from the relay with relative segment paths, which would
+  // otherwise resolve against the proxy origin. Rewrite every URI to an absolute
+  // relayed URL before handing the manifest to hls.js.
+  function rewriteManifest(text,relayedUrl){
+    var base=upstream(relayedUrl);
+    var abs=function(u){ try{ return new URL(u,base).href }catch(e){ return u } };
+    return text.split(/\r?\n/).map(function(line){
+      var l=line.trim();
+      if(!l) return line;
+      if(l[0]==='#'){
+        return line.replace(/URI="([^"]+)"/g,function(m,u){ return 'URI="'+relay(abs(u))+'"' });
+      }
+      return relay(abs(l));
+    }).join('\n');
+  }
+
+  var PlaylistLoader=null;
+  function playlistLoader(Hls){
+    if(!PlaylistLoader){
+      PlaylistLoader=class extends Hls.DefaultConfig.loader {
+        load(context,config,callbacks){
+          var onSuccess=callbacks.onSuccess;
+          var patched=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
+            if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
+            onSuccess(response,stats,ctx,net);
+          }});
+          super.load(context,config,patched);
+        }
+      };
+    }
+    return PlaylistLoader;
+  }
+
+  function play(url,title,sub,attempt){
+    destroy();
+    var mySession=++session;
+    var live=function(){ return mySession===session };
+    setStatus('Loading stream…');
+    pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
+    current=url; renderChans(pSearch.value);
+    var src=relay(url); // always via the Andam relay: upstream origins send no CORS headers
+    attempt=attempt||0;
+    var done=false;
+
+    function fallback(){
+      if(done||!live()) return; done=true;
+      // some upstream channels go offline — roll onto the next one in the list
+      var i=channels.map(function(c){return c.url}).indexOf(url);
+      var next=channels[i+1];
+      if(attempt<5&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
+      else setStatus('This stream is unavailable right now. Pick another channel.');
+    }
+    function playing(){ if(!live())return; done=true; setStatus(''); }
+
+    video.addEventListener('timeupdate',playing,{once:true});
+    // watchdog: manifest can parse fine while segments 404 — bail out on a stall
+    setTimeout(function(){ if(live()&&!done&&video.currentTime===0) fallback(); },12000);
+
+    if(window.Hls&&window.Hls.isSupported()){
+      hls=new window.Hls({
+        lowLatencyMode:true,
+        pLoader:playlistLoader(window.Hls),
+        xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
+      });
+      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(live()) video.play().catch(function(){}); });
+      hls.on(window.Hls.Events.ERROR,function(e,d){ if(d.fatal) fallback(); });
+      hls.loadSource(src); hls.attachMedia(video);
+    }else{
+      video.src=src; // Safari plays HLS natively
+      video.addEventListener('error',fallback,{once:true});
+    }
+  }
+
+  function open(url,title,sub){
+    overlay.classList.add('open'); document.body.style.overflow='hidden';
+    loadChannels().then(function(){
+      var target=url||(channels[0]&&channels[0].url);
+      if(target) play(target,title||'Andam Live',sub);
+      else setStatus('Could not load your channel list.');
+    });
+  }
+  function close(){ overlay.classList.remove('open'); document.body.style.overflow=''; destroy(); setStatus(''); }
+
+  function loadChannels(){
+    if(loaded) return Promise.resolve();
+    setStatus('Loading your channel list…');
+    return fetch(PLAYLIST).then(function(r){return r.text()}).then(function(txt){
+      var lines=txt.split(/\r?\n/),name=null;
+      for(var i=0;i<lines.length;i++){
+        var l=lines[i].trim();
+        if(l.indexOf('#EXTINF')===0){ name=l.split(',').slice(1).join(',').trim()||'Channel'; }
+        else if(l && l[0]!=='#' && name){ channels.push({name:name,url:l}); name=null; }
+      }
+      loaded=true; renderChans('');
+    }).catch(function(){ loaded=true; });
+  }
+
+  function renderChans(q){
+    q=(q||'').toLowerCase();
+    var list=channels.filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>-1}).slice(0,300);
+    pChans.innerHTML=list.map(function(c,i){
+      return '<button data-url="'+c.url.replace(/"/g,'&quot;')+'" class="'+(c.url===current?'playing':'')+'">'+
+        c.name.replace(/</g,'&lt;')+'</button>';
+    }).join('')||'<button disabled>No channels found</button>';
+  }
+
+  pChans.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-url]'); if(!b) return;
+    play(b.getAttribute('data-url'),b.textContent.trim(),'● LIVE · IPTV');
+  });
+  pSearch.addEventListener('input',function(){ renderChans(this.value) });
+  document.getElementById('pClose').addEventListener('click',close);
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
+
+  document.getElementById('watchNow').addEventListener('click',function(){
+    open(null,'Real Madrid vs Man City',"● LIVE · Champions League · "+min+"'");
+  });
+
+  // Live cards and IPTV tiles open the player too
+  document.getElementById('rows').addEventListener('click',function(e){
+    var tile=e.target.closest('.tile');
+    if(tile){ var n=tile.querySelector('.n').textContent;
+      loadChannels().then(function(){
+        var m=channels.filter(function(c){return c.name.toLowerCase().indexOf(n.toLowerCase())>-1})[0];
+        overlay.classList.add('open'); document.body.style.overflow='hidden';
+        if(m) play(m.url,m.name,'● LIVE · IPTV');
+        else open(null,n,'● LIVE · IPTV');
+      });
+      return;
+    }
+    var c=e.target.closest('.card'); if(!c) return;
+    var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
+    open(null,t,s);
+  });
 })();
 </script>
 </body>
