@@ -125,6 +125,11 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   background:rgba(255,59,78,.9);color:#0B0B0D;display:grid;place-items:center;font-size:14px;
   opacity:0;transition:opacity .2s ease}
 .card:hover .cwplay{opacity:1}
+.card.chan .ph{object-fit:contain;padding:22px;background:radial-gradient(circle at 50% 40%,#22232B,#101014)}
+.card .ph.noimg{display:grid;place-items:center;font-family:'Space Grotesk';font-weight:700;
+  font-size:26px;color:#0B0B10;letter-spacing:.5px}
+.hero img.bg.logo{object-fit:contain;padding:8vw 12vw;background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C);opacity:.85}
+#heroBg:not([src]){background:radial-gradient(circle at 30% 40%,#1B1C22,#08090C)}
 
 .tile{flex:0 0 auto;width:108px;height:108px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;transition:transform .25s ease,background .25s ease}
@@ -1488,7 +1493,9 @@ html.hppreview .nav{position:static}
     var key=qs;
     var hit=lcache[key];
     if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
-    return fetch(LTV_API+'?'+qs,{headers:{accept:'application/json'}})
+    var h={accept:'application/json'};
+    if(authToken) h.Authorization='Bearer '+authToken;
+    return fetch(LTV_API+'?'+qs,{headers:h})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(v){ if(v&&v.error) throw new Error(v.error); lcache[key]={t:Date.now(),v:v}; return v });
   }
@@ -1806,7 +1813,7 @@ html.hppreview .nav{position:static}
     var qs=Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]) }).join('&');
     var hit=ipCache[qs];
     if(hit && Date.now()-hit.t<TTL) return Promise.resolve(hit.v);
-    return fetch(IPTV_API+'?'+qs,{headers:{accept:'application/json'}})
+    return fetch(IPTV_API+'?'+qs,{headers:(function(){var h={accept:'application/json'};if(authToken)h.Authorization='Bearer '+authToken;return h})()})
       .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
       .then(function(v){ if(v&&v.error) throw new Error(v.error); ipCache[qs]={t:Date.now(),v:v}; return v });
   }
