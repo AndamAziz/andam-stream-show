@@ -388,7 +388,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .pill:hover{border-color:rgba(255,69,0,.5)}
 .pill.on{background:linear-gradient(120deg,#FF4500,#ff6a2b);border-color:transparent;color:#0b0b0b}
 .tabbar .pill.on{background:#008080;color:#fff}
-.ltvwrap{display:grid;grid-template-columns:250px 1fr;gap:22px;align-items:start}
+.ltvwrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:22px;align-items:start}
+.ltvwrap>*{min-width:0}
 .ltvside{position:sticky;top:96px;max-height:72vh;overflow:auto;border:1px solid rgba(255,255,255,.08);
   border-radius:14px;background:rgba(255,255,255,.03);padding:8px}
 .ltvside h4{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;color:#8b8b8b;
