@@ -31,10 +31,12 @@ function isManifest(url: string, contentType: string | null): boolean {
 /**
  * Fetches the provider bytes.
  *
- * Direct server-side fetch first: this route already hides the provider
- * credentials, and the relay buffers whole segments (measured ~35s for a 1.6MB
- * segment the provider serves in 0.15s), which starved the player. The relay is
- * kept as a fallback for upstreams we cannot reach directly (geo/IP blocks).
+ * Relay first. The app server's egress IP is not whitelisted by the provider —
+ * a direct fetch comes back 459/403 every time, and because Xtream accounts
+ * allow only a couple of simultaneous connections, that wasted attempt was
+ * burning the account's slot and making the *relay* request fail too (which
+ * surfaced as a 502 with an endless spinner). Direct is kept as a last resort
+ * for the rare case the relay itself is unreachable.
  */
 async function fetchOnce(url: string, request: Request, viaRelay: boolean): Promise<Response> {
   const headers = new Headers(viaRelay ? relayHeaders() : {});
@@ -45,22 +47,74 @@ async function fetchOnce(url: string, request: Request, viaRelay: boolean): Prom
 }
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
+  let relayError: unknown;
   try {
-    const direct = await fetchOnce(upstream, request, false);
-    if (direct.ok || direct.status === 206) return direct;
-    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
+    const res = await fetchOnce(upstream, request, true);
+    if (res.ok || res.status === 206) return res;
+    // Only relay-side hiccups are worth a retry; a provider 403 means the
+    // account is at its connection limit and hammering it makes it worse.
+    if (res.status === 411 || res.status >= 500) {
+      await new Promise((r) => setTimeout(r, 350));
+      const retry = await fetchOnce(upstream, request, true);
+      if (retry.ok || retry.status === 206) return retry;
+      return retry;
+    }
+    return res;
   } catch (err) {
-    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
+    relayError = err;
+    console.warn('[xtream-play] relay unreachable, trying direct', err);
   }
 
-  let res = await fetchOnce(upstream, request, true);
-  // 403/411/5xx from the relay are usually transient — retry once.
-  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
-    await new Promise((r) => setTimeout(r, 350));
-    res = await fetchOnce(upstream, request, true);
+  try {
+    return await fetchOnce(upstream, request, false);
+  } catch {
+    throw relayError;
   }
-  return res;
 }
+
+
+/** Idle window after which a length-less upstream body is considered complete. */
+const IDLE_CLOSE_MS = 1500;
+
+/**
+ * Streams `body` through, but ends the response when no chunk has arrived for
+ * IDLE_CLOSE_MS. Segments arrive in one burst, so this closes them promptly
+ * while a genuinely continuous stream keeps flowing.
+ */
+function closeOnIdle(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const idle = new Promise<'idle'>((resolve) => {
+        timer = setTimeout(() => resolve('idle'), IDLE_CLOSE_MS);
+      });
+      try {
+        const result = await Promise.race([reader.read(), idle]);
+        if (result === 'idle') {
+          await reader.cancel().catch(() => {});
+          controller.close();
+          return;
+        }
+        if (result.done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(result.value);
+      } catch (err) {
+        controller.error(err);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+}
+
+
+
 
 
 /**
@@ -146,7 +200,16 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         headers.set('Accept-Ranges', 'bytes');
+        // The relay never sends Content-Length and keeps the connection open
+        // after the last byte of a segment, so hls.js waited forever on a
+        // fragment that had in fact fully arrived (endless spinner, then 502s
+        // once the provider's connection slots ran out). Close the response
+        // ourselves once the upstream goes quiet for a moment.
+        if (res.body && !res.headers.get('content-length')) {
+          return new Response(closeOnIdle(res.body), { status: res.status, headers });
+        }
         return new Response(res.body, { status: res.status, headers });
+
 
       },
     },
