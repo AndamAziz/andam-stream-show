@@ -458,8 +458,49 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 }
 </style>
 
+<style>
+/* ---- header preview mode ---- */
+#hpLaunch{position:fixed;right:14px;bottom:14px;z-index:900;display:inline-flex;align-items:center;gap:8px;
+  height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--hair);background:rgba(10,10,10,.86);
+  backdrop-filter:blur(12px);color:var(--muted);font:600 12px/1 'Inter',sans-serif;letter-spacing:.04em;cursor:pointer}
+#hpLaunch:hover{color:var(--text);border-color:rgba(255,69,0,.45)}
+#hpPanel{position:fixed;inset:0;z-index:950;display:none;background:rgba(3,3,3,.92);backdrop-filter:blur(12px);
+  padding:22px;overflow:auto}
+#hpPanel[data-open="1"]{display:block}
+.hpbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:20px}
+.hpbar h3{font:700 16px/1 'Space Grotesk','Inter',sans-serif;color:var(--text);margin:0 8px 0 0}
+.hpbtn{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--hair);background:transparent;
+  color:var(--muted);font:600 12px/1 'IBM Plex Mono',monospace;cursor:pointer}
+.hpbtn[aria-pressed="true"]{color:var(--ember);border-color:rgba(255,69,0,.45);background:var(--ember-dim)}
+.hpbtn:hover{color:var(--text)}
+.hpclose{margin-left:auto}
+.hpstage{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start}
+.hpframe{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#050505;flex:0 0 auto}
+.hpframe figcaption{font:600 11px/1 'IBM Plex Mono',monospace;color:var(--muted);padding:8px 12px;
+  border-bottom:1px solid var(--hair);letter-spacing:.08em}
+.hpframe iframe{display:block;border:0;height:150px;background:#050505}
+html.hppreview #hpLaunch,html.hppreview #hpPanel{display:none!important}
+html.hppreview body>*:not(nav){display:none!important}
+html.hppreview body{overflow:hidden}
+html.hppreview .nav{position:static}
+</style>
 </head>
 <body>
+
+<button id="hpLaunch" type="button">Header preview</button>
+<div id="hpPanel" role="dialog" aria-label="Header preview" aria-hidden="true">
+  <div class="hpbar">
+    <h3>Header preview</h3>
+    <button class="hpbtn" type="button" data-w="375">375px</button>
+    <button class="hpbtn" type="button" data-w="768">768px</button>
+    <button class="hpbtn" type="button" data-w="1366">1366px</button>
+    <button class="hpbtn" type="button" data-w="all" aria-pressed="true">Compare all</button>
+    <button class="hpbtn" id="hpAdmin" type="button" aria-pressed="true">Admin signed in</button>
+    <button class="hpbtn hpclose" id="hpClose" type="button">Close ✕</button>
+  </div>
+  <div class="hpstage" id="hpStage"></div>
+</div>
+
 
 <nav class="nav" id="nav">
   <div class="brand"><div class="mark">H</div><div class="word">Andam</div></div>
