@@ -458,6 +458,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lvsel select option{background:#111;color:#fff}
 .lvsel.accent select{border-color:rgba(255,69,0,.42);background:rgba(255,69,0,.12);color:#ffd9c9}
 .lvsel[hidden]{display:none}
+/* Source health badge shown next to the provider / playlist switcher. */
+.hbadge{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+.hbadge .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.hbadge.up{border-color:rgba(0,128,128,.5);background:rgba(0,128,128,.16);color:#8ff0ef}
+.hbadge.up .dot{background:#19d3c5;box-shadow:0 0 0 0 rgba(25,211,197,.6);animation:hpulse 2.2s infinite}
+.hbadge.down{border-color:rgba(255,69,0,.5);background:rgba(255,69,0,.14);color:#ffb59c}
+.hbadge.down .dot{background:var(--ember)}
+.hbadge.wait .dot{animation:hblink 1s infinite}
+@keyframes hpulse{0%{box-shadow:0 0 0 0 rgba(25,211,197,.55)}70%{box-shadow:0 0 0 7px rgba(25,211,197,0)}100%{box-shadow:0 0 0 0 rgba(25,211,197,0)}}
+@keyframes hblink{0%,100%{opacity:.3}50%{opacity:1}}
+@media (min-width:1600px){.hbadge{height:40px;font-size:13px}}
+
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0}
 .chips::-webkit-scrollbar{display:none}
 .chips .pill,.repbox .pill{flex:0 0 auto;min-height:34px;padding:0 13px;border-radius:9px;border:1px solid var(--hair);
@@ -685,6 +700,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <span class="hbadge wait" id="provHealth" role="status" title="Checking provider status"><span class="dot"></span><span class="tx">Checking</span></span>
+
       <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
       <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
     </div>
@@ -733,6 +750,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
+      <span class="hbadge wait" id="ipHealth" role="status" title="Checking playlist status"><span class="dot"></span><span class="tx">Checking</span></span>
+
       <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
     </div>
   </div>
@@ -1788,7 +1807,25 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       repGo=document.getElementById('repGo'), iptvEl=document.getElementById('iptv');
 
   var PROV_KEY='andam:provider';
+
+  /* ---- shared source health badge -------------------------------------- *
+   * Both switchers show whether the selected source is reachable right now.
+   * The server caches probes for a minute, so polling stays cheap.          */
+  function paintHealth(badge,entry){
+    if(!badge) return;
+    var st=entry?entry.status:'';
+    badge.className='hbadge '+(st==='up'?'up':st==='down'?'down':'wait');
+    var tx=badge.querySelector('.tx');
+    if(tx) tx.textContent=st==='up'?'Up':st==='down'?'Down':'Checking';
+    badge.title=entry&&entry.detail?entry.detail:'Checking source status';
+  }
+  function healthSuffix(entry){
+    return entry?(entry.status==='up'?' · Up':' · Down'):'';
+  }
+
+  var provHealth=document.getElementById('provHealth');
   var ltv={providers:[],prov:null,tab:'direct',cat:'',q:'',hasArchive:false,req:0,started:false,
+           health:{},healthTimer:null,
            archive:[],series:null};
   var lcache={}, TTL=5*60*1000;   // client cache so tab switches don't refetch
 
@@ -1974,9 +2011,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function renderProviders(){
     provSel.innerHTML=ltv.providers.map(function(p){
-      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+esc(p.name)+'</option>';
+      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+
+        esc(p.name)+healthSuffix(ltv.health[p.id])+'</option>';
     }).join('');
+    paintHealth(provHealth,ltv.health[ltv.prov]);
   }
+  /* Provider reachability, refreshed while the section is on screen. */
+  function loadLtvHealth(){
+    paintHealth(provHealth,ltv.health[ltv.prov]);
+    return api({action:'health'}).then(function(d){
+      (d.health||[]).forEach(function(h){ ltv.health[h.id]=h });
+      renderProviders();
+    }).catch(function(){});
+  }
+
   function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:14px;margin-bottom:10px"></div>'; return h; }
 
   /* Categories are one compact dropdown on every device. */
@@ -2116,8 +2164,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
       var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
       setProvider(pick.id);
+      loadLtvHealth();
+      if(!ltv.healthTimer) ltv.healthTimer=setInterval(function(){
+        var el=document.getElementById('ltv');
+        if(el && !el.classList.contains('hide')) loadLtvHealth();
+      },90000);
     }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
   };
+
 
   /* ---- interactions ---- */
   provSel.addEventListener('change',function(){ setProvider(this.value) });
@@ -2200,7 +2254,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   var ipSrcSel=document.getElementById('ipSrcSel'), ipGroupSel=document.getElementById('ipGroupSel'),
       ipBody=document.getElementById('ipBody'), ipMsg=document.getElementById('ipMsg'),
       ipSearch=document.getElementById('ipSearch'), ipSub=document.getElementById('ipSub');
-  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false};
+  var ipHealth=document.getElementById('ipHealth');
+  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false,
+          health:{},healthTimer:null};
   var ipCache={};
 
   function ipSet(m){ ipMsg.textContent=m||''; ipMsg.classList.toggle('hide',!m); }
@@ -2216,9 +2272,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function renderIpSources(){
     ipSrcSel.innerHTML=ip.sources.map(function(s){
-      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+esc(s.name)+'</option>';
+      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+
+        esc(s.name)+healthSuffix(ip.health[s.id])+'</option>';
     }).join('');
+    paintHealth(ipHealth,ip.health[ip.src]);
   }
+  /* Playlist reachability, refreshed while the IPTV section is on screen. */
+  function loadIpHealth(){
+    paintHealth(ipHealth,ip.health[ip.src]);
+    return ipApi({action:'health'}).then(function(d){
+      (d.health||[]).forEach(function(h){ ip.health[h.id]=h });
+      renderIpSources();
+    }).catch(function(){});
+  }
+
 
   function renderIpGroups(){
     ipGroupSel.innerHTML='<option value=""'+(ip.group?'':' selected')+'>All groups ('+ip.channels.length+')</option>'+
@@ -2285,6 +2352,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
       var pick=ip.sources.filter(function(s){return s.id===saved})[0]||ip.sources[0];
       setIpSource(pick.id);
+      loadIpHealth();
+      if(!ip.healthTimer) ip.healthTimer=setInterval(function(){
+        var el=document.getElementById('iptv');
+        if(el && !el.classList.contains('hide')) loadIpHealth();
+      },90000);
     }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
   };
 
