@@ -1983,41 +1983,37 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(){ setHero([],prov.name); showRow('rowLive',false) });
   }
 
-  function loadHomeMovies(prov){
-    return api({action:'vod',source:prov.id}).then(function(d){
-      var items=(d.items||[]).slice();
-      // Real signals only: newest "added" first, else provider rating, else order.
-      if(items.some(function(i){return i.added})) items.sort(function(a,b){ return Number(b.added||0)-Number(a.added||0) });
-      else if(items.some(function(i){return i.rating})) items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
-      var list=items.slice(0,18);
-      showRow('rowMovies',!!list.length);
-      stripOf('rowMovies').innerHTML=list.map(function(m,i){
-        var sub=[m.genre||'',m.year||''].filter(Boolean).join(' · ');
-        return homeCard({title:m.name,sub:sub,image:m.poster,rate:rateOf(m.rating),
-          initials:initialsOf(m.name),tint:tintFor(i),data:{vod:m.id,ext:m.ext||'',title:m.name}});
-      }).join('');
-    }).catch(function(){ showRow('rowMovies',false) });
+  /* Trending movies + Popular shows come straight from TMDB and refresh
+     automatically (on load, on tab focus, and every 30 minutes). */
+  function tmdb(kind,sort){
+    return fetch('/api/public/tmdb-discover?kind='+kind+'&sort='+sort+'&page=1&_='+Date.now(),
+      {headers:{accept:'application/json'},cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json() })
+      .then(function(d){ return Array.isArray(d.items)?d.items:[] });
+  }
+  function tmdbCards(rowId,items){
+    var list=items.slice(0,18);
+    showRow(rowId,!!list.length);
+    if(!list.length) return;
+    stripOf(rowId).innerHTML=list.map(function(m,i){
+      var sub=[m.year||'',(m.type==='tv'?'Series':'Movie')].filter(Boolean).join(' · ');
+      return homeCard({title:m.title,sub:sub,image:m.poster||m.backdrop,rate:rateOf(m.rating),
+        initials:initialsOf(m.title),tint:tintFor(i),
+        data:{tmdb:m.tmdbId,type:m.type,title:m.title,poster:m.poster||''}});
+    }).join('');
+  }
+  function loadHomeMovies(){
+    return tmdb('movies','trending')
+      .then(function(items){ tmdbCards('rowMovies',items) })
+      .catch(function(){ showRow('rowMovies',false) });
   }
 
-  function loadHomeShows(prov){
-    return api({action:'series',source:prov.id}).then(function(d){
-      var items=(d.items||[]).slice();
-      if(items.some(function(i){return i.lastModified}))
-        items.sort(function(a,b){ return Number(b.lastModified||0)-Number(a.lastModified||0) });
-      else if(items.some(function(i){return i.rating}))
-        items.sort(function(a,b){ return parseFloat(b.rating||0)-parseFloat(a.rating||0) });
-      var list=items.slice(0,18);
-      showRow('rowShows',!!list.length);
-      stripOf('rowShows').innerHTML=list.map(function(sh,i){
-        var bits=[];
-        if(sh.genre) bits.push(sh.genre);
-        if(sh.seasonCount) bits.push(sh.seasonCount+(sh.seasonCount===1?' season':' seasons'));
-        else if(sh.year) bits.push(sh.year);
-        return homeCard({title:sh.name,sub:bits.join(' · '),image:sh.poster,rate:rateOf(sh.rating),
-          initials:initialsOf(sh.name),tint:tintFor(i),data:{series:sh.id,title:sh.name}});
-      }).join('');
-    }).catch(function(){ showRow('rowShows',false) });
+  function loadHomeShows(){
+    return tmdb('series','popularity.desc')
+      .then(function(items){ tmdbCards('rowShows',items) })
+      .catch(function(){ showRow('rowShows',false) });
   }
+
 
   function loadHomeIptv(){
     return ipApi({action:'sources'}).then(function(d){
