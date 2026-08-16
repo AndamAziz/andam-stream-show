@@ -187,20 +187,33 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const upstream = await openUrl(token);
         if (!upstream) return new Response('Link expired', { status: 410 });
 
+        const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
+
         let res: Response;
         try {
           res = await fetchUpstream(upstream, request);
         } catch (err) {
           console.error('[xtream-play] relay error', err);
-          return new Response('Stream unavailable', { status: 502 });
+          // 504, not 502: a timeout/unreachable upstream is an upstream problem.
+          // Returning 5xx for provider-side conditions made the client report an
+          // app crash (blank-screen runtime error) for what is a stream issue.
+          return new Response('Stream timed out', { status: 504, headers: cors });
         }
 
         if (!res.ok) {
           console.error('[xtream-play] relay responded', res.status, res.statusText);
-          return new Response(
-            res.status === 404 ? 'Stream not found' : `Stream unavailable (relay ${res.status})`,
-            { status: res.status === 404 ? 404 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
-          );
+          // Provider/relay refusals (403 = account connection limit reached,
+          // 404 = channel gone, 459 = IP not whitelisted) are surfaced verbatim
+          // as 4xx so the player can show a precise message instead of the
+          // generic 502 that the app treated as its own failure.
+          if (res.status === 404) return new Response('Stream not found', { status: 404, headers: cors });
+          if (res.status === 403 || res.status === 459)
+            return new Response('Stream busy: the provider refused the connection (limit reached)', {
+              status: 429,
+              headers: cors,
+            });
+          if (res.status < 500) return new Response(`Stream error ${res.status}`, { status: res.status, headers: cors });
+          return new Response(`Stream unavailable (upstream ${res.status})`, { status: 502, headers: cors });
         }
 
         // Allowlist only: upstream headers such as x-final-url echo the provider
