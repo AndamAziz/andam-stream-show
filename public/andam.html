@@ -1852,7 +1852,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* progressive files: surface a real HTTP status if the relay refuses */
         var ac=new AbortController(); s.ac=ac;
         fetch(src,{method:'GET',headers:{range:'bytes=0-0'},signal:ac.signal}).then(function(r){
-          if(!r.ok) retryable('Stream error '+r.status);
+          if(!r.ok) httpFail(r.status);
         }).catch(function(err){ if(err&&err.name==='AbortError') return; retryable('Network error') });
       }
       if(isHls && window.Hls && window.Hls.isSupported()){
@@ -1866,6 +1866,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
             setTimeout(function(){ if(alive()) hopChannel(kind,1) },0); return
           }
           if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError(); return }
+          if(d.response&&d.response.code){ httpFail(d.response.code); return }
           retryable('Stream failed to load');
         });
         h.attachMedia(s.video); h.loadSource(src);
