@@ -716,7 +716,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
         if(d.imdbId) h+='<span class="imdb">'+esc(d.imdbId)+'</span>';
         h+='</div>';
         var pr=getProg(d.tmdbId,d.type);
-        h+='<div class="dactions"><button class="dwatch" id="dWatch">'+(pr?'Resume':'Watch now')+'</button>';
+        h+='<div class="dactions"><button class="dwatch" id="dWatch">'+(pr&&(pr.position||0)>10?('Resume '+fmtTime(pr.position)):(pr?'Resume':'Watch now'))+'</button>';
         if(pr) h+='<span class="dresume">'+(d.type==='tv'?('Last watched S'+pr.season+'E'+pr.episode):'Continue watching')+'</span>';
         h+='</div>';
         if(d.type==='tv'&&d.seasons&&d.seasons.length){
