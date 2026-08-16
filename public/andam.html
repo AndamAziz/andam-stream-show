@@ -157,6 +157,39 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   padding:10px 12px;font-size:12.5px;background:rgba(255,255,255,.02)}
 .dseasons div span:last-child{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
 .dload{font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);padding:20px 0}
+.dactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+.dwatch{background:var(--ember);color:#0B0B0D;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;
+  letter-spacing:.01em;cursor:pointer}
+.dwatch:hover{filter:brightness(1.08)}
+.dresume{font-family:'IBM Plex Mono';font-size:11px;color:var(--teal)}
+.sepick{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.sepick select{background:var(--surface-2);border:1px solid var(--hair);border-radius:9px;color:var(--text);
+  font-size:12.5px;padding:9px 10px;min-width:120px}
+.dseasons button{display:flex;width:100%;justify-content:space-between;gap:12px;border:1px solid var(--hair);
+  border-radius:9px;padding:10px 12px;font-size:12.5px;background:rgba(255,255,255,.02);color:var(--text);
+  text-align:left;cursor:pointer}
+.dseasons button:hover{border-color:var(--ember)}
+.dseasons button span:last-child{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
+
+/* VIDAPI PLAYER */
+.vp{position:fixed;inset:0;z-index:95;background:rgba(3,4,6,.94);backdrop-filter:blur(10px);display:none;
+  padding:22px;place-items:center}
+.vp.open{display:grid}
+.vpwrap{width:min(1180px,100%);background:var(--surface);border:1px solid var(--hair);border-radius:14px;overflow:hidden;
+  box-shadow:0 40px 120px rgba(0,0,0,.7)}
+.vphead{display:flex;align-items:center;gap:14px;padding:13px 16px;border-bottom:1px solid var(--hair)}
+.vphead .t{font-size:14.5px;font-weight:600}
+.vphead .s{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted);margin-top:3px}
+.vphead .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.vphead select{background:var(--surface-2);border:1px solid var(--hair);border-radius:8px;color:var(--text);
+  font-size:12px;padding:7px 9px}
+.vpclose{width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
+  color:var(--text);font-size:15px;display:grid;place-items:center;cursor:pointer}
+.vpstage{position:relative;aspect-ratio:16/9;background:#000}
+.vpstage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vpguard{position:absolute;inset:0;pointer-events:none}
+.vpnote{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--faint);padding:9px 16px;border-top:1px solid var(--hair)}
+
 
 /* CATALOG */
 .hide{display:none !important}
