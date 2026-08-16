@@ -1508,7 +1508,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     pTitle.textContent=title||'Andam'; pSub.textContent=sub||'● Andam relay';
     setStatus('Loading stream…');
     var ok=false,failed=false,timer=null;
-    video.addEventListener('timeupdate',function(){ if(alive()){ ok=true; failed=false; clearTimeout(timer); setStatus('') } },{once:true});
+    function onProgress(){
+      if(!alive()||video.currentTime<=0.05) return;
+      ok=true; failed=false; clearTimeout(timer); setStatus('');
+      video.removeEventListener('timeupdate',onProgress);
+    }
+    video.addEventListener('timeupdate',onProgress);
 
     /* One visible failure state, never an endless spinner. Tap to retry. */
     function retryable(msg){
