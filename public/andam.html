@@ -1835,8 +1835,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var my=++ltv.req;
     repBox.classList.toggle('hide',ltv.tab!=='replay');
     ltvSearch.parentNode.classList.toggle('hide',ltv.tab==='replay');
-    if(ltv.tab==='replay'){ ltvCats.classList.add('hide'); renderReplay(); return }
-    ltvCats.classList.remove('hide');
+    if(ltv.tab==='replay'){ ltvCatWrap.hidden=true; renderReplay(); return }
+    ltvCatWrap.hidden=false;
+
     ltvBody.innerHTML=skelRows(8); ltvSet('');
     var type=ltv.tab==='direct'?'live':(ltv.tab==='movies'?'vod':'series');
     api({action:'categories',type:type,source:ltv.prov})
