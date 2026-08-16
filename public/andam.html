@@ -577,7 +577,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   .lvplayer{top:154px}
 }
 @media (max-width:1099px){
-  .lvplayer.mini{max-width:210px;margin-left:auto;box-shadow:0 18px 40px rgba(0,0,0,.6)}
+  /* fixed, so shrinking it never reflows the list underneath (that reflow
+     changed scroll height and made the mini toggle oscillate = flicker) */
+  .lvplayer.mini{position:fixed;top:auto;bottom:14px;right:14px;left:auto;width:210px;max-width:46vw;
+    z-index:60;box-shadow:0 18px 40px rgba(0,0,0,.6)}
   .lvplayer.mini .lvbar{padding:6px 8px}
   .lvplayer.mini .lvbar .tg,.lvplayer.mini .lvbar .ib{display:none}
 }
