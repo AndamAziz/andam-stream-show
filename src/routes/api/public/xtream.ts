@@ -132,17 +132,16 @@ export const Route = createFileRoute('/api/public/xtream')({
               ...(categoryId ? { category_id: categoryId } : {}),
             });
             const list = Array.isArray(streams) ? streams : [];
-            const items = await Promise.all(
-              list.map(async (s, i) => ({
-                id: String(s.stream_id),
-                num: num(s.num, i + 1),
-                name: s.name,
-                logo: s.stream_icon || '',
-                archive: num(s.tv_archive) === 1,
-                archiveDays: num(s.tv_archive_duration),
-                play: await sealUrl(liveStreamUrl(source, s.stream_id)),
-              })),
-            );
+            // Playback tokens are minted on demand (action=play) so a 5000-channel
+            // list stays fast.
+            const items = list.map((s, i) => ({
+              id: String(s.stream_id),
+              num: num(s.num, i + 1),
+              name: s.name,
+              logo: s.stream_icon || '',
+              archive: num(s.tv_archive) === 1,
+              archiveDays: num(s.tv_archive_duration),
+            }));
             return json({ items, hasArchive: items.some((i) => i.archive) });
           }
 
@@ -153,18 +152,14 @@ export const Route = createFileRoute('/api/public/xtream')({
               ...(categoryId ? { category_id: categoryId } : {}),
             });
             const list = Array.isArray(streams) ? streams : [];
-            const items = await Promise.all(
-              list.map(async (s) => ({
-                id: String(s.stream_id),
-                name: s.name,
-                poster: s.stream_icon || '',
-                rating: s.rating ? String(s.rating) : '',
-                year: s.year ? String(s.year) : '',
-                play: await sealUrl(
-                  vodStreamUrl(source, s.stream_id, s.container_extension || 'mp4'),
-                ),
-              })),
-            );
+            const items = list.map((s) => ({
+              id: String(s.stream_id),
+              name: s.name,
+              poster: s.stream_icon || '',
+              rating: s.rating ? String(s.rating) : '',
+              year: s.year ? String(s.year) : '',
+              ext: s.container_extension || 'mp4',
+            }));
             return json({ items });
           }
 
@@ -183,6 +178,20 @@ export const Route = createFileRoute('/api/public/xtream')({
             }));
             return json({ items });
           }
+
+          if (action === 'play') {
+            const kind = url.searchParams.get('type') ?? 'live';
+            const id = url.searchParams.get('id') ?? '';
+            const ext = (url.searchParams.get('ext') || '').replace(/[^a-z0-9]/gi, '');
+            if (!/^\d+$/.test(id)) return json({ error: 'id is required' }, 400);
+            if (kind === 'live') return json({ play: await sealUrl(liveStreamUrl(source, id)) });
+            if (kind === 'vod')
+              return json({ play: await sealUrl(vodStreamUrl(source, id, ext || 'mp4')) });
+            if (kind === 'series')
+              return json({ play: await sealUrl(seriesStreamUrl(source, id, ext || 'mp4')) });
+            return json({ error: 'Unknown play type' }, 400);
+          }
+
 
           if (action === 'series_info') {
             const seriesId = url.searchParams.get('series_id') ?? '';
