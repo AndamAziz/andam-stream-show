@@ -880,17 +880,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .then(function(){ cat.busy=false });
   }
 
+  var ltvEl=document.getElementById('ltv');
   function showView(view,kind){
-    var isCat=view==='catalog';
-    hero.classList.toggle('hide',isCat); rowsEl.classList.toggle('hide',isCat);
+    var isCat=view==='catalog', isLtv=view==='live';
+    hero.classList.toggle('hide',isCat||isLtv); rowsEl.classList.toggle('hide',isCat||isLtv);
     catalog.classList.toggle('open',isCat);
+    ltvEl.classList.toggle('open',isLtv);
     window.scrollTo(0,0);
+    if(isLtv && window.ltvOpen) window.ltvOpen();
     if(isCat && (kind!==cat.kind || !cat.items.length)){
       cat.kind=kind; cat.q=''; catSearch.value='';
       catTitle.textContent=kind==='movies'?'Movies':'Shows';
       fetchCatalog(true);
     }
   }
+
 
   catMore.addEventListener('click',function(){ if(cat.page<cat.totalPages){ cat.page++; fetchCatalog(false); } });
   catForm.addEventListener('submit',function(e){ e.preventDefault(); cat.q=catSearch.value.trim(); fetchCatalog(true); });
