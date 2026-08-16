@@ -1954,7 +1954,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<2) retryable('Stream failed to load');
     },15000);
 
-    function native(streamIsHls){
+    var relayTried=false;
+    function native(streamIsHls,useRelay){
       if(!alive()) return;
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
@@ -1962,17 +1963,23 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         retryable('This stream cannot be played in this browser');
         return;
       }
+      var url=useRelay?(src+'&via=relay'):src;
       s.video.preload='auto';
       s.video.setAttribute('preload','auto');
-      s.video.src=src;
+      s.video.src=url;
       try{ s.video.load() }catch(_){}
       s.video.play().catch(function(){});
       s.video.addEventListener('error',function(){
         if(!alive()) return;
-        console.error('[player] native playback error',s.video.error&&s.video.error.code,src);
+        console.error('[player] native playback error',s.video.error&&s.video.error.code,url);
+        /* Movies/episodes are served by a redirect to the provider so they play
+           at full speed. If the viewer's own connection cannot reach it either,
+           retry once through the (slower) server proxy before giving up. */
+        if(!streamIsHls&&!relayTried){ relayTried=true; busy(s,true); native(false,true); return }
         retryable('This stream cannot be played here');
       },{once:true});
     }
+
 
     var recover=0;
     function viaHls(Hls){
