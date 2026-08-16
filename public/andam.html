@@ -203,6 +203,31 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 
 <main class="rows" id="rows"></main>
 
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
+  <div class="modal">
+    <div class="mhead">
+      <div>
+        <div class="mt" id="pTitle">Real Madrid vs Man City</div>
+        <div class="ms" id="pSub">● LIVE · Andam stream</div>
+      </div>
+      <button class="close" id="pClose" aria-label="Close player">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="stage">
+        <video id="pVideo" controls autoplay playsinline></video>
+        <div class="status" id="pStatus">Loading stream…</div>
+      </div>
+      <aside class="chanlist">
+        <h3>CHANNELS</h3>
+        <div class="searchwrap"><input id="pSearch" type="search" placeholder="Search channels" /></div>
+        <div id="pChans"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+
 <script>
 (function(){
   var nav=document.getElementById('nav');
