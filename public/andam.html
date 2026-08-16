@@ -488,7 +488,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   .lvmain{grid-template-columns:minmax(0,1fr) clamp(320px,32%,440px)}
   .lvplayer{top:80px}
   .lvbrowse{position:sticky;top:80px;max-height:calc(100vh - 100px)}
-  .lvscroll{overflow-y:auto;min-height:0;flex:1;padding-right:4px;overscroll-behavior:contain}
+  .lvbrowse>.chips,.lvbrowse>.lvsearch,.lvbrowse>.repbox{flex:0 0 auto}
+  .lvscroll{overflow-y:auto;min-height:0;flex:1 1 auto;padding-right:4px;overscroll-behavior:contain}
+
 
 }
 @media (min-width:1536px){
