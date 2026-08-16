@@ -181,6 +181,8 @@ export async function redeemCode(
   );
   if (!sections.length) return { ok: false, message: 'That code unlocks nothing.' };
 
+  // Re-point existing rows at the new code so a previously expired grant becomes
+  // live again instead of staying attached to the dead code.
   await supabaseAdmin.from('user_entitlements').upsert(
     sections.map((section) => ({
       user_id: userId,
@@ -189,7 +191,7 @@ export async function redeemCode(
       source_id: section === 'live' ? row.source_id : null,
       code_id: row.id,
     })),
-    { onConflict: 'user_id,section,source_id', ignoreDuplicates: true },
+    { onConflict: 'user_id,section,source_id' },
   );
 
   // Provider grant so private Live TV sources become visible too.
