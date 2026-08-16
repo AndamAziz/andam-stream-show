@@ -96,22 +96,29 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           });
         }
 
+        // Allowlist only: upstream headers such as x-final-url echo the provider
+        // URL (with credentials) and must never reach the browser.
         const headers = new Headers();
-        res.headers.forEach((value, key) => {
-          if (!HOP_BY_HOP.has(key.toLowerCase())) headers.set(key, value);
-        });
+        for (const key of SAFE_HEADERS) {
+          const value = res.headers.get(key);
+          if (value) headers.set(key, value);
+        }
         headers.set('Cache-Control', 'no-store');
         headers.set('Access-Control-Allow-Origin', '*');
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
           const text = await res.text();
-          const body = await rewriteManifest(text, upstream, url.origin);
+          // The relay may follow redirects; resolve relative URIs against the
+          // URL the manifest actually came from when the relay reports it.
+          const finalUrl = res.headers.get('x-final-url') || upstream;
+          const body = await rewriteManifest(text, finalUrl, url.origin);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
 
         headers.set('Accept-Ranges', res.headers.get('accept-ranges') ?? 'bytes');
         return new Response(res.body, { status: res.status, headers });
+
       },
     },
   },
