@@ -314,6 +314,112 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       {feat:true,icon:'❖',iconBg:'var(--teal-dim)',iconFg:'var(--teal)'}));
 
   document.getElementById('rows').innerHTML=html;
+
+  /* ---------- PLAYER ---------- */
+  var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
+  var RELAY='https://relay.andam.uk:8443/proxy?url=';
+  var RELAY_TOKEN='009c95e9a8c6e50d992b8313bb90b01948b4a58e870bd69504a640b32306a5da';
+
+  var overlay=document.getElementById('overlay'),video=document.getElementById('pVideo'),
+      pTitle=document.getElementById('pTitle'),pSub=document.getElementById('pSub'),
+      pStatus=document.getElementById('pStatus'),pChans=document.getElementById('pChans'),
+      pSearch=document.getElementById('pSearch');
+  var hls=null,channels=[],loaded=false,current=null;
+
+  function relay(u){ return RELAY+encodeURIComponent(u); }
+  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); }
+
+  function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
+
+  function play(url,title,sub,viaRelay){
+    destroy();
+    setStatus('Loading stream…');
+    pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
+    var src=viaRelay?relay(url):url;
+    if(window.Hls&&window.Hls.isSupported()){
+      hls=new window.Hls({lowLatencyMode:true,xhrSetup:function(xhr,u){
+        if(u.indexOf(RELAY)===0) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN);
+      }});
+      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ setStatus(''); video.play().catch(function(){}); });
+      hls.on(window.Hls.Events.ERROR,function(e,d){
+        if(!d.fatal) return;
+        if(!viaRelay){ play(url,title,sub,true); return; }   // retry through the Andam relay
+        setStatus('This stream is unavailable right now. Pick another channel.');
+      });
+      hls.loadSource(src); hls.attachMedia(video);
+    }else{
+      video.src=src;
+      video.addEventListener('loadedmetadata',function(){setStatus('')},{once:true});
+      video.addEventListener('error',function(){
+        if(!viaRelay) play(url,title,sub,true);
+        else setStatus('This stream is unavailable right now. Pick another channel.');
+      },{once:true});
+    }
+    current=url; renderChans(pSearch.value);
+  }
+
+  function open(url,title,sub){
+    overlay.classList.add('open'); document.body.style.overflow='hidden';
+    loadChannels().then(function(){
+      var target=url||(channels[0]&&channels[0].url);
+      if(target) play(target,title||'Andam Live',sub);
+      else setStatus('Could not load your channel list.');
+    });
+  }
+  function close(){ overlay.classList.remove('open'); document.body.style.overflow=''; destroy(); setStatus(''); }
+
+  function loadChannels(){
+    if(loaded) return Promise.resolve();
+    setStatus('Loading your channel list…');
+    return fetch(PLAYLIST).then(function(r){return r.text()}).then(function(txt){
+      var lines=txt.split(/\r?\n/),name=null;
+      for(var i=0;i<lines.length;i++){
+        var l=lines[i].trim();
+        if(l.indexOf('#EXTINF')===0){ name=l.split(',').slice(1).join(',').trim()||'Channel'; }
+        else if(l && l[0]!=='#' && name){ channels.push({name:name,url:l}); name=null; }
+      }
+      loaded=true; renderChans('');
+    }).catch(function(){ loaded=true; });
+  }
+
+  function renderChans(q){
+    q=(q||'').toLowerCase();
+    var list=channels.filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>-1}).slice(0,300);
+    pChans.innerHTML=list.map(function(c,i){
+      return '<button data-url="'+c.url.replace(/"/g,'&quot;')+'" class="'+(c.url===current?'playing':'')+'">'+
+        c.name.replace(/</g,'&lt;')+'</button>';
+    }).join('')||'<button disabled>No channels found</button>';
+  }
+
+  pChans.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-url]'); if(!b) return;
+    play(b.getAttribute('data-url'),b.textContent.trim(),'● LIVE · IPTV');
+  });
+  pSearch.addEventListener('input',function(){ renderChans(this.value) });
+  document.getElementById('pClose').addEventListener('click',close);
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
+
+  document.getElementById('watchNow').addEventListener('click',function(){
+    open(null,'Real Madrid vs Man City',"● LIVE · Champions League · "+min+"'");
+  });
+
+  // Live cards and IPTV tiles open the player too
+  document.getElementById('rows').addEventListener('click',function(e){
+    var tile=e.target.closest('.tile');
+    if(tile){ var n=tile.querySelector('.n').textContent;
+      loadChannels().then(function(){
+        var m=channels.filter(function(c){return c.name.toLowerCase().indexOf(n.toLowerCase())>-1})[0];
+        overlay.classList.add('open'); document.body.style.overflow='hidden';
+        if(m) play(m.url,m.name,'● LIVE · IPTV');
+        else open(null,n,'● LIVE · IPTV');
+      });
+      return;
+    }
+    var c=e.target.closest('.card'); if(!c) return;
+    var t=c.querySelector('.t').textContent, s=c.querySelector('.s').textContent;
+    open(null,t,s);
+  });
 })();
 </script>
 </body>
