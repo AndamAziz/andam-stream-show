@@ -507,6 +507,35 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <div class="more"><button class="btn glass hide" id="catMore">Load more</button></div>
 </section>
 
+<section class="ltv" id="ltv" aria-label="Live TV">
+  <h1>Live TV</h1>
+  <div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
+  <div class="provbar" id="provBar" role="tablist" aria-label="Providers"></div>
+  <div class="tabbar" id="ltvTabs" role="tablist" aria-label="Sections"></div>
+  <div class="ltvwrap">
+    <aside class="ltvside" id="ltvCats"><h4>Categories</h4></aside>
+    <div>
+      <div class="ltvbar">
+        <input id="ltvSearch" type="search" placeholder="Search in this section" aria-label="Search in this section" />
+      </div>
+      <div class="repbox hide" id="repBox">
+        <select id="repChan" aria-label="Archive channel"></select>
+        <input id="repDate" type="date" aria-label="Replay date" />
+        <input id="repTime" type="time" aria-label="Replay start time" />
+        <select id="repDur" aria-label="Replay duration">
+          <option value="30">30 min</option><option value="60" selected>60 min</option>
+          <option value="120">120 min</option><option value="180">180 min</option>
+        </select>
+        <button class="btn primary" id="repGo" type="button">▶ Replay</button>
+      </div>
+      <div id="ltvBody"></div>
+      <div class="ltvmsg hide" id="ltvMsg"></div>
+    </div>
+  </div>
+</section>
+
+
+
 <div class="scrim2" id="dScrim"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Title details" aria-hidden="true">
   <div class="dhero"><img id="dBack" alt="" /><div class="grad"></div>
