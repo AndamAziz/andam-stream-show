@@ -73,13 +73,6 @@ export const Route = createFileRoute('/api/public/iptv')({
             return json({ sources: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
-          if (action === 'health') {
-            const { playlistHealth } = await import('@/lib/source-health.server');
-            const sources = visible(await loadPlaylistSources(), granted);
-            return json({ health: await playlistHealth(sources) });
-          }
-
-
           const source = await pickSource(url.searchParams.get('source') ?? '', granted);
           if (!source) return json({ error: 'No IPTV playlist configured' }, 404);
 

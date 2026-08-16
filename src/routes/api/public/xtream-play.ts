@@ -23,122 +23,44 @@ const SAFE_HEADERS = [
 
 
 function isManifest(url: string, contentType: string | null): boolean {
-  const ct = (contentType ?? '').toLowerCase();
-  // Some providers serve MPEG-TS fragments from URLs that retain a .m3u8
-  // suffix. The returned media type is authoritative in that case; treating
-  // the fragment as text leaves res.text() waiting forever for the live socket.
-  if (ct.includes('mp2t') || ct.startsWith('video/')) return false;
-  if (ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl')) return true;
   if (/\.m3u8(\?|$)/i.test(url)) return true;
-  return false;
+  const ct = (contentType ?? '').toLowerCase();
+  return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
 }
 
 /**
  * Fetches the provider bytes.
  *
- * Relay first. The app server's egress IP is not whitelisted by the provider —
- * a direct fetch comes back 459/403 every time, and because Xtream accounts
- * allow only a couple of simultaneous connections, that wasted attempt was
- * burning the account's slot and making the *relay* request fail too (which
- * surfaced as a 502 with an endless spinner). Direct is kept as a last resort
- * for the rare case the relay itself is unreachable.
+ * Direct server-side fetch first: this route already hides the provider
+ * credentials, and the relay buffers whole segments (measured ~35s for a 1.6MB
+ * segment the provider serves in 0.15s), which starved the player. The relay is
+ * kept as a fallback for upstreams we cannot reach directly (geo/IP blocks).
  */
 async function fetchOnce(url: string, request: Request, viaRelay: boolean): Promise<Response> {
   const headers = new Headers(viaRelay ? relayHeaders() : {});
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
-  // The relay/provider can leave MPEG-TS responses open forever. A bounded
-  // default range gives every HLS fragment a concrete upstream boundary while
-  // preserving explicit browser Range requests for VOD seeking.
-  headers.set('Range', range ?? 'bytes=0-8388607');
-  const controller = new AbortController();
-  if (!range) setTimeout(() => controller.abort(), MAX_FRAGMENT_OPEN_MS);
-  return fetch(viaRelay ? relayUrl(url) : url, {
-    headers,
-    redirect: 'follow',
-    signal: controller.signal,
-  });
+  if (range) headers.set('Range', range);
+  return fetch(viaRelay ? relayUrl(url) : url, { headers, redirect: 'follow' });
 }
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
-  let relayError: unknown;
   try {
-    const res = await fetchOnce(upstream, request, true);
-    if (res.ok || res.status === 206) return res;
-    // Only relay-side hiccups are worth a retry; a provider 403 means the
-    // account is at its connection limit and hammering it makes it worse.
-    if (res.status === 411 || res.status >= 500) {
-      await new Promise((r) => setTimeout(r, 350));
-      const retry = await fetchOnce(upstream, request, true);
-      if (retry.ok || retry.status === 206) return retry;
-      return retry;
-    }
-    return res;
+    const direct = await fetchOnce(upstream, request, false);
+    if (direct.ok || direct.status === 206) return direct;
+    console.warn('[xtream-play] direct fetch returned', direct.status, '— falling back to relay');
   } catch (err) {
-    relayError = err;
-    console.warn('[xtream-play] relay unreachable, trying direct', err);
+    console.warn('[xtream-play] direct fetch failed, falling back to relay', err);
   }
 
-  try {
-    return await fetchOnce(upstream, request, false);
-  } catch {
-    throw relayError;
+  let res = await fetchOnce(upstream, request, true);
+  // 403/411/5xx from the relay are usually transient — retry once.
+  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
+    await new Promise((r) => setTimeout(r, 350));
+    res = await fetchOnce(upstream, request, true);
   }
+  return res;
 }
-
-
-/** Idle window after which a length-less upstream body is considered complete. */
-const IDLE_CLOSE_MS = 1500;
-/** Provider fragments advertise 10s in their manifests but may never EOF. */
-const MAX_FRAGMENT_OPEN_MS = 11_000;
-
-/**
- * Streams `body` through, but ends the response when no chunk has arrived for
- * IDLE_CLOSE_MS. Segments arrive in one burst, so this closes them promptly
- * while a genuinely continuous stream keeps flowing.
- */
-async function readBoundedFragment(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
-  const reader = body.getReader();
-  const openedAt = Date.now();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    while (Date.now() - openedAt < MAX_FRAGMENT_OPEN_MS) {
-      const remaining = MAX_FRAGMENT_OPEN_MS - (Date.now() - openedAt);
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const idle = new Promise<'idle'>((resolve) => {
-        timer = setTimeout(() => resolve('idle'), Math.min(IDLE_CLOSE_MS, remaining));
-      });
-      try {
-        const result = await Promise.race([reader.read(), idle]);
-        if (result === 'idle' || result.done) break;
-        chunks.push(result.value);
-        length += result.value.byteLength;
-        // A continuously-ready reader can otherwise create an endless
-        // microtask chain that prevents the wall-clock timeout from firing.
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
-    }
-  } catch (error) {
-    // The upstream timeout deliberately aborts live fragment sockets. Bytes
-    // already received are a valid MPEG-TS fragment; only fail if none arrived.
-    if (length === 0) throw error;
-  } finally {
-    void reader.cancel().catch(() => {});
-  }
-  const out = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return out;
-}
-
-
-
 
 
 /**
@@ -187,33 +109,20 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const upstream = await openUrl(token);
         if (!upstream) return new Response('Link expired', { status: 410 });
 
-        const cors = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
-
         let res: Response;
         try {
           res = await fetchUpstream(upstream, request);
         } catch (err) {
           console.error('[xtream-play] relay error', err);
-          // 504, not 502: a timeout/unreachable upstream is an upstream problem.
-          // Returning 5xx for provider-side conditions made the client report an
-          // app crash (blank-screen runtime error) for what is a stream issue.
-          return new Response('Stream timed out', { status: 504, headers: cors });
+          return new Response('Stream unavailable', { status: 502 });
         }
 
         if (!res.ok) {
           console.error('[xtream-play] relay responded', res.status, res.statusText);
-          // Provider/relay refusals (403 = account connection limit reached,
-          // 404 = channel gone, 459 = IP not whitelisted) are surfaced verbatim
-          // as 4xx so the player can show a precise message instead of the
-          // generic 502 that the app treated as its own failure.
-          if (res.status === 404) return new Response('Stream not found', { status: 404, headers: cors });
-          if (res.status === 403 || res.status === 459)
-            return new Response('Stream busy: the provider refused the connection (limit reached)', {
-              status: 429,
-              headers: cors,
-            });
-          if (res.status < 500) return new Response(`Stream error ${res.status}`, { status: res.status, headers: cors });
-          return new Response(`Stream unavailable (upstream ${res.status})`, { status: 502, headers: cors });
+          return new Response(
+            res.status === 404 ? 'Stream not found' : `Stream unavailable (relay ${res.status})`,
+            { status: res.status === 404 ? 404 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+          );
         }
 
         // Allowlist only: upstream headers such as x-final-url echo the provider
@@ -237,21 +146,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         headers.set('Accept-Ranges', 'bytes');
-        // The relay never sends Content-Length and keeps the connection open
-        // after the last byte of a segment, so hls.js waited forever on a
-        // fragment that had in fact fully arrived (endless spinner, then 502s
-        // once the provider's connection slots ran out). Close the response
-        // ourselves once the upstream goes quiet or the advertised fragment
-        // window elapses. Buffering also lets us send a definite Content-Length.
-        const upstreamType = (res.headers.get('content-type') ?? '').toLowerCase();
-        const isTransportStream = upstreamType.includes('mp2t') || /\.ts(\?|$)/i.test(upstream);
-        if (res.body && (!res.headers.get('content-length') || isTransportStream)) {
-          const fragment = await readBoundedFragment(res.body);
-          headers.set('Content-Length', String(fragment.byteLength));
-          return new Response(fragment.buffer as ArrayBuffer, { status: res.status, headers });
-        }
         return new Response(res.body, { status: res.status, headers });
-
 
       },
     },

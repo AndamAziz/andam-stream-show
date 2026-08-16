@@ -458,21 +458,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lvsel select option{background:#111;color:#fff}
 .lvsel.accent select{border-color:rgba(255,69,0,.42);background:rgba(255,69,0,.12);color:#ffd9c9}
 .lvsel[hidden]{display:none}
-/* Source health badge shown next to the provider / playlist switcher. */
-.hbadge{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:999px;
-  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
-  font:600 11px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--muted);white-space:nowrap}
-.hbadge .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:0 0 auto}
-.hbadge.up{border-color:rgba(0,128,128,.5);background:rgba(0,128,128,.16);color:#8ff0ef}
-.hbadge.up .dot{background:#19d3c5;box-shadow:0 0 0 0 rgba(25,211,197,.6);animation:hpulse 2.2s infinite}
-.hbadge.down{border-color:rgba(255,69,0,.5);background:rgba(255,69,0,.14);color:#ffb59c}
-.hbadge.down .dot{background:var(--ember)}
-.hbadge.wait .dot{animation:hblink 1s infinite}
-@keyframes hpulse{0%{box-shadow:0 0 0 0 rgba(25,211,197,.55)}70%{box-shadow:0 0 0 7px rgba(25,211,197,0)}100%{box-shadow:0 0 0 0 rgba(25,211,197,0)}}
-@keyframes hblink{0%,100%{opacity:.3}50%{opacity:1}}
-@media (min-width:1600px){.hbadge{height:40px;font-size:13px}}
-
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0}
 .chips::-webkit-scrollbar{display:none}
 .chips .pill,.repbox .pill{flex:0 0 auto;min-height:34px;padding:0 13px;border-radius:9px;border:1px solid var(--hair);
@@ -505,19 +490,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lverr{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:88%;
   background:rgba(8,9,12,.9);border:1px solid rgba(255,69,0,.4);border-radius:10px;color:#fff;
   font:500 12.5px/1.35 Inter,sans-serif;padding:10px 14px;cursor:pointer;text-align:center}
-/* swipe / arrow channel-hop feedback: small dark pill over the video */
-.lvswipe{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
-  display:flex;align-items:center;gap:9px;max-width:82%;pointer-events:none;
-  background:rgba(8,9,12,.82);border:1px solid rgba(255,69,0,.32);border-radius:999px;
-  padding:8px 14px;opacity:0;transition:opacity .15s ease,transform .15s ease;z-index:6}
-.lvswipe.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-.lvswipe .ar{color:var(--ember);font-size:16px;line-height:1;flex:none}
-.lvswipe img{width:26px;height:26px;flex:none;border-radius:7px;object-fit:contain;padding:2px;
-  background:rgba(255,255,255,.07)}
-.lvswipe img:not([src]){display:none}
-.lvswipe .nm{font:600 13px/1.2 Inter,sans-serif;color:#fff;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lvstage{touch-action:pan-y}
 /* slim now-playing bar: logo + name + category tag + LIVE badge + small icon actions */
 .lvbar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--surface);
   border-top:1px solid var(--hair)}
@@ -700,8 +672,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
-      <span class="hbadge wait" id="provHealth" role="status" title="Checking provider status"><span class="dot"></span><span class="tx">Checking</span></span>
-
       <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
       <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
     </div>
@@ -713,7 +683,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvidle" id="ltvIdle">Pick a channel below to start watching</div>
         <div class="lvspin hide" id="ltvSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ltvErr" role="button" tabindex="0"></div>
-        <div class="lvswipe" id="ltvSwipe" aria-live="polite"><span class="ar">›</span><img alt="" /><span class="nm"></span></div>
       </div>
       <div class="lvbar">
         <img class="lgo" id="ltvNowLogo" alt="" />
@@ -750,8 +719,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
     <div class="lvtools">
       <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
-      <span class="hbadge wait" id="ipHealth" role="status" title="Checking playlist status"><span class="dot"></span><span class="tx">Checking</span></span>
-
       <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
     </div>
   </div>
@@ -762,7 +729,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="lvidle" id="ipIdle">Pick a channel below to start watching</div>
         <div class="lvspin hide" id="ipSpin" aria-hidden="true"></div>
         <div class="lverr hide" id="ipErr" role="button" tabindex="0"></div>
-        <div class="lvswipe" id="ipSwipe" aria-live="polite"><span class="ar">›</span><img alt="" /><span class="nm"></span></div>
       </div>
       <div class="lvbar">
         <img class="lgo" id="ipNowLogo" alt="" />
@@ -875,6 +841,139 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return '<section class="row"><div class="rowhead"><h2>'+title+'</h2></div>'+
       '<div class="strip">'+inner+'</div></section>';
   }
+
+  /* ---------- PLAYER ---------- */
+  var PLAYLIST='https://raw.githubusercontent.com/AndamAziz/Andamiptv/refs/heads/main/playlist.m3u';
+  var RELAY='https://relay.andam.uk:8443/proxy?url=';
+  var RELAY_TOKEN='009c95e9a8c6e50d992b8313bb90b01948b4a58e870bd69504a640b32306a5da';
+
+  var overlay=document.getElementById('overlay'),video=document.getElementById('pVideo'),
+      pTitle=document.getElementById('pTitle'),pSub=document.getElementById('pSub'),
+      pStatus=document.getElementById('pStatus'),pChans=document.getElementById('pChans'),
+      pSearch=document.getElementById('pSearch');
+  var hls=null,channels=[],loaded=false,current=null,session=0;
+
+  function relay(u){ return RELAY+encodeURIComponent(u); }
+  function isRelay(u){ return u.indexOf(RELAY)===0; }
+  function upstream(u){ return isRelay(u)?decodeURIComponent(u.slice(RELAY.length)):u; }
+  function setStatus(msg){ pStatus.textContent=msg||''; pStatus.classList.toggle('hide',!msg); if(!msg) pStatus.classList.remove('retry'); }
+
+  function destroy(){ if(hls){hls.destroy();hls=null;} video.removeAttribute('src'); video.load(); }
+
+  // Playlists come back from the relay with relative segment paths, which would
+  // otherwise resolve against the proxy origin. Rewrite every URI to an absolute
+  // relayed URL before handing the manifest to hls.js.
+  function rewriteManifest(text,relayedUrl){
+    var base=upstream(relayedUrl);
+    var abs=function(u){ try{ return new URL(u,base).href }catch(e){ return u } };
+    return text.split(/\r?\n/).map(function(line){
+      var l=line.trim();
+      if(!l) return line;
+      if(l[0]==='#'){
+        return line.replace(/URI="([^"]+)"/g,function(m,u){ return 'URI="'+relay(abs(u))+'"' });
+      }
+      return relay(abs(l));
+    }).join('\n');
+  }
+
+  var PlaylistLoader=null;
+  function playlistLoader(Hls){
+    if(!PlaylistLoader){
+      PlaylistLoader=class extends Hls.DefaultConfig.loader {
+        load(context,config,callbacks){
+          var onSuccess=callbacks.onSuccess;
+          var patched=Object.assign({},callbacks,{onSuccess:function(response,stats,ctx,net){
+            if(typeof response.data==='string') response.data=rewriteManifest(response.data,ctx.url);
+            onSuccess(response,stats,ctx,net);
+          }});
+          super.load(context,config,patched);
+        }
+      };
+    }
+    return PlaylistLoader;
+  }
+
+  function play(url,title,sub,attempt){
+    destroy();
+    var mySession=++session;
+    var live=function(){ return mySession===session };
+    setStatus('Loading stream…');
+    pTitle.textContent=title; pSub.textContent=sub||'● LIVE · Andam stream';
+    current=url; renderChans(pSearch.value);
+    var src=relay(url); // always via the Andam relay: upstream origins send no CORS headers
+    attempt=attempt||0;
+    var done=false;
+
+    function fallback(){
+      if(done||!live()) return; done=true;
+      // some upstream channels go offline — roll onto the next one in the list
+      var i=channels.map(function(c){return c.url}).indexOf(url);
+      var next=channels[i+1];
+      if(attempt<5&&next) play(next.url,next.name,'● LIVE · IPTV',attempt+1);
+      else setStatus('This stream is unavailable right now. Pick another channel.');
+    }
+    function playing(){ if(!live())return; done=true; setStatus(''); }
+
+    video.addEventListener('timeupdate',playing,{once:true});
+    // watchdog: manifest can parse fine while segments 404 — bail out on a stall
+    setTimeout(function(){ if(live()&&!done&&video.currentTime===0) fallback(); },12000);
+
+    if(window.Hls&&window.Hls.isSupported()){
+      hls=new window.Hls({
+        lowLatencyMode:true,
+        pLoader:playlistLoader(window.Hls),
+        xhrSetup:function(xhr,u){ if(isRelay(u)) xhr.setRequestHeader('X-Relay-Token',RELAY_TOKEN); }
+      });
+      hls.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(live()) video.play().catch(function(){}); });
+      hls.on(window.Hls.Events.ERROR,function(e,d){ if(d.fatal) fallback(); });
+      hls.loadSource(src); hls.attachMedia(video);
+    }else{
+      video.src=src; // Safari plays HLS natively
+      video.addEventListener('error',fallback,{once:true});
+    }
+  }
+
+  function open(url,title,sub){
+    overlay.classList.add('open'); document.body.style.overflow='hidden';
+    loadChannels().then(function(){
+      var target=url||(channels[0]&&channels[0].url);
+      if(target) play(target,title||'Andam Live',sub);
+      else setStatus('Could not load your channel list.');
+    });
+  }
+  function close(){ overlay.classList.remove('open'); document.body.style.overflow=''; destroy(); setStatus(''); }
+
+  function loadChannels(){
+    if(loaded) return Promise.resolve();
+    setStatus('Loading your channel list…');
+    return fetch(PLAYLIST).then(function(r){return r.text()}).then(function(txt){
+      var lines=txt.split(/\r?\n/),name=null;
+      for(var i=0;i<lines.length;i++){
+        var l=lines[i].trim();
+        if(l.indexOf('#EXTINF')===0){ name=l.split(',').slice(1).join(',').trim()||'Channel'; }
+        else if(l && l[0]!=='#' && name){ channels.push({name:name,url:l}); name=null; }
+      }
+      loaded=true; renderChans('');
+    }).catch(function(){ loaded=true; });
+  }
+
+  function renderChans(q){
+    q=(q||'').toLowerCase();
+    var list=channels.filter(function(c){return !q||c.name.toLowerCase().indexOf(q)>-1}).slice(0,300);
+    pChans.innerHTML=list.map(function(c,i){
+      return '<button data-url="'+c.url.replace(/"/g,'&quot;')+'" class="'+(c.url===current?'playing':'')+'">'+
+        c.name.replace(/</g,'&lt;')+'</button>';
+    }).join('')||'<button disabled>No channels found</button>';
+  }
+
+  pChans.addEventListener('click',function(e){
+    var b=e.target.closest('button[data-url]'); if(!b) return;
+    play(b.getAttribute('data-url'),b.textContent.trim(),'● LIVE · IPTV');
+  });
+  pSearch.addEventListener('input',function(){ renderChans(this.value) });
+  document.getElementById('pClose').addEventListener('click',close);
+  overlay.addEventListener('click',function(e){ if(e.target===overlay) close() });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&overlay.classList.contains('open')) close() });
 
   /* ---------- CATALOG (TMDB via /api/public/tmdb-discover) ---------- */
   var catalog=document.getElementById('catalog'), hero=document.getElementById('hero'),
@@ -1674,25 +1773,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       repGo=document.getElementById('repGo'), iptvEl=document.getElementById('iptv');
 
   var PROV_KEY='andam:provider';
-
-  /* ---- shared source health badge -------------------------------------- *
-   * Both switchers show whether the selected source is reachable right now.
-   * The server caches probes for a minute, so polling stays cheap.          */
-  function paintHealth(badge,entry){
-    if(!badge) return;
-    var st=entry?entry.status:'';
-    badge.className='hbadge '+(st==='up'?'up':st==='down'?'down':'wait');
-    var tx=badge.querySelector('.tx');
-    if(tx) tx.textContent=st==='up'?'Up':st==='down'?'Down':'Checking';
-    badge.title=entry&&entry.detail?entry.detail:'Checking source status';
-  }
-  function healthSuffix(entry){
-    return entry?(entry.status==='up'?' · Up':' · Down'):'';
-  }
-
-  var provHealth=document.getElementById('provHealth');
   var ltv={providers:[],prov:null,tab:'direct',cat:'',q:'',hasArchive:false,req:0,started:false,
-           health:{},healthTimer:null,
            archive:[],series:null};
   var lcache={}, TTL=5*60*1000;   // client cache so tab switches don't refetch
 
@@ -1767,40 +1848,25 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
-    /* Abort any in-flight probe so a switched-away channel stops competing for
-       the provider's very small pool of simultaneous connections. */
-    if(s.ac){ try{ s.ac.abort() }catch(_){} s.ac=null }
-    if(s.retryTimer){ clearTimeout(s.retryTimer); s.retryTimer=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
-    s.video.load&&(function(){ try{ s.video.load() }catch(_){} })();
     busy(s,false); clearFail(s);
   }
 
   /* which section's player is on screen right now */
   function activeKind(){ return iptvEl.classList.contains('open')?'iptv':'live' }
 
-  /* hls.js ships a 10s manifest/playlist timeout, which cancelled relay
-     requests before the provider had answered. Give the relay real headroom
-     and let our own silent retry ladder decide when a stream is hopeless. */
-  var HLS_CFG={lowLatencyMode:true,maxBufferLength:20,backBufferLength:30,
-    manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:2,manifestLoadingRetryDelay:1000,
-    levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
-    fragLoadingTimeOut:30000,fragLoadingMaxRetry:6};
-  var MAX_SILENT_RETRIES=3;
-
   function lvPlay(kind,token,title,sub,isHls){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
-    /* Only ever one live connection at a time, across both sections. */
-    lvStop('live'); lvStop('iptv');
+    lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
     s.idle.classList.add('hide');
     setNow(s,title,sub,nowLogoOf(kind));
 
     clearFail(s); busy(s,true);
     s.last={token:token,title:title,sub:sub,isHls:isHls};
-    var ok=false,timer=null,attempt=0;
+    var ok=false,timer=null;
 
     function onProgress(){
       if(!alive()||s.video.currentTime<=0.05) return;
@@ -1808,45 +1874,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       s.video.removeEventListener('timeupdate',onProgress);
     }
     s.video.addEventListener('timeupdate',onProgress);
-
-    /* Silent recovery: retry in the background (1s, 2s, 4s) with the spinner
-       as the only feedback. The visible "tap to retry" message is the last
-       resort after the ladder is exhausted. */
-    function retryable(msg){
-      if(!alive()||ok) return;
-      clearTimeout(timer);
-      if(attempt<MAX_SILENT_RETRIES){
-        var wait=1000*Math.pow(2,attempt);
-        attempt++;
-        if(s.ac){ try{ s.ac.abort() }catch(_){} s.ac=null }
-        if(s.hls){ var d=s.hls; s.hls=null; setTimeout(function(){ try{d.destroy()}catch(_){} },0) }
-        try{ s.video.pause() }catch(_){}
-        busy(s,true); clearFail(s);
-        s.retryTimer=setTimeout(function(){ if(alive()&&!ok) start() },wait);
-        return;
-      }
-      fail(s,msg);
-    }
-
-    /* Provider refusals are permanent for this attempt window: retrying only
-       burns more of the account's few simultaneous connection slots, which is
-       what turned one busy channel into a cascade of failures. */
-    function httpFail(code){
-      if(!alive()||ok) return;
-      clearTimeout(timer);
-      if(code===429||code===403) return fail(s,'Channel busy — provider connection limit reached. Try again in a moment.');
-      if(code===404) return fail(s,'This channel is no longer available');
-      if(code===410) return fail(s,'Link expired — reopen the channel');
-      retryable('Stream error '+code);
-    }
-
-
-    function arm(){
-      clearTimeout(timer);
-      timer=setTimeout(function(){
-        if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
-      },18000);
-    }
+    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
+    timer=setTimeout(function(){
+      if(alive()&&!ok&&s.video.currentTime===0) retryable('Stream failed to load');
+    },15000);
 
     function native(){
       var dead=s.hls; s.hls=null;
@@ -1858,38 +1889,33 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       },{once:true});
     }
 
-    function start(){
+    /* Start the network work off the click's task so the tap never janks. */
+    setTimeout(function(){
       if(!alive()) return;
-      arm();
       if(!isHls){
         /* progressive files: surface a real HTTP status if the relay refuses */
-        var ac=new AbortController(); s.ac=ac;
-        fetch(src,{method:'GET',headers:{range:'bytes=0-0'},signal:ac.signal}).then(function(r){
-          if(!r.ok) httpFail(r.status);
-        }).catch(function(err){ if(err&&err.name==='AbortError') return; retryable('Network error') });
+        fetch(src,{method:'GET',headers:{range:'bytes=0-0'}}).then(function(r){
+          if(!r.ok) retryable('Stream error '+r.status);
+        }).catch(function(){ retryable('Network error') });
       }
       if(isHls && window.Hls && window.Hls.isSupported()){
-        var h=new window.Hls(HLS_CFG);
+        var h=new window.Hls({lowLatencyMode:true,maxBufferLength:20,backBufferLength:30});
         s.hls=h;
         h.on(window.Hls.Events.MANIFEST_PARSED,function(){ if(alive()) s.video.play().catch(function(){}) });
         h.on(window.Hls.Events.ERROR,function(e,d){
           console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
           if(!d.fatal||!alive()) return;
-          if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){
-            setTimeout(function(){ if(alive()) hopChannel(kind,1) },0); return
-          }
-          if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError(); return }
-          if(d.response&&d.response.code){ httpFail(d.response.code); return }
-          retryable('Stream failed to load');
+          if(d.details===window.Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(native,0); return }
+          if(d.type===window.Hls.ErrorTypes.NETWORK_ERROR&&!ok){
+            setTimeout(function(){ if(alive()&&!ok&&s.hls===h) h.loadSource(src) },1200);
+          }else if(d.type===window.Hls.ErrorTypes.MEDIA_ERROR&&!ok){ h.recoverMediaError() }
+          else retryable('Stream failed to load');
         });
         h.attachMedia(s.video); h.loadSource(src);
       }else{
         native();
       }
-    }
-
-    /* Start the network work off the click's task so the tap never janks. */
-    setTimeout(start,0);
+    },0);
   }
 
   /* Backwards-compatible entry point used by home rows and replay. */
@@ -1933,20 +1959,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function renderProviders(){
     provSel.innerHTML=ltv.providers.map(function(p){
-      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+
-        esc(p.name)+healthSuffix(ltv.health[p.id])+'</option>';
+      return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+esc(p.name)+'</option>';
     }).join('');
-    paintHealth(provHealth,ltv.health[ltv.prov]);
   }
-  /* Provider reachability, refreshed while the section is on screen. */
-  function loadLtvHealth(){
-    paintHealth(provHealth,ltv.health[ltv.prov]);
-    return api({action:'health'}).then(function(d){
-      (d.health||[]).forEach(function(h){ ltv.health[h.id]=h });
-      renderProviders();
-    }).catch(function(){});
-  }
-
   function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:14px;margin-bottom:10px"></div>'; return h; }
 
   /* Categories are one compact dropdown on every device. */
@@ -2086,14 +2101,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
       var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
       setProvider(pick.id);
-      loadLtvHealth();
-      if(!ltv.healthTimer) ltv.healthTimer=setInterval(function(){
-        var el=document.getElementById('ltv');
-        if(el && !el.classList.contains('hide')) loadLtvHealth();
-      },90000);
     }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
   };
-
 
   /* ---- interactions ---- */
   provSel.addEventListener('change',function(){ setProvider(this.value) });
@@ -2176,9 +2185,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   var ipSrcSel=document.getElementById('ipSrcSel'), ipGroupSel=document.getElementById('ipGroupSel'),
       ipBody=document.getElementById('ipBody'), ipMsg=document.getElementById('ipMsg'),
       ipSearch=document.getElementById('ipSearch'), ipSub=document.getElementById('ipSub');
-  var ipHealth=document.getElementById('ipHealth');
-  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false,
-          health:{},healthTimer:null};
+  var ip={sources:[],src:null,group:'',q:'',groups:[],channels:[],req:0,started:false};
   var ipCache={};
 
   function ipSet(m){ ipMsg.textContent=m||''; ipMsg.classList.toggle('hide',!m); }
@@ -2194,20 +2201,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function renderIpSources(){
     ipSrcSel.innerHTML=ip.sources.map(function(s){
-      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+
-        esc(s.name)+healthSuffix(ip.health[s.id])+'</option>';
+      return '<option value="'+esc(s.id)+'"'+(ip.src===s.id?' selected':'')+'>'+esc(s.name)+'</option>';
     }).join('');
-    paintHealth(ipHealth,ip.health[ip.src]);
   }
-  /* Playlist reachability, refreshed while the IPTV section is on screen. */
-  function loadIpHealth(){
-    paintHealth(ipHealth,ip.health[ip.src]);
-    return ipApi({action:'health'}).then(function(d){
-      (d.health||[]).forEach(function(h){ ip.health[h.id]=h });
-      renderIpSources();
-    }).catch(function(){});
-  }
-
 
   function renderIpGroups(){
     ipGroupSel.innerHTML='<option value=""'+(ip.group?'':' selected')+'>All groups ('+ip.channels.length+')</option>'+
@@ -2274,11 +2270,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var saved=null; try{ saved=localStorage.getItem(IP_KEY) }catch(_){}
       var pick=ip.sources.filter(function(s){return s.id===saved})[0]||ip.sources[0];
       setIpSource(pick.id);
-      loadIpHealth();
-      if(!ip.healthTimer) ip.healthTimer=setInterval(function(){
-        var el=document.getElementById('iptv');
-        if(el && !el.classList.contains('hide')) loadIpHealth();
-      },90000);
     }).catch(function(){ ip.started=false; ipBody.innerHTML=''; ipSet('Could not load your IPTV sources.') });
   };
 
@@ -2303,82 +2294,6 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       .then(function(d){ lvPlay('iptv',d.token,name,'LIVE · IPTV playlist',true) })
       .catch(function(){ fail(s,'Could not start this channel') });
   });
-
-  /* ================= SWIPE / ARROW CHANNEL HOPPING =================
-     Touch swipe on the video area (and Left/Right arrows on desktop) moves to
-     the next/previous channel of the list currently shown below the player.
-     It simply clicks the neighbouring row, so playback goes through exactly the
-     same opaque-token flow, loading state and highlight as a normal tap. TV
-     D-pad focus navigation is untouched. */
-  var hopAt={live:0,iptv:0}, swipeTimer={};
-  function chanEls(kind){
-    var host=document.getElementById(kind==='iptv'?'ipBody':'ltvBody');
-    return host?[].slice.call(host.querySelectorAll('.chanrow')):[];
-  }
-  function swipeHint(kind,dir,name,logo){
-    var el=document.getElementById((kind==='iptv'?'ip':'ltv')+'Swipe');
-    if(!el) return;
-    el.querySelector('.ar').textContent=dir>0?'›':'‹';
-    var img=el.querySelector('img');
-    if(logo) img.setAttribute('src',logo); else img.removeAttribute('src');
-    el.querySelector('.nm').textContent=name||'';
-    el.classList.add('show');
-    clearTimeout(swipeTimer[kind]);
-    swipeTimer[kind]=setTimeout(function(){ el.classList.remove('show') },2400);
-  }
-  function hopChannel(kind,dir){
-    /* only meaningful for a live channel list (Live TV "Direct" tab / IPTV) */
-    if(kind==='live'&&ltv.tab!=='direct') return false;
-    var now=Date.now();
-    if(now-hopAt[kind]<350) return false;
-    var els=chanEls(kind);
-    if(els.length<2) return false;
-    var cur=-1;
-    for(var i=0;i<els.length;i++){ if(els[i].classList.contains('on')){ cur=i; break } }
-    if(cur<0) cur=dir>0?-1:0;
-    var next=els[cur+dir];
-    if(!next) return false;
-    hopAt[kind]=now;
-    var img=next.querySelector('img.lg');
-    swipeHint(kind,dir,next.getAttribute('data-name'),img&&img.getAttribute('src'));
-    try{ next.scrollIntoView({block:'nearest',behavior:'smooth'}) }catch(_){ next.scrollIntoView() }
-    next.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}));
-    return true;
-  }
-  function bindSwipe(kind){
-    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
-    if(!stage) return;
-    var x0=0,y0=0,t0=0,track=false;
-    stage.addEventListener('touchstart',function(e){
-      if(e.touches.length!==1){ track=false; return }
-      track=true; x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now();
-    },{passive:true});
-    stage.addEventListener('touchend',function(e){
-      if(!track) return; track=false;
-      var t=e.changedTouches&&e.changedTouches[0]; if(!t) return;
-      var dx=t.clientX-x0, dy=t.clientY-y0;
-      if(Date.now()-t0>800) return;                      /* slow drag: not a swipe */
-      if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.4) return; /* tap or vertical scroll */
-      hopChannel(kind,dx<0?1:-1);
-    },{passive:true});
-    /* desktop/laptop: arrows while the player area holds focus or the pointer */
-    stage.addEventListener('mouseenter',function(){ stage.dataset['hover']='1' });
-    stage.addEventListener('mouseleave',function(){ stage.dataset['hover']='' });
-  }
-  bindSwipe('live'); bindSwipe('iptv');
-
-  document.addEventListener('keydown',function(e){
-    if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight') return;
-    if(e.altKey||e.ctrlKey||e.metaKey||tvMode()) return;   /* TV keeps D-pad behaviour */
-    var el=document.activeElement;
-    if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT')) return;
-    var kind=activeKind();
-    var stage=document.querySelector('#'+(kind==='iptv'?'ipPlayer':'ltvPlayer')+' .lvstage');
-    if(!stage) return;
-    var inPlayer=(el&&stage.contains(el))||stage.dataset['hover']==='1';
-    if(!inPlayer) return;
-    if(hopChannel(kind,e.key==='ArrowRight'?1:-1)){ e.preventDefault(); e.stopPropagation() }
-  },true);
 
   /* ================= HOME ROWS (real data only) =================
      Live now / Trending movies / Popular shows come from the selected Xtream
@@ -2501,20 +2416,15 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       return featuredPats;
     }).catch(function(){ featuredPats=[]; return featuredPats });
   }
-  /* A featured channel only counts when it is actually live right now (present
-     in the provider's live list with a usable stream id). When none of the
-     admin patterns match a live channel, the hero falls back to the provider's
-     own ordering untouched. */
   function prioritise(items,pats){
-    if(!pats||!pats.length||!items||!items.length) return items;
+    if(!pats||!pats.length) return items;
     var hit=[], rest=[];
     items.forEach(function(c,i){
       var n=String(c.name||'').toLowerCase(), rank=-1;
-      var live=!!c.id && n!=='';
-      if(live) for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
+      for(var k=0;k<pats.length;k++){ if(n.indexOf(pats[k].pat)>=0){ rank=k; break } }
       (rank<0?rest:hit).push({c:c,rank:rank,i:i});
     });
-    if(!hit.length) return items;   /* fallback: provider's normal order */
+    if(!hit.length) return items;
     hit.sort(function(a,b){ return a.rank-b.rank || a.i-b.i });
     return hit.concat(rest).map(function(o){ return o.c });
   }
