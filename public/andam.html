@@ -473,8 +473,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   border:1px solid rgba(255,69,0,.4);background:rgba(255,69,0,.12);border-radius:999px;padding:3px 8px}
 .lvbar .live[hidden]{display:none}
 .lvbar .live .ld{width:5px;height:5px;border-radius:50%;background:var(--ember);animation:pulse 1.4s ease-in-out infinite}
-.lvbar .ib{width:28px;height:28px;flex:none;border-radius:8px;border:1px solid var(--hair);
+.lvbar .ib{margin-left:auto;width:28px;height:28px;flex:none;border-radius:8px;border:1px solid var(--hair);
   background:rgba(255,255,255,.05);color:var(--muted);font-size:12px;display:grid;place-items:center;cursor:pointer}
+.lvbar .live:not([hidden])+.ib{margin-left:6px}
 .lvbar .ib:hover{color:#fff;background:rgba(255,255,255,.1)}
 .lvbar .sb{display:none}
 
