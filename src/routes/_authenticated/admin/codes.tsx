@@ -300,28 +300,38 @@ function CodesPage() {
                       {c.status === 'active' ? 'Extend' : 'Renew'}
                     </Button>
 
-                    {/* Redeemed codes keep their history: revoke, never delete. */}
-                    {c.uses > 0 ? (
-                      c.status !== 'revoked' && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="min-h-11"
-                          onClick={() => revoke.mutate(c.id)}
-                        >
-                          Revoke
-                        </Button>
-                      )
-                    ) : (
+                    {/* Redeemed codes can still be revoked (keeps the row, blocks reuse). */}
+                    {c.uses > 0 && c.status !== 'revoked' && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="min-h-11 text-destructive"
-                        onClick={() => remove.mutate(c.id)}
+                        className="min-h-11"
+                        onClick={() => revoke.mutate(c.id)}
                       >
-                        Delete
+                        Revoke
                       </Button>
                     )}
+
+                    {/* Delete works on any code; redeemed ones ask first because their
+                        redemption history goes with them. */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="min-h-11 text-destructive"
+                      onClick={() => {
+                        if (
+                          c.uses > 0 &&
+                          !window.confirm(
+                            `Delete ${c.code}? Its redemption history will be removed. Users keep the access they already unlocked.`,
+                          )
+                        )
+                          return;
+                        remove.mutate(c.id);
+                      }}
+                    >
+                      Delete
+                    </Button>
+
                   </div>
                 </div>
                 {c.note && <p className="mt-2 text-xs text-muted-foreground">{c.note}</p>}
