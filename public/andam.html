@@ -872,6 +872,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       var overlap=horiz
         ? (t.r.bottom>c.r.top+4 && t.r.top<c.r.bottom-4)
         : (t.r.right>c.r.left+4 && t.r.left<c.r.right-4);
+      if(horiz&&!overlap) return; // left/right stays on the same visual line
       var score=along+across*(overlap?0.2:6);
       if(score<bestScore){ bestScore=score; best=el; }
     });
