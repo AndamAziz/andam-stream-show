@@ -1969,7 +1969,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       raf=null;
       ['live','iptv'].forEach(function(k){
         var s=SURF[k]; if(!s||!s.player) return;
-        var on=!!s.last && s.player.getBoundingClientRect().top<=(window.innerWidth<1100?66:80)+1
+        var on=!!s.last && s.player.getBoundingClientRect().top<=(window.innerWidth<1100?154:128)+2
                && window.scrollY>260;
         s.player.classList.toggle('mini',on);
       });
