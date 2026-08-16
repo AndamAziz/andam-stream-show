@@ -115,21 +115,24 @@ export async function revokeCode(id: string): Promise<{ deleted: boolean }> {
 }
 
 /**
- * Hard-deletes a code. Redeemed codes are refused: their redemption rows are
- * the audit trail, so those must be revoked instead.
+ * Hard-deletes a code. Redeemed codes are allowed too: their redemption rows go
+ * with them, and any entitlement granted by the code is detached (code_id set to
+ * null) so viewers keep the access they already unlocked.
  */
 export async function deleteCode(id: string): Promise<{ deleted: true }> {
   const { data: row } = await supabaseAdmin
     .from('activation_codes')
-    .select('id, uses')
+    .select('id')
     .eq('id', id)
     .maybeSingle();
   if (!row) throw new Error('Code not found');
-  if (row.uses > 0) throw new Error('Redeemed codes are kept for audit — revoke it instead');
+  await supabaseAdmin.from('user_entitlements').update({ code_id: null }).eq('code_id', id);
+  await supabaseAdmin.from('activation_code_redemptions').delete().eq('code_id', id);
   const { error } = await supabaseAdmin.from('activation_codes').delete().eq('id', id);
   if (error) throw new Error(error.message);
   return { deleted: true };
 }
+
 
 /**
  * Extends an existing code instead of issuing a new string, so a viewer who
