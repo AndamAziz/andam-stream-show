@@ -1043,6 +1043,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
   });
 
+  var mSearch=document.getElementById('mSearch');
+  if(mSearch) mSearch.addEventListener('click',function(e){
+    e.preventDefault(); setMenu(false);
+    showView('catalog','movies');
+    setTimeout(function(){ var i=document.getElementById('catSearch'); if(i){ i.scrollIntoView({block:'center'}); i.focus() } },120);
+  });
+
 
   /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
      TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
