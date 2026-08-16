@@ -1,0 +1,379 @@
+/**
+ * Server-only implementations of every admin panel operation.
+ *
+ * These run with the service role, but only after `assertAdmin` has verified
+ * the caller's role against the database.
+ */
+import { supabaseAdmin, maskSecret, probeProvider, relayHealth, verifyOwnPassword } from '@/lib/admin.server';
+import { playerApi, type Source } from '@/lib/xtream';
+import type { OverrideKind } from '@/lib/overrides.server';
+
+export type ProviderRow = {
+  id: string;
+  slug: string;
+  name: string;
+  base_url: string;
+  username: string;
+  passwordMasked: string;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || `provider-${Date.now()}`;
+
+export async function listProviders(): Promise<ProviderRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from('sources')
+    .select('id, slug, name, base_url, username, password, is_active, is_public, sort_order, created_at')
+    .order('sort_order', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
+    base_url: s.base_url,
+    username: s.username,
+    passwordMasked: maskSecret(s.password),
+    is_active: s.is_active,
+    is_public: s.is_public,
+    sort_order: s.sort_order,
+    created_at: s.created_at,
+  }));
+}
+
+export type ProviderInput = {
+  id?: string | undefined;
+  name: string;
+  slug?: string | undefined;
+  base_url: string;
+  username: string;
+  password?: string | undefined;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+};
+
+export async function saveProvider(input: ProviderInput): Promise<{ id: string }> {
+  const base_url = input.base_url.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(base_url)) throw new Error('Base URL must start with http:// or https://');
+  if (!input.name.trim()) throw new Error('Name is required');
+
+  if (input.id) {
+    const patch: Record<string, unknown> = {
+      name: input.name.trim(),
+      base_url,
+      username: input.username.trim(),
+      is_active: input.is_active,
+      is_public: input.is_public,
+      sort_order: input.sort_order,
+    };
+    if (input.slug?.trim()) patch['slug'] = slugify(input.slug);
+    if (input.password) patch['password'] = input.password;
+    const { error } = await supabaseAdmin.from('sources').update(patch).eq('id', input.id);
+    if (error) throw new Error(error.message);
+    return { id: input.id };
+  }
+
+  if (!input.password) throw new Error('Password is required for a new provider');
+  const { data, error } = await supabaseAdmin
+    .from('sources')
+    .insert({
+      slug: slugify(input.slug?.trim() || input.name),
+      name: input.name.trim(),
+      base_url,
+      username: input.username.trim(),
+      password: input.password,
+      is_active: input.is_active,
+      is_public: input.is_public,
+      sort_order: input.sort_order,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  return { id: data.id };
+}
+
+export async function deleteProvider(id: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('sources').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+async function loadSourceById(id: string): Promise<Source> {
+  const { data, error } = await supabaseAdmin
+    .from('sources')
+    .select('id, slug, name, base_url, username, password')
+    .eq('id', id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Source;
+}
+
+export async function testProvider(input: {
+  id?: string | undefined;
+  base_url?: string | undefined;
+  username?: string | undefined;
+  password?: string | undefined;
+}) {
+  let source: Source;
+  if (input.id) {
+    source = await loadSourceById(input.id);
+    if (input.base_url) source.base_url = input.base_url.replace(/\/+$/, '');
+    if (input.username) source.username = input.username;
+    if (input.password) source.password = input.password;
+  } else {
+    if (!input.base_url || !input.username || !input.password) {
+      throw new Error('Base URL, username and password are required');
+    }
+    source = {
+      id: 'probe',
+      slug: 'probe',
+      name: 'probe',
+      base_url: input.base_url.replace(/\/+$/, ''),
+      username: input.username,
+      password: input.password,
+    };
+  }
+  return probeProvider(source);
+}
+
+export async function revealPassword(
+  adminEmail: string,
+  adminPassword: string,
+  sourceId: string,
+): Promise<string> {
+  const ok = await verifyOwnPassword(adminEmail, adminPassword);
+  if (!ok) throw new Error('Your password is incorrect');
+  const source = await loadSourceById(sourceId);
+  return source.password;
+}
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'user';
+  suspended: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  sourceIds: string[];
+};
+
+export async function listUsers(): Promise<AdminUser[]> {
+  const [{ data: profiles, error }, { data: roles }, { data: access }] = await Promise.all([
+    supabaseAdmin
+      .from('profiles')
+      .select('id, email, display_name, is_suspended, last_login_at, created_at')
+      .order('created_at', { ascending: false }),
+    supabaseAdmin.from('user_roles').select('user_id, role'),
+    supabaseAdmin.from('user_source_access').select('user_id, source_id'),
+  ]);
+  if (error) throw new Error(error.message);
+
+  const adminIds = new Set((roles ?? []).filter((r) => r.role === 'admin').map((r) => r.user_id));
+  return (profiles ?? []).map((p) => ({
+    id: p.id,
+    email: p.email ?? '',
+    displayName: p.display_name ?? '',
+    role: adminIds.has(p.id) ? ('admin' as const) : ('user' as const),
+    suspended: Boolean(p.is_suspended),
+    createdAt: p.created_at,
+    lastLoginAt: p.last_login_at,
+    sourceIds: (access ?? []).filter((a) => a.user_id === p.id).map((a) => a.source_id),
+  }));
+}
+
+export async function setUserRole(
+  actorId: string,
+  userId: string,
+  role: 'admin' | 'user',
+): Promise<void> {
+  if (actorId === userId && role === 'user') {
+    throw new Error('You cannot remove your own admin role');
+  }
+  if (role === 'admin') {
+    const { error } = await supabaseAdmin
+      .from('user_roles')
+      .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role' });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabaseAdmin
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role', 'admin');
+    if (error) throw new Error(error.message);
+    await supabaseAdmin
+      .from('user_roles')
+      .upsert({ user_id: userId, role: 'user' }, { onConflict: 'user_id,role' });
+  }
+}
+
+/** Suspends or restores an account: bans the login and flags the profile. */
+export async function setUserSuspended(
+  actorId: string,
+  userId: string,
+  suspended: boolean,
+): Promise<void> {
+  if (actorId === userId) throw new Error('You cannot suspend your own account');
+  const url = process.env['SUPABASE_URL'];
+  const key = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  if (url && key) {
+    const res = await fetch(`${url}/auth/v1/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ban_duration: suspended ? '876000h' : 'none' }),
+    });
+    if (!res.ok) throw new Error(`Could not update login access (${res.status})`);
+  }
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ is_suspended: suspended })
+    .eq('id', userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function setUserAccess(
+  userId: string,
+  sourceId: string,
+  grant: boolean,
+): Promise<void> {
+  if (grant) {
+    const { error } = await supabaseAdmin
+      .from('user_source_access')
+      .upsert({ user_id: userId, source_id: sourceId }, { onConflict: 'user_id,source_id' });
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabaseAdmin
+      .from('user_source_access')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source_id', sourceId);
+    if (error) throw new Error(error.message);
+  }
+}
+
+export type OverrideRow = {
+  id: string;
+  kind: OverrideKind;
+  item_id: string;
+  label: string | null;
+  hidden: boolean;
+  sort_order: number | null;
+  logo_url: string | null;
+};
+
+export async function listOverrides(sourceId: string): Promise<OverrideRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from('content_overrides')
+    .select('id, kind, item_id, label, hidden, sort_order, logo_url')
+    .eq('source_id', sourceId);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as OverrideRow[];
+}
+
+export async function saveOverride(input: {
+  sourceId: string;
+  kind: OverrideKind;
+  itemId: string;
+  label?: string | undefined;
+  hidden?: boolean | undefined;
+  sortOrder?: number | null | undefined;
+  logoUrl?: string | null | undefined;
+}): Promise<void> {
+  const row: Record<string, unknown> = {
+    source_id: input.sourceId,
+    kind: input.kind,
+    item_id: input.itemId,
+  };
+  if (input.label !== undefined) row['label'] = input.label;
+  if (input.hidden !== undefined) row['hidden'] = input.hidden;
+  if (input.sortOrder !== undefined) row['sort_order'] = input.sortOrder;
+  if (input.logoUrl !== undefined) row['logo_url'] = input.logoUrl || null;
+
+  const { error } = await supabaseAdmin
+    .from('content_overrides')
+    .upsert(row as never, { onConflict: 'source_id,kind,item_id' });
+  if (error) throw new Error(error.message);
+}
+
+export async function clearOverride(sourceId: string, kind: OverrideKind, itemId: string) {
+  const { error } = await supabaseAdmin
+    .from('content_overrides')
+    .delete()
+    .eq('source_id', sourceId)
+    .eq('kind', kind)
+    .eq('item_id', itemId);
+  if (error) throw new Error(error.message);
+}
+
+export type ContentItem = { id: string; name: string; num?: number; logo?: string };
+
+/** Raw provider listing (no overrides applied) for the content manager. */
+export async function listProviderItems(
+  sourceId: string,
+  kind: OverrideKind,
+  categoryId: string,
+): Promise<ContentItem[]> {
+  const source = await loadSourceById(sourceId);
+  if (kind === 'category') {
+    const cats = await playerApi<Array<{ category_id: string; category_name: string }>>(source, {
+      action: 'get_live_categories',
+    });
+    return (Array.isArray(cats) ? cats : []).map((c) => ({
+      id: String(c.category_id),
+      name: c.category_name,
+    }));
+  }
+  const action = kind === 'live' ? 'get_live_streams' : kind === 'vod' ? 'get_vod_streams' : 'get_series';
+  const raw = await playerApi<
+    Array<{
+      stream_id?: number;
+      series_id?: number;
+      name: string;
+      num?: number;
+      stream_icon?: string;
+      cover?: string;
+    }>
+  >(source, { action, ...(categoryId ? { category_id: categoryId } : {}) });
+  return (Array.isArray(raw) ? raw : []).slice(0, 1500).map((s, i) => ({
+    id: String(s.stream_id ?? s.series_id ?? i),
+    name: s.name,
+    num: Number(s.num ?? i + 1),
+    logo: s.stream_icon || s.cover || '',
+  }));
+}
+
+export async function adminOverview() {
+  const [providers, health, users, logins, errors] = await Promise.all([
+    listProviders(),
+    relayHealth(),
+    supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
+    supabaseAdmin
+      .from('login_activity')
+      .select('email, created_at, user_agent')
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabaseAdmin
+      .from('playback_errors')
+      .select('kind, item_id, status, message, created_at, source_id')
+      .order('created_at', { ascending: false })
+      .limit(15),
+  ]);
+
+  return {
+    providers: providers.map((p) => ({ id: p.id, name: p.name, active: p.is_active })),
+    activeProviders: providers.filter((p) => p.is_active).length,
+    totalProviders: providers.length,
+    totalUsers: users.count ?? 0,
+    relay: health,
+    recentLogins: logins.data ?? [],
+    recentErrors: errors.data ?? [],
+  };
+}
