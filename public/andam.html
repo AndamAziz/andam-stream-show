@@ -157,6 +157,39 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   padding:10px 12px;font-size:12.5px;background:rgba(255,255,255,.02)}
 .dseasons div span:last-child{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
 .dload{font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);padding:20px 0}
+.dactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+.dwatch{background:var(--ember);color:#0B0B0D;border:0;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:600;
+  letter-spacing:.01em;cursor:pointer}
+.dwatch:hover{filter:brightness(1.08)}
+.dresume{font-family:'IBM Plex Mono';font-size:11px;color:var(--teal)}
+.sepick{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.sepick select{background:var(--surface-2);border:1px solid var(--hair);border-radius:9px;color:var(--text);
+  font-size:12.5px;padding:9px 10px;min-width:120px}
+.dseasons button{display:flex;width:100%;justify-content:space-between;gap:12px;border:1px solid var(--hair);
+  border-radius:9px;padding:10px 12px;font-size:12.5px;background:rgba(255,255,255,.02);color:var(--text);
+  text-align:left;cursor:pointer}
+.dseasons button:hover{border-color:var(--ember)}
+.dseasons button span:last-child{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted)}
+
+/* VIDAPI PLAYER */
+.vp{position:fixed;inset:0;z-index:95;background:rgba(3,4,6,.94);backdrop-filter:blur(10px);display:none;
+  padding:22px;place-items:center}
+.vp.open{display:grid}
+.vpwrap{width:min(1180px,100%);background:var(--surface);border:1px solid var(--hair);border-radius:14px;overflow:hidden;
+  box-shadow:0 40px 120px rgba(0,0,0,.7)}
+.vphead{display:flex;align-items:center;gap:14px;padding:13px 16px;border-bottom:1px solid var(--hair)}
+.vphead .t{font-size:14.5px;font-weight:600}
+.vphead .s{font-family:'IBM Plex Mono';font-size:11px;color:var(--muted);margin-top:3px}
+.vphead .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.vphead select{background:var(--surface-2);border:1px solid var(--hair);border-radius:8px;color:var(--text);
+  font-size:12px;padding:7px 9px}
+.vpclose{width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
+  color:var(--text);font-size:15px;display:grid;place-items:center;cursor:pointer}
+.vpstage{position:relative;aspect-ratio:16/9;background:#000}
+.vpstage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vpguard{position:absolute;inset:0;pointer-events:none}
+.vpnote{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--faint);padding:9px 16px;border-top:1px solid var(--hair)}
+
 
 /* CATALOG */
 .hide{display:none !important}
@@ -278,6 +311,26 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
     <button class="dclose" id="dClose" aria-label="Close details">✕</button></div>
   <div class="dbody" id="dBody"></div>
 </aside>
+
+<div class="vp" id="vp" role="dialog" aria-modal="true" aria-label="Andam movie player">
+  <div class="vpwrap">
+    <div class="vphead">
+      <div>
+        <div class="t" id="vpTitle">—</div>
+        <div class="s" id="vpSub">VidAPI</div>
+      </div>
+      <div class="sp" id="vpPick"></div>
+      <button class="vpclose" id="vpClose" aria-label="Close player">✕</button>
+    </div>
+    <div class="vpstage">
+      <iframe id="vpFrame" title="VidAPI player" allowfullscreen allow="fullscreen; autoplay; encrypted-media"
+        referrerpolicy="no-referrer"></iframe>
+      <div class="vpguard" aria-hidden="true"></div>
+    </div>
+    <div class="vpnote" id="vpNote">If an ad tab opens, close it and return here — playback continues. Press Esc to close.</div>
+  </div>
+</div>
+
 
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Andam player">
   <div class="modal">
@@ -626,7 +679,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   /* ---------- DETAILS DRAWER ---------- */
   var drawer=document.getElementById('drawer'), dScrim=document.getElementById('dScrim'),
       dBody=document.getElementById('dBody'), dBack=document.getElementById('dBack');
-  var dReq=0;
+  var dReq=0, dCur=null;
 
   function closeDrawer(){
     drawer.classList.remove('open'); dScrim.classList.remove('open');
@@ -645,6 +698,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
       .then(function(d){
         if(my!==dReq) return;
         if(d.backdrop||d.poster) dBack.src=d.backdrop||d.poster;
+        dCur=d;
         var h='<h2>'+esc(d.title||title||'')+'</h2><div class="dmeta">';
         if(d.year) h+='<span>'+esc(d.year)+'</span>';
         if(d.rating) h+='<b>★ '+esc(d.rating)+'</b>';
@@ -653,23 +707,66 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
         h+='<span>'+(d.type==='tv'?'Series':'Movie')+'</span>';
         if(d.imdbId) h+='<span class="imdb">'+esc(d.imdbId)+'</span>';
         h+='</div>';
+        var pr=getProg(d.tmdbId,d.type);
+        h+='<div class="dactions"><button class="dwatch" id="dWatch">'+(pr?'Resume':'Watch now')+'</button>';
+        if(pr) h+='<span class="dresume">'+(d.type==='tv'?('Last watched S'+pr.season+'E'+pr.episode):'Continue watching')+'</span>';
+        h+='</div>';
+        if(d.type==='tv'&&d.seasons&&d.seasons.length){
+          h+='<div class="sepick"><select id="dSeason" aria-label="Season">'+
+            d.seasons.map(function(s){
+              return '<option value="'+s.season+'"'+(pr&&pr.season===s.season?' selected':'')+'>'+
+                esc(s.name||('Season '+s.season))+'</option>';
+            }).join('')+'</select><select id="dEpisode" aria-label="Episode"></select></div>';
+        }
         if(d.genres&&d.genres.length)
           h+='<div class="dgen">'+d.genres.map(function(g){return '<span>'+esc(g)+'</span>'}).join('')+'</div>';
         if(d.overview) h+='<p class="dover">'+esc(d.overview)+'</p>';
         if(d.seasons&&d.seasons.length){
           h+='<div class="dsec"><h3>SEASONS</h3><div class="dseasons">'+
             d.seasons.map(function(s){
-              return '<div><span>'+esc(s.name||('Season '+s.season))+'</span><span>'+esc(s.episodes)+' ep</span></div>';
+              return '<button type="button" data-season="'+s.season+'"><span>'+esc(s.name||('Season '+s.season))+
+                '</span><span>'+esc(s.episodes)+' ep</span></button>';
             }).join('')+'</div></div>';
         }
         h+='<div class="dsec"><h3>IDS</h3><div class="dmeta"><span>TMDB '+esc(d.tmdbId)+'</span>'+
           (d.imdbId?'<span class="imdb">IMDb '+esc(d.imdbId)+'</span>':'<span>IMDb unavailable</span>')+'</div></div>';
         dBody.innerHTML=h;
+
+        var sSel=document.getElementById('dSeason'), eSel=document.getElementById('dEpisode');
+        if(sSel){
+          loadEpisodes(d.tmdbId,+sSel.value,eSel,pr&&pr.season===+sSel.value?pr.episode:1);
+          sSel.addEventListener('change',function(){ loadEpisodes(d.tmdbId,+sSel.value,eSel,1) });
+        }
+        document.getElementById('dWatch').addEventListener('click',function(){
+          if(d.type==='tv') openVid(d,sSel?+sSel.value:1,eSel&&eSel.value?+eSel.value:1);
+          else openVid(d);
+        });
+        dBody.addEventListener('click',function(e){
+          var b=e.target.closest('.dseasons button'); if(!b) return;
+          if(sSel){ sSel.value=b.getAttribute('data-season'); loadEpisodes(d.tmdbId,+sSel.value,eSel,1); }
+          dBody.scrollIntoView&&drawer.scrollTo({top:0,behavior:'smooth'});
+        });
       })
       .catch(function(){
         if(my!==dReq) return;
         dBody.innerHTML='<h2>'+esc(title||'')+'</h2><p class="dload">Could not load details. Try again.</p>';
       });
+  }
+
+  function loadEpisodes(id,season,sel,want){
+    if(!sel) return;
+    sel.innerHTML='<option>Loading…</option>';
+    fetch('/api/public/tmdb-discover?kind=season&id='+encodeURIComponent(id)+'&season='+season,
+      {headers:{accept:'application/json'}})
+      .then(function(r){ return r.json() })
+      .then(function(d){
+        var eps=(d&&d.episodes)||[];
+        if(!eps.length){ sel.innerHTML='<option value="1">Episode 1</option>'; return }
+        sel.innerHTML=eps.map(function(e){
+          return '<option value="'+e.episode+'"'+(e.episode===want?' selected':'')+'>E'+e.episode+' · '+esc(e.name)+'</option>';
+        }).join('');
+      })
+      .catch(function(){ sel.innerHTML='<option value="1">Episode 1</option>' });
   }
 
   catGrid.addEventListener('click',function(e){
@@ -679,8 +776,60 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
   });
   document.getElementById('dClose').addEventListener('click',closeDrawer);
   dScrim.addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&drawer.classList.contains('open')) closeDrawer() });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&drawer.classList.contains('open')&&!document.getElementById('vp').classList.contains('open')) closeDrawer();
+  });
+
+  /* ---------- VIDAPI PLAYER + WATCH PROGRESS ---------- */
+  var PKEY='andam:watch-progress';
+  function allProg(){ try{ return JSON.parse(localStorage.getItem(PKEY)||'{}') }catch(_){ return {} } }
+  function getProg(id,type){ return allProg()[type+':'+id]||null }
+  function setProg(id,type,extra){
+    try{
+      var all=allProg();
+      all[type+':'+id]=Object.assign({tmdbId:id,type:type,season:1,episode:1,updated:Date.now()},extra||{});
+      localStorage.setItem(PKEY,JSON.stringify(all));
+    }catch(_){}
+  }
+
+  var vp=document.getElementById('vp'), vpFrame=document.getElementById('vpFrame'),
+      vpTitle=document.getElementById('vpTitle'), vpSub=document.getElementById('vpSub'),
+      vpPick=document.getElementById('vpPick');
+
+  function vidUrl(item,season,episode){
+    return item.type==='tv'
+      ? 'https://vidapi.ru/embed/tv/'+item.tmdbId+'/'+(season||1)+'/'+(episode||1)
+      : 'https://vidapi.ru/embed/movie/'+item.tmdbId;
+  }
+
+  function openVid(item,season,episode){
+    var s=season||1, e=episode||1;
+    vp.classList.add('open'); document.body.style.overflow='hidden';
+    vpTitle.textContent=item.title||'Andam';
+    vpSub.textContent=item.type==='tv'?('VidAPI · S'+s+' E'+e):'VidAPI · Movie';
+    vpFrame.src=vidUrl(item,s,e);
+    setProg(item.tmdbId,item.type,{title:item.title,poster:item.poster,season:s,episode:e});
+    vpPick.innerHTML='';
+    if(item.type==='tv'&&item.seasons&&item.seasons.length){
+      var ss=document.createElement('select'); ss.setAttribute('aria-label','Season');
+      ss.innerHTML=item.seasons.map(function(x){
+        return '<option value="'+x.season+'"'+(x.season===s?' selected':'')+'>S'+x.season+'</option>' }).join('');
+      var es=document.createElement('select'); es.setAttribute('aria-label','Episode');
+      vpPick.appendChild(ss); vpPick.appendChild(es);
+      loadEpisodes(item.tmdbId,s,es,e);
+      ss.addEventListener('change',function(){ loadEpisodes(item.tmdbId,+ss.value,es,1) });
+      es.addEventListener('change',function(){ openVid(item,+ss.value,+es.value) });
+    }
+  }
+
+  function closeVid(){
+    vp.classList.remove('open'); vpFrame.src='about:blank'; document.body.style.overflow='';
+  }
+  document.getElementById('vpClose').addEventListener('click',closeVid);
+  vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
 })();
+
 </script>
 </body>
 </html>
