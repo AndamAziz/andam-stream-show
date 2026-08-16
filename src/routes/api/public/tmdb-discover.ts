@@ -23,6 +23,33 @@ function authFetch(path: string, key: string, search: Record<string, string>) {
   return fetch(url, { headers });
 }
 
+type TmdbGenre = { id?: number; name?: string };
+type TmdbSeason = { season_number?: number; name?: string; episode_count?: number };
+type TmdbEpisode = {
+  episode_number?: number;
+  name?: string;
+  overview?: string;
+  still_path?: string | null;
+  air_date?: string;
+};
+type TmdbDetails = {
+  id?: number;
+  title?: string;
+  name?: string;
+  overview?: string;
+  backdrop_path?: string | null;
+  poster_path?: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+  runtime?: number | null;
+  genres?: TmdbGenre[];
+  imdb_id?: string | null;
+  external_ids?: { imdb_id?: string | null };
+  seasons?: TmdbSeason[];
+};
+type TmdbSeasonDetails = { episodes?: TmdbEpisode[] };
+
 function mapItem(raw: Record<string, unknown>, kind: "movies" | "series") {
   const date = String(raw["release_date"] ?? raw["first_air_date"] ?? "");
   return {
