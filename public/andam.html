@@ -1885,16 +1885,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   };
 
   /* ---- interactions ---- */
-  provBar.addEventListener('click',function(e){
-    var b=e.target.closest('[data-prov]'); if(b) setProvider(b.getAttribute('data-prov'));
-  });
+  provSel.addEventListener('change',function(){ setProvider(this.value) });
   ltvTabs.addEventListener('click',function(e){
     var b=e.target.closest('[data-tab]'); if(b) setTab(b.getAttribute('data-tab'));
   });
-  ltvCats.addEventListener('click',function(e){
-    var b=e.target.closest('[data-cat]'); if(!b) return;
-    ltv.cat=b.getAttribute('data-cat'); loadTab();
-  });
+  ltvCatSel.addEventListener('change',function(){ ltv.cat=this.value; loadTab() });
+
   var stq=null;
   ltvSearch.addEventListener('input',function(){
     clearTimeout(stq); var v=this.value.trim();
