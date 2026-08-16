@@ -1571,8 +1571,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      /api/public/xtream-play (bytes). Provider credentials and the relay token
      stay server-side; the browser only ever holds opaque play tokens. */
   var LTV_API='/api/public/xtream';
-  var provBar=document.getElementById('provBar'), ltvTabs=document.getElementById('ltvTabs'),
-      ltvCats=document.getElementById('ltvCats'), ltvBody=document.getElementById('ltvBody'),
+  var provSel=document.getElementById('provSel'), ltvTabs=document.getElementById('ltvTabs'),
+      ltvCatSel=document.getElementById('ltvCatSel'), ltvCatWrap=document.getElementById('ltvCatWrap'),
+      ltvBody=document.getElementById('ltvBody'),
+
       ltvMsg=document.getElementById('ltvMsg'), ltvSearch=document.getElementById('ltvSearch'),
       ltvSub=document.getElementById('ltvSub'), repBox=document.getElementById('repBox'),
       repChan=document.getElementById('repChan'), repDate=document.getElementById('repDate'),
