@@ -817,19 +817,37 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   menuClose.addEventListener('click',function(){ setMenu(false); });
   document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&menu.classList.contains('open')) setMenu(false); });
 
+  function rowByTitle(t){
+    var hs=document.querySelectorAll('.rowhead h2');
+    for(var i=0;i<hs.length;i++) if(hs[i].textContent.trim()===t) return hs[i].closest('.row');
+    return null;
+  }
+  function gotoRow(title){
+    showView('home');
+    setTimeout(function(){
+      var row=rowByTitle(title); if(!row) return;
+      row.scrollIntoView({block:'center',behavior:'smooth'});
+      var first=row.querySelector('.card, .tile');
+      if(first&&document.documentElement.classList.contains('tvmode')) first.focus();
+    },80);
+  }
+
   [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(a){
     a.addEventListener('click',function(e){
       var label=a.textContent.trim();
-      if(label!=='Movies'&&label!=='Shows'&&label!=='Home') return;
+      if(['Movies','Shows','Home','Live TV','IPTV'].indexOf(label)<0) return;
       e.preventDefault();
       setMenu(false);
       [].forEach.call(document.querySelectorAll('.links a, .menu a'),function(x){
         x.classList.toggle('active', x.textContent.trim()===label);
       });
       if(label==='Home') showView('home');
+      else if(label==='Live TV') gotoRow('Live now');
+      else if(label==='IPTV') gotoRow('Your IPTV channels');
       else showView('catalog', label==='Movies'?'movies':'series');
     });
   });
+
 
   /* ================= REMOTE / D-PAD SPATIAL NAVIGATION =================
      TV-mode aware 2D spatial focus across nav, hero, carousels, grids and
