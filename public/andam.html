@@ -275,14 +275,17 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 
 /* ===== MOBILE (<=767px) ===== */
 @media (max-width:767px){
-  .nav{padding:12px 14px;gap:16px}
+  .nav{padding:12px 10px;gap:10px}
   .links{display:none}
-  .burger{display:grid}
-  .navright{gap:6px}
+  .burger{display:grid;width:40px;height:40px}
+  .navright{gap:5px}
   .navright .chip{display:none}
+  .navright .iconbtn[aria-label="Notifications"]{display:none}
+  .navright .iconbtn{width:40px;height:40px}
   .autharea{gap:4px}
-  .authbtn{height:44px;padding:0 8px;font-size:11px;border-radius:999px}
-  .authbtn.admin{justify-content:flex-start;width:auto;padding:0 8px}
+  .authbtn{height:40px;padding:0 9px;font-size:11px;border-radius:999px}
+  .authbtn.admin{justify-content:flex-start;width:auto;padding:0 9px}
+
 }
 @media (min-width:768px) and (max-width:1024px){
   .links{gap:14px;font-size:12.5px}
