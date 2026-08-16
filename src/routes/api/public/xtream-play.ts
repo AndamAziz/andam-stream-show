@@ -56,10 +56,7 @@ function isGeoBlocked(host: string): boolean {
   return geoBlocked.has(host);
 }
 
-async function fetchUpstream(
-  upstream: string,
-  request: Request,
-): Promise<Response | { geoBlocked: true }> {
+async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   const host = new URL(upstream).host;
   if (!isGeoBlocked(host)) {
     try {
@@ -72,8 +69,6 @@ async function fetchUpstream(
     }
   }
 
-  if (isGeoBlocked(host)) return { geoBlocked: true };
-
   let res = await fetchOnce(upstream, request, true);
   // 403/411/5xx from the relay are usually transient — retry once.
   if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
@@ -81,8 +76,8 @@ async function fetchUpstream(
     res = await fetchOnce(upstream, request, true);
   }
   return res;
-
 }
+
 
 
 /**
