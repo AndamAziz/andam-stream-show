@@ -129,13 +129,16 @@ async function handle(request: Request) {
           page: String(page),
           include_adult: "false",
         })
-      : await authFetch(`/discover/${type}`, key, {
-          page: String(page),
-          include_adult: "false",
-          sort_by: sort || "popularity.desc",
-          with_genres: genre || "",
-          "vote_count.gte": "50",
-        });
+      : sort === "trending"
+        ? await authFetch(`/trending/${type}/week`, key, { page: String(page) })
+        : await authFetch(`/discover/${type}`, key, {
+            page: String(page),
+            include_adult: "false",
+            sort_by: sort || "popularity.desc",
+            with_genres: genre || "",
+            "vote_count.gte": "50",
+          });
+
     if (!res.ok) return Response.json({ error: "TMDB unavailable" }, { status: 502 });
     const data = (await res.json()) as { results?: Record<string, unknown>[]; total_pages?: number };
     return Response.json(
