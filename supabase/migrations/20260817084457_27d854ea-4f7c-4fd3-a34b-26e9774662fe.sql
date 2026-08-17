@@ -1,0 +1,1 @@
+DELETE FROM public.user_source_access WHERE user_id = '7eadc88a-0c13-4781-b0c0-a57f695ed0b2';
