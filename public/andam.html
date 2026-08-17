@@ -222,11 +222,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .vphead .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
 .vphead select{background:var(--surface-2);border:1px solid var(--hair);border-radius:8px;color:var(--text);
   font-size:12px;padding:7px 9px}
-.vpclose{width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
+.vpclose,.vpfs{width:32px;height:32px;min-width:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
   color:var(--text);font-size:15px;display:grid;place-items:center;cursor:pointer}
+.vpfs:hover{border-color:var(--ember);color:var(--ember)}
 .vpstage{position:relative;aspect-ratio:16/9;background:#000}
 .vpstage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vpstage:fullscreen,.vpstage:-webkit-full-screen{aspect-ratio:auto;width:100vw;height:100vh}
+/* iOS/Safari fallback: iframes cannot enter native fullscreen, so pin the
+   stage over the viewport instead. */
+.vpstage.fsfake{position:fixed;inset:0;z-index:200;aspect-ratio:auto;width:100vw;height:100vh}
 .vpguard{position:absolute;inset:0;pointer-events:none}
+@media (max-width:640px){.vpclose,.vpfs{width:44px;height:44px;min-width:44px}}
+
 .vpnote{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--faint);padding:9px 16px;border-top:1px solid var(--hair)}
 
 
@@ -791,10 +798,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="s" id="vpSub">VidAPI</div>
       </div>
       <div class="sp" id="vpPick"></div>
+      <button class="vpfs" id="vpFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
       <button class="vpclose" id="vpClose" aria-label="Close player">✕</button>
     </div>
-    <div class="vpstage">
-      <iframe id="vpFrame" title="VidAPI player" allowfullscreen allow="fullscreen; autoplay; encrypted-media"
+    <div class="vpstage" id="vpStage">
+      <iframe id="vpFrame" title="VidAPI player" allowfullscreen allow="fullscreen *; autoplay *; encrypted-media *; picture-in-picture *"
         referrerpolicy="no-referrer"></iframe>
       <div class="vpguard" aria-hidden="true"></div>
     </div>
@@ -1712,13 +1720,59 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
   }
 
+  /* ---------- FULLSCREEN ----------
+     The embed is a cross-origin iframe, so we fullscreen the stage element
+     that wraps it. iOS Safari has no element fullscreen for iframes, so we
+     fall back to pinning the stage over the viewport (.fsfake). */
+  var vpStage=document.getElementById('vpStage'), vpFsBtn=document.getElementById('vpFs');
+
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null }
+  function fsActive(){ return !!fsEl()||vpStage.classList.contains('fsfake') }
+
+  function enterFs(){
+    var req=vpStage.requestFullscreen||vpStage.webkitRequestFullscreen;
+    if(req){
+      try{
+        var r=req.call(vpStage,{navigationUI:'hide'});
+        if(r&&r.catch) r.catch(function(){ vpStage.classList.add('fsfake') });
+        return;
+      }catch(_){}
+    }
+    vpStage.classList.add('fsfake');
+  }
+  function exitFs(){
+    if(vpStage.classList.contains('fsfake')){ vpStage.classList.remove('fsfake'); return }
+    var ex=document.exitFullscreen||document.webkitExitFullscreen;
+    if(ex){ try{ var r=ex.call(document); if(r&&r.catch) r.catch(function(){}) }catch(_){} }
+  }
+  function syncFsBtn(){
+    var on=fsActive();
+    vpFsBtn.textContent=on?'⤡':'⛶';
+    vpFsBtn.setAttribute('aria-label',on?'Exit fullscreen':'Fullscreen');
+    vpFsBtn.title=vpFsBtn.getAttribute('aria-label');
+  }
+  vpFsBtn.addEventListener('click',function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(fsActive()) exitFs(); else enterFs();
+    setTimeout(syncFsBtn,60);
+  });
+  document.addEventListener('fullscreenchange',syncFsBtn);
+  document.addEventListener('webkitfullscreenchange',syncFsBtn);
+
   function closeVid(){
     stopTracking();
+    if(fsActive()) exitFs();
+    syncFsBtn();
     vp.classList.remove('open'); vpFrame.src='about:blank'; document.body.style.overflow='';
   }
   document.getElementById('vpClose').addEventListener('click',closeVid);
   vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
+  document.addEventListener('keydown',function(e){
+    if(!vp.classList.contains('open')) return;
+    if(e.key==='Escape'){ if(vpStage.classList.contains('fsfake')){ exitFs(); syncFsBtn(); return } closeVid(); }
+    else if(e.key==='f'||e.key==='F'){ if(fsActive()) exitFs(); else enterFs(); setTimeout(syncFsBtn,60) }
+  });
+
 
 
   /* ---------- CONTINUE WATCHING ROW ---------- */
