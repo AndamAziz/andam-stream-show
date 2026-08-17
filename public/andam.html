@@ -1720,13 +1720,59 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
   }
 
+  /* ---------- FULLSCREEN ----------
+     The embed is a cross-origin iframe, so we fullscreen the stage element
+     that wraps it. iOS Safari has no element fullscreen for iframes, so we
+     fall back to pinning the stage over the viewport (.fsfake). */
+  var vpStage=document.getElementById('vpStage'), vpFsBtn=document.getElementById('vpFs');
+
+  function fsEl(){ return document.fullscreenElement||document.webkitFullscreenElement||null }
+  function fsActive(){ return !!fsEl()||vpStage.classList.contains('fsfake') }
+
+  function enterFs(){
+    var req=vpStage.requestFullscreen||vpStage.webkitRequestFullscreen;
+    if(req){
+      try{
+        var r=req.call(vpStage,{navigationUI:'hide'});
+        if(r&&r.catch) r.catch(function(){ vpStage.classList.add('fsfake') });
+        return;
+      }catch(_){}
+    }
+    vpStage.classList.add('fsfake');
+  }
+  function exitFs(){
+    if(vpStage.classList.contains('fsfake')){ vpStage.classList.remove('fsfake'); return }
+    var ex=document.exitFullscreen||document.webkitExitFullscreen;
+    if(ex){ try{ var r=ex.call(document); if(r&&r.catch) r.catch(function(){}) }catch(_){} }
+  }
+  function syncFsBtn(){
+    var on=fsActive();
+    vpFsBtn.textContent=on?'⤡':'⛶';
+    vpFsBtn.setAttribute('aria-label',on?'Exit fullscreen':'Fullscreen');
+    vpFsBtn.title=vpFsBtn.getAttribute('aria-label');
+  }
+  vpFsBtn.addEventListener('click',function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(fsActive()) exitFs(); else enterFs();
+    setTimeout(syncFsBtn,60);
+  });
+  document.addEventListener('fullscreenchange',syncFsBtn);
+  document.addEventListener('webkitfullscreenchange',syncFsBtn);
+
   function closeVid(){
     stopTracking();
+    if(fsActive()) exitFs();
+    syncFsBtn();
     vp.classList.remove('open'); vpFrame.src='about:blank'; document.body.style.overflow='';
   }
   document.getElementById('vpClose').addEventListener('click',closeVid);
   vp.addEventListener('click',function(e){ if(e.target===vp) closeVid() });
-  document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&vp.classList.contains('open')) closeVid() });
+  document.addEventListener('keydown',function(e){
+    if(!vp.classList.contains('open')) return;
+    if(e.key==='Escape'){ if(vpStage.classList.contains('fsfake')){ exitFs(); syncFsBtn(); return } closeVid(); }
+    else if(e.key==='f'||e.key==='F'){ if(fsActive()) exitFs(); else enterFs(); setTimeout(syncFsBtn,60) }
+  });
+
 
 
   /* ---------- CONTINUE WATCHING ROW ---------- */
