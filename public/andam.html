@@ -222,11 +222,18 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 .vphead .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
 .vphead select{background:var(--surface-2);border:1px solid var(--hair);border-radius:8px;color:var(--text);
   font-size:12px;padding:7px 9px}
-.vpclose{width:32px;height:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
+.vpclose,.vpfs{width:32px;height:32px;min-width:32px;border-radius:9px;border:1px solid var(--hair);background:rgba(8,9,12,.7);
   color:var(--text);font-size:15px;display:grid;place-items:center;cursor:pointer}
+.vpfs:hover{border-color:var(--ember);color:var(--ember)}
 .vpstage{position:relative;aspect-ratio:16/9;background:#000}
 .vpstage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vpstage:fullscreen,.vpstage:-webkit-full-screen{aspect-ratio:auto;width:100vw;height:100vh}
+/* iOS/Safari fallback: iframes cannot enter native fullscreen, so pin the
+   stage over the viewport instead. */
+.vpstage.fsfake{position:fixed;inset:0;z-index:200;aspect-ratio:auto;width:100vw;height:100vh}
 .vpguard{position:absolute;inset:0;pointer-events:none}
+@media (max-width:640px){.vpclose,.vpfs{width:44px;height:44px;min-width:44px}}
+
 .vpnote{font-family:'IBM Plex Mono';font-size:10.5px;color:var(--faint);padding:9px 16px;border-top:1px solid var(--hair)}
 
 
