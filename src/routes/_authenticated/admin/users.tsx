@@ -174,8 +174,13 @@ function UsersPage() {
 
                 <div className="mt-3">
                   <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-                    Provider access
+                    Providers{' '}
+                    <span className="normal-case tracking-normal">
+                      — only assigned providers appear in this user&apos;s Live TV switcher
+                      {u.sourceIds.length === 0 ? ' · none assigned' : ''}
+                    </span>
                   </p>
+
                   <div className="flex flex-wrap gap-2">
                     {(providers.data ?? []).map((p) => {
                       const granted = u.sourceIds.includes(p.id);
