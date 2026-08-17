@@ -798,10 +798,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         <div class="s" id="vpSub">VidAPI</div>
       </div>
       <div class="sp" id="vpPick"></div>
+      <button class="vpfs" id="vpFs" type="button" title="Fullscreen" aria-label="Fullscreen">⛶</button>
       <button class="vpclose" id="vpClose" aria-label="Close player">✕</button>
     </div>
-    <div class="vpstage">
-      <iframe id="vpFrame" title="VidAPI player" allowfullscreen allow="fullscreen; autoplay; encrypted-media"
+    <div class="vpstage" id="vpStage">
+      <iframe id="vpFrame" title="VidAPI player" allowfullscreen allow="fullscreen *; autoplay *; encrypted-media *; picture-in-picture *"
         referrerpolicy="no-referrer"></iframe>
       <div class="vpguard" aria-hidden="true"></div>
     </div>
