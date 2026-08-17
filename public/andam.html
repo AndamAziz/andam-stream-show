@@ -2259,7 +2259,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     ltvBody.innerHTML=skelRows(6);
     api({action:'providers'}).then(function(d){
       ltv.providers=d.providers||[];
-      if(!ltv.providers.length){ ltvSet('No providers are configured for your account yet.'); return }
+      if(!ltv.providers.length){ ltv.started=false; provSel.innerHTML=''; ltvSet('No provider is assigned to your account yet. Please contact the admin to get a provider assigned.'); return }
       var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
       var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
       setProvider(pick.id);

@@ -101,22 +101,27 @@ export async function resolveAccess(request: Request): Promise<Access> {
   const rows = await liveGrants(userId);
 
   const sections = new Set<Section>();
-  let allSources = false;
-  const liveSources = new Set<string>();
-  for (const row of rows) {
-    sections.add(row.section);
-    if (row.section !== 'live') continue;
-    if (row.source_id) liveSources.add(String(row.source_id));
-    else allSources = true;
-  }
+  for (const row of rows) sections.add(row.section);
+
+  /**
+   * Which Live TV providers this viewer sees is set explicitly by the admin in
+   * user_source_access — an activation code only unlocks the *section*. A
+   * viewer therefore needs both: the `live` section unlocked AND at least one
+   * provider assigned. No assignment means no provider, never "all".
+   */
+  const { data: assigned } = await supabaseAdmin
+    .from('user_source_access')
+    .select('source_id')
+    .eq('user_id', userId);
 
   return {
     signedIn: true,
     userId,
     admin: false,
     sections: [...sections],
-    liveSources: allSources ? 'all' : [...liveSources],
+    liveSources: [...new Set((assigned ?? []).map((r) => String(r.source_id)))],
   };
+
 }
 
 
