@@ -1165,7 +1165,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function showView(view,kind){
     var need=view==='live'?'live':view==='catalog'?(kind||cat.kind):null;
-    if(need && !allowed(need)){ openLock(need); return }
+    if(need && !allowed(need)){
+      /* A signed-in session may have arrived after the first access probe
+         (the host page bridges the token in). Re-resolve once before gating,
+         so an entitled viewer is never shown the code prompt. */
+      if(authToken && !ACC.signedIn){
+        refreshAccess().then(function(){
+          if(allowed(need)) showView(view,kind); else openLock(need);
+        });
+        return;
+      }
+      openLock(need); return;
+    }
     var isCat=view==='catalog', isLtv=view==='live', isIptv=view==='iptv';
     var away=isCat||isLtv||isIptv;
     hero.classList.toggle('hide',away); rowsEl.classList.toggle('hide',away);
