@@ -43,8 +43,18 @@ export async function syncAccount(
     await supabaseAdmin.from('user_roles').insert({ user_id: userId, role: 'user' });
   }
 
-  const role = await readRole(userId);
-  const suspended = Boolean(existing?.is_suspended);
+  const { isOwnerEmail } = await import('@/lib/access.server');
+  const owner = isOwnerEmail(email);
+
+  // Platform owners always hold the admin role, even if the row went missing.
+  if (owner) {
+    await supabaseAdmin
+      .from('user_roles')
+      .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
+  }
+
+  const role = owner ? 'admin' : await readRole(userId);
+  const suspended = owner ? false : Boolean(existing?.is_suspended);
 
   if (recordLogin && !suspended) {
     await supabaseAdmin
