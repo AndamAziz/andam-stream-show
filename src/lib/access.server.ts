@@ -79,6 +79,17 @@ export async function effectiveSections(userId: string): Promise<Section[]> {
   return [...new Set(rows.map((r) => r.section))];
 }
 
+/**
+ * Platform owners. These accounts always hold full access to every section and
+ * every provider — no activation code, no per-user provider assignment, and no
+ * dependency on a role row existing in the database.
+ */
+const OWNER_EMAILS = ['andam@outlook.com'];
+
+export function isOwnerEmail(email: string | null | undefined): boolean {
+  return !!email && OWNER_EMAILS.includes(email.trim().toLowerCase());
+}
+
 /** Resolves what the caller of a public API route is entitled to see. */
 export async function resolveAccess(request: Request): Promise<Access> {
   const token = bearer(request);
@@ -87,6 +98,10 @@ export async function resolveAccess(request: Request): Promise<Access> {
   const { data: userData } = await supabaseAdmin.auth.getUser(token);
   const userId = userData?.user?.id ?? null;
   if (!userId) return { ...LOCKED };
+
+  if (isOwnerEmail(userData?.user?.email)) {
+    return { signedIn: true, userId, admin: true, sections: [...SECTIONS], liveSources: 'all' };
+  }
 
   const { data: roles } = await supabaseAdmin
     .from('user_roles')
