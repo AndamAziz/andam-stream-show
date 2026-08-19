@@ -5,13 +5,17 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 export const getMyAccess = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { effectiveSections, isOwnerEmail } = await import('@/lib/access.server');
+    // Platform owners are never gated.
+    if (isOwnerEmail((context.claims as { email?: string } | null)?.email ?? null)) {
+      return { admin: true, sections: ['live', 'movies', 'series'] };
+    }
     const { data: isAdmin } = await context.supabase.rpc('has_role', {
       _user_id: context.userId,
       _role: 'admin',
     });
     if (isAdmin) return { admin: true, sections: ['live', 'movies', 'series'] };
     // Grants tied to an expired/revoked code no longer count.
-    const { effectiveSections } = await import('@/lib/access.server');
     return { admin: false, sections: await effectiveSections(context.userId) as string[] };
   });
 
