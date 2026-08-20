@@ -318,7 +318,7 @@ export const Route = createFileRoute('/api/public/xtream')({
           // shows the provider message instead of tripping the error boundary
           // with a 502 (which blanked the Live TV screen).
           if (/^provider /.test(message)) {
-            return json({ error: `${source_error_prefix}${message}`, providerError: true });
+            return json({ error: `This provider is not responding (${message}).`, providerError: true });
           }
           return json({ error: 'Provider request failed' }, 502);
         }
