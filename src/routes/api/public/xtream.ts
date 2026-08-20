@@ -312,17 +312,8 @@ export const Route = createFileRoute('/api/public/xtream')({
           return json({ error: `Unknown action "${action}"` }, 400);
         } catch (err) {
           console.error('[xtream]', action, err);
-          const message = err instanceof Error ? err.message : 'Provider request failed';
-          // A refusing panel (403/451/5xx/unreachable) is an upstream condition,
-          // not a bug in this app: answer 200 with an `error` field so the page
-          // shows the provider message instead of tripping the error boundary
-          // with a 502 (which blanked the Live TV screen).
-          if (/^provider /.test(message)) {
-            return json({ error: `This provider is not responding (${message}).`, providerError: true });
-          }
           return json({ error: 'Provider request failed' }, 502);
         }
-
       },
     },
   },
