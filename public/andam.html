@@ -2539,10 +2539,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     ltvBody.innerHTML=skelRows(8); ltvSet('');
     var type=ltv.tab==='direct'?'live':(ltv.tab==='movies'?'vod':'series');
-    api({action:'categories',type:type,source:ltv.prov})
+    var cats=api({action:'categories',type:type,source:ltv.prov})
       .then(function(d){ if(my===ltv.req) renderCats(d.categories||[]) })
       .catch(function(){});
-    api(Object.assign({action:type,source:ltv.prov},ltv.cat?{category_id:ltv.cat}:{}))
+    // Direct waits for the category list so the collapsible category cards can
+    // be painted in one pass instead of flashing the flat list first.
+    var items=api(Object.assign({action:type,source:ltv.prov},ltv.cat?{category_id:ltv.cat}:{}));
+    Promise.all([items,cats]).then(function(r){ return r[0] })
+
       .then(function(d){
         if(my!==ltv.req) return;
         var items=d.items||[];
