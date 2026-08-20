@@ -2366,21 +2366,36 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
 
   /* ---- rendering ---- */
+  var TAB_ICONS={
+    direct:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M8 3l4 4 4-4"/></svg>',
+    movies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M8 4v16M16 4v16M3 12h18"/></svg>',
+    series:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="8" width="18" height="12" rx="2.5"/><path d="M6 8l3-4 3 4M12 8l3-4 3 4"/></svg>',
+    replay:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 8-8"/><path d="M4 5v5h5"/><path d="M12 8v4l3 2"/></svg>'
+  };
   var TABS=[['direct','Direct'],['movies','Movies'],['series','Series'],['replay','Replay']];
+  /* Bottom tab bar: icon above label, gradient underline on the active tab. */
   function renderTabs(){
     ltvTabs.innerHTML=TABS.filter(function(t){ return t[0]!=='replay'||ltv.hasArchive })
       .map(function(t){
-        return '<button class="pill'+(ltv.tab===t[0]?' on':'')+'" data-tab="'+t[0]+'" role="tab">'+t[1]+'</button>';
+        return '<button class="pill'+(ltv.tab===t[0]?' on':'')+'" data-tab="'+t[0]+'" role="tab">'+
+          TAB_ICONS[t[0]]+'<span>'+t[1]+'</span></button>';
       }).join('');
   }
   function renderProviders(){
     provSel.innerHTML=ltv.providers.map(function(p){
       return '<option value="'+esc(p.id)+'"'+(ltv.prov===p.id?' selected':'')+'>'+esc(p.name)+'</option>';
     }).join('');
+    var list=document.getElementById('ltvSrcList');
+    if(list) list.innerHTML=ltv.providers.map(function(p){
+      return '<button type="button" role="menuitem" data-src="'+esc(p.id)+'">'+esc(p.name)+
+        '<span class="badge">'+esc((p.kind||'xt').toUpperCase())+'</span>'+
+        '<span class="ck">'+(ltv.prov===p.id?'✓':'')+'</span></button>';
+    }).join('');
   }
   function skelRows(n){ var h=''; for(var i=0;i<n;i++) h+='<div class="skel" style="height:64px;border-radius:14px;margin-bottom:10px"></div>'; return h; }
 
-  /* Categories are one compact dropdown on every device. */
+  /* Categories drive both the hidden select (kept for behaviour) and the
+     category-row cards in the Direct list. */
   function renderCats(cats){
     ltv.cats=cats||[];
     ltvCatSel.innerHTML='<option value=""'+(ltv.cat?'':' selected')+'>All categories</option>'+
@@ -2388,7 +2403,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         return '<option value="'+esc(c.id)+'"'+(ltv.cat===c.id?' selected':'')+'>'+esc(c.name)+
           (c.count?' ('+c.count+')':'')+'</option>';
       }).join('');
+    if(ltv.tab==='direct'&&ltvSub) ltvSub.textContent=ltv.cats.length+' CATEGORIES';
   }
+
   function catName(id){
     var m=(ltv.cats||[]).filter(function(c){return c.id===id})[0];
     return m?m.name:'';
