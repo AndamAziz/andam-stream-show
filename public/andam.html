@@ -621,7 +621,80 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 }
 
 
+/* ============ LIVE TV VISUAL RESTYLE (presentation only, scoped to #ltv) ====
+   Pure styling layer: no markup, ids, classes or script behaviour changed.
+   Tokens: page #0A0B12, cards #14151F, accent gradient #FF3B7C -> #8B5CF6. */
+#ltv{--lv-bg:#0A0B12;--lv-card:#14151F;--lv-grad:linear-gradient(180deg,#FF3B7C,#8B5CF6);
+  --lv-line:rgba(255,255,255,.07);--lv-online:#22C55E;
+  background:var(--lv-bg)}
+#ltv .lvhead{background:var(--lv-bg);border-bottom:1px solid var(--lv-line)}
+#ltv .lvhead h1{font-weight:700;font-size:clamp(19px,1.7vw,22px);color:#fff}
+#ltv .lvhead .sub{color:#8A8C99;letter-spacing:.16em}
+/* toolbar controls: compact dark pills on the new surface */
+#ltv .lvsel select{background:var(--lv-card);border-color:var(--lv-line);border-radius:999px;
+  padding:0 28px 0 14px;color:#E9E9F2}
+#ltv .lvsel select:hover{background:#1B1C28}
+#ltv .lvsel select:focus{border-color:#8B5CF6}
+#ltv .lvsel.accent select{background:var(--lv-card);border-color:rgba(255,59,124,.45);color:#FFC7DB}
+#ltv .lvsel select option{background:#14151F}
+/* bottom-nav style section tabs: gradient text + underline on the active one */
+#ltv .seg{background:transparent;border:0;padding:0;gap:6px}
+#ltv .seg .pill{position:relative;border-radius:10px;background:transparent;color:#7D808F;
+  font-weight:600;padding:0 12px}
+#ltv .seg .pill:hover{background:rgba(255,255,255,.05);color:#fff}
+#ltv .seg .pill.on{background:transparent;box-shadow:none;color:#FF3B7C;
+  background-image:linear-gradient(90deg,#FF3B7C,#8B5CF6);-webkit-background-clip:text;
+  background-clip:text;-webkit-text-fill-color:transparent}
+#ltv .seg .pill.on::after{content:"";position:absolute;left:12px;right:12px;bottom:-2px;height:3px;
+  border-radius:999px;background:linear-gradient(90deg,#FF3B7C,#8B5CF6)}
+#ltv .chips .pill{background:var(--lv-card);border-color:var(--lv-line);border-radius:999px;color:#C9CAD6}
+#ltv .chips .pill.on{background:linear-gradient(90deg,#FF3B7C,#8B5CF6);border-color:transparent;color:#fff}
+/* search: full-width rounded-full field with a leading search glyph */
+#ltv .lvsearch input{background:var(--lv-card) no-repeat 14px center;border-color:var(--lv-line);
+  border-radius:999px;padding-left:40px;color:#fff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%237D808F' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='M11 11l4 4'/%3E%3C/svg%3E")}
+#ltv .lvsearch input::placeholder{color:#7D808F}
+#ltv .lvsearch input:focus{border-color:#8B5CF6}
+/* player: pure black stage, crimson LIVE pill, dark info bar */
+#ltv .lvplayer{border-radius:16px;border-color:var(--lv-line);background:#000}
+#ltv .lvbar{background:#0D0E16;border-top:1px solid var(--lv-line)}
+#ltv .lvbar .nm{color:#fff;font-weight:700}
+#ltv .lvbar .tg{border-color:var(--lv-line);color:#8A8C99}
+#ltv .lvbar .live{color:#fff;background:#E11D48;border-color:transparent}
+#ltv .lvbar .live .ld{background:#fff}
+#ltv .lvbar .ib{background:rgba(255,255,255,.06);border-color:var(--lv-line)}
+/* category / channel rows: dark card + gradient edge bar + count badge */
+#ltv .lvlist{gap:10px}
+#ltv .chanrow{position:relative;background:var(--lv-card);border:1px solid var(--lv-line);
+  border-left:1px solid var(--lv-line);border-radius:16px;padding:12px 14px 12px 20px}
+#ltv .chanrow::before{content:"";position:absolute;left:8px;top:14px;bottom:14px;width:4px;
+  border-radius:999px;background:var(--lv-grad);opacity:.85}
+#ltv .chanrow:hover{background:#1B1C28}
+#ltv .chanrow.on{background:#1E1A2B;border-color:rgba(139,92,246,.5)}
+#ltv .chanrow.on .nm{color:#fff}
+#ltv .chanrow.on::before{opacity:1}
+#ltv .chanrow .no{color:#7D808F}
+#ltv .chanrow .lg{border-radius:12px;background:rgba(255,255,255,.06)}
+#ltv .chanrow .arc{color:var(--lv-online);border-color:rgba(34,197,94,.45);
+  background:rgba(34,197,94,.12);border-radius:999px}
+/* VOD / episode cards share the card surface */
+#ltv .epirow{background:var(--lv-card);border-color:var(--lv-line);border-radius:16px}
+#ltv .epirow:hover{background:#1B1C28}
+#ltv .epirow .en{color:#FF3B7C}
+#ltv .pcard,#ltv .vodgrid>*{border-radius:16px}
+#ltv .lvmore .btn{background:var(--lv-card);border:1px solid rgba(255,255,255,.16);
+  border-radius:999px;color:#E9E9F2}
+#ltv .ltvmsg{color:#8A8C99}
+#ltv .repbox select,#ltv .repbox input[type=date],#ltv .repbox input[type=time]{
+  background:var(--lv-card);border-color:var(--lv-line);border-radius:999px;padding:0 14px}
+#ltv .lvidle{background:radial-gradient(circle at 50% 40%,#181A26,#0A0B12);color:#8A8C99}
+#ltv .lvspin{border-top-color:#FF3B7C}
+#ltv .lverr{border-color:rgba(255,59,124,.45);background:rgba(10,11,18,.92)}
+#ltv .chanrow:focus-visible,#ltv .epirow:focus-visible,#ltv .seg .pill:focus-visible,
+#ltv .chips .pill:focus-visible{outline:2px solid #8B5CF6;outline-offset:2px}
+
 </style>
+
 
 </head>
 <body>
