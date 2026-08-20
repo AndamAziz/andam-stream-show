@@ -2601,13 +2601,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   });
 
   ltvBody.addEventListener('click',function(e){
-    var ch=e.target.closest('.chanrow');
+    var tg=e.target.closest('.catrow');
+    if(tg){ toggleCat(tg.closest('.catcard')); return }
+    var sa=e.target.closest('[data-seeall]');
+    if(sa){ ltv.cat=sa.getAttribute('data-seeall'); ltvCatSel.value=ltv.cat; loadTab(); return }
+    var ch=e.target.closest('.chanrow,.chcard');
     if(ch){
-      [].forEach.call(ltvBody.querySelectorAll('.chanrow.on'),function(x){x.classList.remove('on')});
+      [].forEach.call(ltvBody.querySelectorAll('.chanrow.on,.chcard.on'),function(x){x.classList.remove('on')});
       ch.classList.add('on');
       playById('live',ch.getAttribute('data-id'),'',ch.getAttribute('data-name'),'● LIVE · '+(ltvSub.textContent.split(' ·')[0]),true);
       return;
     }
+
     var mv=e.target.closest('[data-vod]');
     if(mv){
       playById('vod',mv.getAttribute('data-vod'),mv.getAttribute('data-ext'),
