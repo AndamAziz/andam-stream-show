@@ -463,10 +463,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* compact toolbar: dropdowns + search on one or two slim rows */
 .lvtools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
 .lvsel{position:relative;display:inline-flex;align-items:center}
-.lvsel::after{content:"";position:absolute;right:12px;width:10px;height:10px;pointer-events:none;
-  background:conic-gradient(from 135deg,var(--muted) 0deg 90deg,transparent 90deg);
-  -webkit-mask:radial-gradient(circle at 100% 100%,transparent 55%,#000 56%);mask:radial-gradient(circle at 100% 100%,transparent 55%,#000 56%);
-  transform:rotate(45deg);opacity:.75}
+.lvsel::after{content:"";position:absolute;right:14px;width:7px;height:7px;pointer-events:none;
+  border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);opacity:.85}
 .lvsel select,.repbox select,.repbox input[type=date],.repbox input[type=time]{
   appearance:none;-webkit-appearance:none;min-height:40px;max-width:220px;
   padding:0 34px 0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.12);
