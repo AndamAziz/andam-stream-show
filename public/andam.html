@@ -460,8 +460,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw}
 
-/* compact toolbar: dropdowns + search on one or two slim rows */
-.lvtools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+/* compact toolbar: provider + category on top row, tabs below */
+.lvtools{display:flex;flex-direction:column;align-items:flex-end;gap:10px;margin-left:auto}
+.lvtoprow{display:flex;align-items:center;gap:10px}
+.lvtoprow .lvsel{flex:0 1 auto;min-width:0}
+.lvtoprow .lvsel select{width:100%}
 .lvsel{position:relative;display:inline-flex;align-items:center}
 .lvsel::after{content:"";position:absolute;right:14px;width:7px;height:7px;pointer-events:none;
   border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);opacity:.85}
@@ -594,9 +597,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 @media (max-width:719px){
   .lvhead{gap:10px;top:54px;padding:10px clamp(14px,3.5vw,44px)}
   .lvhead h1,.lvhead .sub{display:none}
-  .lvtools{width:100%;margin-left:0}
-  .lvtools .lvsel{flex:1 1 130px;min-width:0}
-  .lvtools .lvsel select{max-width:none;width:100%;min-height:42px}
+  .lvtools{width:100%;margin-left:0;align-items:stretch}
+  .lvtoprow{width:100%}
+  .lvtoprow .lvsel{flex:1 1 0;min-width:0}
+  .lvtoprow .lvsel select{max-width:none;width:100%;min-height:42px}
   .seg{width:100%;justify-content:space-between;padding:3px}
   .seg .pill{flex:1 1 0;text-align:center;padding:0 6px;min-height:38px;font-size:12.5px}
   .chips .pill{min-height:36px;padding:0 13px;font-size:12.5px}
@@ -717,9 +721,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <div class="lvhead">
     <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
     <div class="lvtools">
-      <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <div class="lvtoprow">
+        <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+        <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
+      </div>
       <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
-      <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
     </div>
   </div>
   <div class="lvmain">
@@ -764,8 +770,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <div class="lvhead">
     <h1>IPTV</h1><div class="sub" id="ipSub">M3U playlist channels</div>
     <div class="lvtools">
-      <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
-      <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
+      <div class="lvtoprow">
+        <div class="lvsel accent"><select id="ipSrcSel" aria-label="Playlist source"></select></div>
+        <div class="lvsel"><select id="ipGroupSel" aria-label="Group"></select></div>
+      </div>
     </div>
   </div>
   <div class="lvmain">
