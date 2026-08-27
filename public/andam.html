@@ -720,9 +720,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   <div class="lvhead">
     <h1>Live TV</h1><div class="sub" id="ltvSub">Provider channels, movies, series &amp; replay</div>
     <div class="lvtools">
-      <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+      <div class="lvtoprow">
+        <div class="lvsel accent"><select id="provSel" aria-label="Provider"></select></div>
+        <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
+      </div>
       <div class="seg" id="ltvTabs" role="tablist" aria-label="Sections"></div>
-      <div class="lvsel" id="ltvCatWrap"><select id="ltvCatSel" aria-label="Category"></select></div>
     </div>
   </div>
   <div class="lvmain">
