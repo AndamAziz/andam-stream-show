@@ -594,13 +594,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 /* mobile: dropdowns go full width in their own row; player stays pinned on top
    and only the channel list scrolls (no mini / floating player). */
 @media (max-width:719px){
-  .lvhead{gap:8px;top:54px;padding:8px clamp(14px,3.5vw,44px)}
+  .lvhead{gap:10px;top:54px;padding:10px clamp(14px,3.5vw,44px)}
   .lvhead h1,.lvhead .sub{display:none}
   .lvtools{width:100%;margin-left:0}
   .lvtools .lvsel{flex:1 1 130px;min-width:0}
-  .lvtools .lvsel select{max-width:none;width:100%}
-  .seg{width:100%;justify-content:space-between}
-  .seg .pill{flex:1 1 0;text-align:center;padding:0 8px}
+  .lvtools .lvsel select{max-width:none;width:100%;min-height:42px}
+  .seg{width:100%;justify-content:space-between;padding:3px}
+  .seg .pill{flex:1 1 0;text-align:center;padding:0 6px;min-height:38px;font-size:12.5px}
+  .chips .pill{min-height:36px;padding:0 13px;font-size:12.5px}
   .lvplayer{top:154px}
 }
 @media (max-width:1099px){
