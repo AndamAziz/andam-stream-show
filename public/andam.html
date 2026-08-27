@@ -460,8 +460,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 .lvhead .sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32vw}
 
-/* compact toolbar: dropdowns + search on one or two slim rows */
-.lvtools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-left:auto}
+/* compact toolbar: provider + category on top row, tabs below */
+.lvtools{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-left:auto}
+.lvtoprow{display:flex;align-items:center;gap:10px;width:100%}
+.lvtoprow .lvsel{flex:1 1 auto;min-width:0}
+.lvtoprow .lvsel select{width:100%;max-width:none}
 .lvsel{position:relative;display:inline-flex;align-items:center}
 .lvsel::after{content:"";position:absolute;right:14px;width:7px;height:7px;pointer-events:none;
   border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);opacity:.85}
