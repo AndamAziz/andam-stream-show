@@ -1961,6 +1961,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   function lvStop(kind){
     var s=surf(kind); s.session++;
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
+    if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
     /* load() after clearing the src resets the media element; skipping it left
@@ -1996,6 +1997,34 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     return hlsReady;
   }
+
+  /* Some provider channels (e.g. NEW LINE 1/2) are H.265/HEVC inside MPEG-TS.
+     hls.js cannot demux HEVC in TS segments — it throws fragParsingError over
+     and over and the channel never starts. mpegts.js transmuxes HEVC TS into
+     fMP4 for MSE, so those channels get the raw .ts endpoint through it. */
+  var tsReady=null;
+  function ensureMpegts(){
+    if(window.mpegts) return Promise.resolve(window.mpegts);
+    if(tsReady) return tsReady;
+    tsReady=new Promise(function(resolve){
+      var done=false,t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.mpegts){ done=true; return resolve(window.mpegts) }
+        if(Date.now()-t0>8000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var el=document.createElement('script');
+      el.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';
+      el.onload=function(){ if(!done){ done=true; resolve(window.mpegts||null) } };
+      document.head.appendChild(el);
+    });
+    return tsReady;
+  }
+  function hevcCapable(){
+    try{ return !!(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"')) }catch(_){ return false }
+  }
+
 
   /* Trust the response, not the caller's flag: providers happily serve an
      .m3u8 for a "ts" channel and an mp4 for an "m3u8" movie. One cheap ranged
@@ -2066,6 +2095,42 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       },{once:true});
     }
 
+
+    /* HEVC-in-TS live channels: play the provider's raw .ts endpoint through
+       mpegts.js, which transmuxes it into fMP4 the browser can decode. */
+    var tsTried=false;
+    function viaTs(){
+      if(tsTried||!alive()) return false;
+      var req=LASTREQ[kind];
+      if(!req||req.type!=='live'||!req.id) return false;
+      tsTried=true;
+      var dead=s.hls; s.hls=null;
+      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      busy(s,true); clearFail(s);
+      Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
+        .then(function(r){
+          var mp=r[0], tok=r[1]&&r[1].play;
+          if(!alive()) return;
+          if(!mp||!tok||!mp.isSupported()){
+            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+            return;
+          }
+          var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
+          var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
+            {enableWorker:true,liveBufferLatencyChasing:true,lazyLoad:false,stashInitialSize:1024*512});
+          s.ts=pl;
+          pl.on(mp.Events.ERROR,function(a,b,c){
+            console.error('[player] mpegts',a,b,c);
+            if(!alive()||s.ts!==pl) return;
+            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+          });
+          pl.attachMediaElement(s.video);
+          pl.load();
+          s.video.play().catch(function(){});
+        })
+        .catch(function(){ retryable('Stream failed to load') });
+      return true;
+    }
 
     var recover=0;
     function viaHls(Hls){
