@@ -1998,6 +1998,34 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return hlsReady;
   }
 
+  /* Some provider channels (e.g. NEW LINE 1/2) are H.265/HEVC inside MPEG-TS.
+     hls.js cannot demux HEVC in TS segments — it throws fragParsingError over
+     and over and the channel never starts. mpegts.js transmuxes HEVC TS into
+     fMP4 for MSE, so those channels get the raw .ts endpoint through it. */
+  var tsReady=null;
+  function ensureMpegts(){
+    if(window.mpegts) return Promise.resolve(window.mpegts);
+    if(tsReady) return tsReady;
+    tsReady=new Promise(function(resolve){
+      var done=false,t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.mpegts){ done=true; return resolve(window.mpegts) }
+        if(Date.now()-t0>8000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var el=document.createElement('script');
+      el.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';
+      el.onload=function(){ if(!done){ done=true; resolve(window.mpegts||null) } };
+      document.head.appendChild(el);
+    });
+    return tsReady;
+  }
+  function hevcCapable(){
+    try{ return !!(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"')) }catch(_){ return false }
+  }
+
+
   /* Trust the response, not the caller's flag: providers happily serve an
      .m3u8 for a "ts" channel and an mp4 for an "m3u8" movie. One cheap ranged
      probe tells us which engine to use, so the native element never receives a
