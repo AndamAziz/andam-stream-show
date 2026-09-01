@@ -1961,6 +1961,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   function lvStop(kind){
     var s=surf(kind); s.session++;
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
+    if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
     /* load() after clearing the src resets the media element; skipping it left
