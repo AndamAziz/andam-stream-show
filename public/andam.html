@@ -2096,6 +2096,42 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
 
+    /* HEVC-in-TS live channels: play the provider's raw .ts endpoint through
+       mpegts.js, which transmuxes it into fMP4 the browser can decode. */
+    var tsTried=false;
+    function viaTs(){
+      if(tsTried||!alive()) return false;
+      var req=LASTREQ[kind];
+      if(!req||req.type!=='live'||!req.id) return false;
+      tsTried=true;
+      var dead=s.hls; s.hls=null;
+      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      busy(s,true); clearFail(s);
+      Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
+        .then(function(r){
+          var mp=r[0], tok=r[1]&&r[1].play;
+          if(!alive()) return;
+          if(!mp||!tok||!mp.isSupported()){
+            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+            return;
+          }
+          var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
+          var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
+            {enableWorker:true,liveBufferLatencyChasing:true,lazyLoad:false,stashInitialSize:1024*512});
+          s.ts=pl;
+          pl.on(mp.Events.ERROR,function(a,b,c){
+            console.error('[player] mpegts',a,b,c);
+            if(!alive()||s.ts!==pl) return;
+            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+          });
+          pl.attachMediaElement(s.video);
+          pl.load();
+          s.video.play().catch(function(){});
+        })
+        .catch(function(){ retryable('Stream failed to load') });
+      return true;
+    }
+
     var recover=0;
     function viaHls(Hls){
       /* Buffer config: the relay delivers segments in bursts, and the previous
