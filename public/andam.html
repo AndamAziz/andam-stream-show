@@ -2219,10 +2219,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   /* Backwards-compatible entry point used by home rows and replay. */
-  function playToken(token,title,sub,isHls,kind){ lvPlay(kind||activeKind(),token,title,sub,isHls) }
+  function playToken(token,title,sub,isHls,kind){
+    var k=kind||activeKind(); LASTREQ[k]=null;
+    lvPlay(k,token,title,sub,isHls);
+  }
 
   function playById(type,id,ext,title,sub,isHls,kind){
     var k=kind||activeKind(), s=surf(k);
+    LASTREQ[k]={type:type,id:id,ext:ext||''};
     s.idle.classList.add('hide'); clearFail(s); busy(s,true);
     s.now.textContent=title||'Andam'; s.sub.textContent='Preparing…';
     api({action:'play',source:ltv.prov,type:type,id:id,ext:ext||''})
