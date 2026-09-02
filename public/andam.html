@@ -1913,6 +1913,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      overlay, no channel-list re-render. The only loading affordance is a
      spinner drawn over the video itself. */
   var SURF={};
+  /* what each surface last asked for, so a codec fallback can re-mint the same
+     channel on a different container (see viaTs) */
+  var LASTREQ={};
   function surf(kind){
     if(SURF[kind]) return SURF[kind];
     var p=kind==='iptv'?'ip':'ltv';
@@ -2169,8 +2172,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           }catch(_){}
           return;
         }
+        /* fragParsingError means hls.js cannot demux the segments at all —
+           HEVC-in-TS channels do this on every fragment, fatal or not. Switch
+           to the mpegts.js path immediately instead of retrying forever. */
+        if(d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR&&!ok){ if(viaTs()) return }
         if(!d.fatal) return;
-        if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(function(){ native(false) },0); return }
+        if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
           setTimeout(function(){ if(alive()&&!ok&&s.hls===h){ try{ h.startLoad() }catch(_){ h.loadSource(src) } } },1200);
         }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
@@ -2215,10 +2222,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
   /* Backwards-compatible entry point used by home rows and replay. */
-  function playToken(token,title,sub,isHls,kind){ lvPlay(kind||activeKind(),token,title,sub,isHls) }
+  function playToken(token,title,sub,isHls,kind){
+    var k=kind||activeKind(); LASTREQ[k]=null;
+    lvPlay(k,token,title,sub,isHls);
+  }
 
   function playById(type,id,ext,title,sub,isHls,kind){
     var k=kind||activeKind(), s=surf(k);
+    LASTREQ[k]={type:type,id:id,ext:ext||''};
     s.idle.classList.add('hide'); clearFail(s); busy(s,true);
     s.now.textContent=title||'Andam'; s.sub.textContent='Preparing…';
     api({action:'play',source:ltv.prov,type:type,id:id,ext:ext||''})
