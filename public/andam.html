@@ -2169,8 +2169,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           }catch(_){}
           return;
         }
+        /* fragParsingError means hls.js cannot demux the segments at all —
+           HEVC-in-TS channels do this on every fragment, fatal or not. Switch
+           to the mpegts.js path immediately instead of retrying forever. */
+        if(d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR&&!ok){ if(viaTs()) return }
         if(!d.fatal) return;
-        if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ setTimeout(function(){ native(false) },0); return }
+        if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
           setTimeout(function(){ if(alive()&&!ok&&s.hls===h){ try{ h.startLoad() }catch(_){ h.loadSource(src) } } },1200);
         }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
