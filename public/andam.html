@@ -2199,7 +2199,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* fragParsingError means hls.js cannot demux the segments at all —
            HEVC-in-TS channels do this on every fragment, fatal or not. Switch
            to the mpegts.js path immediately instead of retrying forever. */
-        if(d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR&&!ok){ if(viaTs()) return }
+        if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
+            ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
+            ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){ if(viaTs()) return }
         if(!d.fatal) return;
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
@@ -2207,8 +2209,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
           /* Cap recovery: a codec this device cannot decode otherwise loops
              forever (append → error → recover → append). */
-          if(++recover>2){ retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
+          if(++recover>2){ if(viaTs()) return; retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
           if(recover===2) h.swapAudioCodec();
+
           h.recoverMediaError();
         }
         else retryable('Stream failed to load');
