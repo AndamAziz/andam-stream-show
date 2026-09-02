@@ -2123,28 +2123,39 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
+      var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
       Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
         .then(function(r){
           var mp=r[0], tok=r[1]&&r[1].play;
           if(!alive()) return;
-          if(!mp||!tok||!mp.isSupported()){
-            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
-            return;
-          }
+          if(!mp||!tok||!mp.isSupported()){ retryable(hevcMsg); return }
           var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
+          /* enableWorker:false — on desktop the worker build re-fetches the
+             stream from a worker scope that resolves URLs differently and dies
+             before the first segment; the main-thread demuxer is reliable and
+             fast enough for a single live stream. */
           var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
-            {enableWorker:true,liveBufferLatencyChasing:true,lazyLoad:false,stashInitialSize:1024*512});
+            {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
+             liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true});
           s.ts=pl;
+          var softErr=0;
           pl.on(mp.Events.ERROR,function(a,b,c){
             console.error('[player] mpegts',a,b,c);
             if(!alive()||s.ts!==pl) return;
-            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+            /* Network hiccups from the relay are recoverable: reload once or
+               twice before telling the user anything. */
+            if(String(a)==='NetworkError'&&++softErr<=2){
+              try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
+              return;
+            }
+            retryable(hevcCapable()?'Stream failed to load':hevcMsg);
           });
           pl.attachMediaElement(s.video);
           pl.load();
           s.video.play().catch(function(){});
         })
         .catch(function(){ retryable('Stream failed to load') });
+
       return true;
     }
 
