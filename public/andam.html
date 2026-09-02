@@ -1913,6 +1913,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      overlay, no channel-list re-render. The only loading affordance is a
      spinner drawn over the video itself. */
   var SURF={};
+  /* what each surface last asked for, so a codec fallback can re-mint the same
+     channel on a different container (see viaTs) */
+  var LASTREQ={};
   function surf(kind){
     if(SURF[kind]) return SURF[kind];
     var p=kind==='iptv'?'ip':'ltv';
