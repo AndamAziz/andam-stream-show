@@ -2024,9 +2024,22 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     return tsReady;
   }
+  /* Desktop Chrome/Edge decode HEVC through the OS, but they only admit it for
+     some codec strings, and MediaSource.isTypeSupported is stricter than the
+     element itself. Probe every spelling before declaring the device unable. */
   function hevcCapable(){
-    try{ return !!(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"')) }catch(_){ return false }
+    var list=['video/mp4; codecs="hvc1.1.6.L93.B0"','video/mp4; codecs="hvc1"',
+              'video/mp4; codecs="hev1.1.6.L93.B0"','video/mp4; codecs="hev1"'];
+    for(var i=0;i<list.length;i++){
+      try{ if(window.MediaSource&&MediaSource.isTypeSupported(list[i])) return true }catch(_){}
+      try{
+        var v=document.createElement('video');
+        if(v.canPlayType&&v.canPlayType(list[i])==='probably') return true;
+      }catch(_){}
+    }
+    return false;
   }
+
 
 
   /* Trust the response, not the caller's flag: providers happily serve an
@@ -2110,28 +2123,39 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
+      var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
       Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
         .then(function(r){
           var mp=r[0], tok=r[1]&&r[1].play;
           if(!alive()) return;
-          if(!mp||!tok||!mp.isSupported()){
-            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
-            return;
-          }
+          if(!mp||!tok||!mp.isSupported()){ retryable(hevcMsg); return }
           var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
+          /* enableWorker:false — on desktop the worker build re-fetches the
+             stream from a worker scope that resolves URLs differently and dies
+             before the first segment; the main-thread demuxer is reliable and
+             fast enough for a single live stream. */
           var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
-            {enableWorker:true,liveBufferLatencyChasing:true,lazyLoad:false,stashInitialSize:1024*512});
+            {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
+             liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true});
           s.ts=pl;
+          var softErr=0;
           pl.on(mp.Events.ERROR,function(a,b,c){
             console.error('[player] mpegts',a,b,c);
             if(!alive()||s.ts!==pl) return;
-            retryable(hevcCapable()?'Stream failed to load':'This channel uses H.265, which this device cannot decode');
+            /* Network hiccups from the relay are recoverable: reload once or
+               twice before telling the user anything. */
+            if(String(a)==='NetworkError'&&++softErr<=2){
+              try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
+              return;
+            }
+            retryable(hevcCapable()?'Stream failed to load':hevcMsg);
           });
           pl.attachMediaElement(s.video);
           pl.load();
           s.video.play().catch(function(){});
         })
         .catch(function(){ retryable('Stream failed to load') });
+
       return true;
     }
 
@@ -2175,7 +2199,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* fragParsingError means hls.js cannot demux the segments at all —
            HEVC-in-TS channels do this on every fragment, fatal or not. Switch
            to the mpegts.js path immediately instead of retrying forever. */
-        if(d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR&&!ok){ if(viaTs()) return }
+        if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
+            ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
+            ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){ if(viaTs()) return }
         if(!d.fatal) return;
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
@@ -2183,8 +2209,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
           /* Cap recovery: a codec this device cannot decode otherwise loops
              forever (append → error → recover → append). */
-          if(++recover>2){ retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
+          if(++recover>2){ if(viaTs()) return; retryable('This stream uses a format this device cannot play'); try{ h.destroy() }catch(_){} s.hls=null; return }
           if(recover===2) h.swapAudioCodec();
+
           h.recoverMediaError();
         }
         else retryable('Stream failed to load');
