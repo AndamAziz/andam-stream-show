@@ -250,7 +250,11 @@ export const Route = createFileRoute('/api/public/xtream')({
             const id = url.searchParams.get('id') ?? '';
             const ext = (url.searchParams.get('ext') || '').replace(/[^a-z0-9]/gi, '');
             if (!/^\d+$/.test(id)) return json({ error: 'id is required' }, 400);
-            if (kind === 'live') return json({ play: await sealUrl(liveStreamUrl(source, id)) });
+            // Live defaults to the HLS manifest; `ext=ts` returns the raw MPEG-TS
+            // endpoint, used by the HEVC fallback player (hls.js cannot parse
+            // H.265 inside TS segments).
+            if (kind === 'live')
+              return json({ play: await sealUrl(liveStreamUrl(source, id, ext === 'ts' ? 'ts' : 'm3u8')) });
             if (kind === 'vod')
               return json({ play: await sealUrl(vodStreamUrl(source, id, ext || 'mp4')) });
             if (kind === 'series')
