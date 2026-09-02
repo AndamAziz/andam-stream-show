@@ -2024,9 +2024,22 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     return tsReady;
   }
+  /* Desktop Chrome/Edge decode HEVC through the OS, but they only admit it for
+     some codec strings, and MediaSource.isTypeSupported is stricter than the
+     element itself. Probe every spelling before declaring the device unable. */
   function hevcCapable(){
-    try{ return !!(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="hvc1.1.6.L93.B0"')) }catch(_){ return false }
+    var list=['video/mp4; codecs="hvc1.1.6.L93.B0"','video/mp4; codecs="hvc1"',
+              'video/mp4; codecs="hev1.1.6.L93.B0"','video/mp4; codecs="hev1"'];
+    for(var i=0;i<list.length;i++){
+      try{ if(window.MediaSource&&MediaSource.isTypeSupported(list[i])) return true }catch(_){}
+      try{
+        var v=document.createElement('video');
+        if(v.canPlayType&&v.canPlayType(list[i])==='probably') return true;
+      }catch(_){}
+    }
+    return false;
   }
+
 
 
   /* Trust the response, not the caller's flag: providers happily serve an
