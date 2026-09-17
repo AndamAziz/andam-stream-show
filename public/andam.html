@@ -2636,6 +2636,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(!alive()) return;
           console.warn('[player] sniff failed',err&&err.message);
           engine('hls.js (sniff failed)');
+          chain=['mpegts','flv','dash','native'];
           srcIsHls=true;
           ensureHls().then(function(Hls){
             if(!alive()) return;
