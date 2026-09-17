@@ -475,9 +475,25 @@ export async function listProviderItems(
 }
 
 export async function adminOverview() {
-  const [providers, health, users, logins, errors] = await Promise.all([
+  // The relay and provider checks need the stored relay address/token, which the
+  // provider list intentionally omits, so read the full rows once up front.
+  const { data: sourceRows } = await supabaseAdmin
+    .from('sources')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  const sources = (sourceRows ?? []) as Source[];
+  const liveSources = sources.filter((s) => s.is_active && s.type === 'xtream');
+
+  const [providers, health, probes, users, logins, errors] = await Promise.all([
     listProviders(),
-    relayHealth(),
+    relayHealth(sources),
+    Promise.all(
+      liveSources.map(async (s) => ({
+        id: s.id,
+        name: s.name,
+        ...(await probeProvider(s)),
+      })),
+    ),
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
     supabaseAdmin
       .from('login_activity')
