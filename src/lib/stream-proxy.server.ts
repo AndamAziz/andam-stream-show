@@ -229,6 +229,11 @@ export async function rewriteMpd(text: string, upstream: string): Promise<string
   const absolutise = (ref: string) => new URL(ref, base).toString();
   let out = text;
 
+  // <Location> points straight at the provider; dash.js would use it for the
+  // live manifest refresh and hit CORS. Drop it so refreshes stay on the proxy.
+  out = out.replace(/<Location>[\s\S]*?<\/Location>/gi, '');
+
+
   // Absolute template URLs: seal the directory, keep the filename template.
   const attrRe = /(media|initialization|sourceURL|initializationSegmentURL)="(https?:[^"]+)"/gi;
   const attrJobs: Array<[string, string]> = [];
