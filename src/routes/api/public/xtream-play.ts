@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { openUrl, sealUrl } from '@/lib/xtream-crypto';
-import { relayHeaders, relayUrl } from '@/lib/xtream';
+import { readRelay, relayHeaders, relayUrl, tagRelay, type RelayConfig } from '@/lib/xtream';
 
 /**
  * Playback proxy.
@@ -81,12 +81,16 @@ async function readManifest(res: Response): Promise<string> {
  * player spinning until the browser gave up. Bail out after 15s instead — the
  * caller turns that into a clean error the UI can show.
  */
-async function fetchRelay(url: string, request: Request): Promise<Response> {
-  const headers = new Headers(relayHeaders());
+async function fetchRelay(
+  url: string,
+  request: Request,
+  relay: RelayConfig | null,
+): Promise<Response> {
+  const headers = new Headers(relayHeaders(relay));
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url), {
+  return fetch(relayUrl(url, relay), {
     headers,
     redirect: 'follow',
     signal: AbortSignal.timeout(15_000),
