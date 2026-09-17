@@ -27,15 +27,121 @@ function isManifest(url: string, contentType: string | null): boolean {
   const ct = (contentType ?? '').toLowerCase();
   return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
 }
+/**
+ * Reads a manifest without waiting for the connection to close.
+ *
+ * Some upstreams (and the relay in front of them) treat a `.m3u8` request as a
+ * long-lived stream: they keep the socket open and re-send the playlist over and
+ * over. `res.text()` then never resolves and the player spins forever, so read
+ * incrementally, stop at the first complete playlist, and cap size/time.
+ */
+async function readManifest(res: Response): Promise<string> {
+  const MAX_BYTES = 2_000_000;
+  const MAX_MS = 8000;
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const decoder = new TextDecoder();
+  const started = Date.now();
+  let text = '';
+  try {
+    for (;;) {
+      if (Date.now() - started > MAX_MS) break;
+      const { done, value } = await Promise.race([
+        reader.read(),
+        new Promise<{ done: true; value: undefined }>((r) =>
+          setTimeout(() => r({ done: true, value: undefined }), Math.max(0, MAX_MS - (Date.now() - started))),
+        ),
+      ]);
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      // A repeated `#EXTM3U` header means the upstream restarted the playlist.
+      const repeat = text.indexOf('#EXTM3U', text.indexOf('#EXTM3U') + 1);
+      if (repeat > 0) {
+        text = text.slice(0, repeat);
+        break;
+      }
+      if (text.includes('#EXT-X-ENDLIST') || text.length > MAX_BYTES) break;
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* upstream already gone */
+    }
+  }
+  return text;
+}
 
-/** Fetch provider bytes through the configured relay only. */
+
+/**
+ * Fetch provider bytes through the configured relay only.
+ *
+ * A dead upstream (expired provider account, blackholed host) makes the relay
+ * hold the connection open with no response at all, which used to leave the
+ * player spinning until the browser gave up. Bail out after 15s instead — the
+ * caller turns that into a clean error the UI can show.
+ */
 async function fetchRelay(url: string, request: Request): Promise<Response> {
   const headers = new Headers(relayHeaders());
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url), { headers, redirect: 'follow' });
+  return fetch(relayUrl(url), {
+    headers,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(15_000),
+  });
 }
+
+/**
+ * Resolves provider redirects so manifest URIs get the right base.
+ *
+ * Many Xtream/playlist links (`/live/user/pass/123.ts`) answer 30x and hand the
+ * real playlist off to another host. The relay follows redirects internally and
+ * does not always report the final URL, so relative variant/segment URIs in the
+ * returned manifest would be resolved against the *original* path and 404.
+ * Peek at the redirect chain ourselves; if the provider refuses us directly we
+ * simply keep the original URL and let the relay handle it.
+ */
+async function resolveRedirects(url: string): Promise<string> {
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    try {
+      const res = await fetch(current, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' },
+        signal: AbortSignal.timeout(6000),
+      });
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* nothing to drain */
+      }
+      const location = res.headers.get('location');
+      if (res.status >= 300 && res.status < 400 && location) {
+        current = new URL(location, current).toString();
+        continue;
+      }
+      return current;
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
+/** Providers often mislabel segments (text/css, text/html); fix by extension. */
+function segmentContentType(url: string, upstreamType: string | null): string | null {
+  const ct = (upstreamType ?? '').toLowerCase();
+  const path = url.split('?')[0] ?? '';
+  if (/\.ts$/i.test(path)) return 'video/mp2t';
+  if (/\.m4s$/i.test(path) || /\.mp4$/i.test(path)) return 'video/mp4';
+  if (/\.aac$/i.test(path)) return 'audio/aac';
+  if (!ct || ct.startsWith('text/')) return 'application/octet-stream';
+  return null;
+}
+
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
@@ -63,8 +169,10 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
 async function rewriteManifest(text: string, upstream: string): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
+  // `s=1` marks a URL we generated from an already-resolved manifest, so the
+  // handler can skip the redirect probe for it.
   const token = async (ref: string) =>
-    `/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
@@ -97,15 +205,23 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const token = url.searchParams.get('t');
         if (!token) return new Response('Missing token', { status: 400 });
 
-        const upstream = await openUrl(token);
-        if (!upstream) return new Response('Link expired', { status: 410 });
+        const sealed = await openUrl(token);
+        if (!sealed) return new Response('Link expired', { status: 410 });
+
+        // Only the first hop (the link the UI hands us) may still redirect.
+        const upstream =
+          url.searchParams.get('s') === '1' ? sealed : await resolveRedirects(sealed);
 
         let res: Response;
         try {
           res = await fetchUpstream(upstream, request);
         } catch (err) {
+          const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + err.message);
           console.error('[xtream-play] relay error', err);
-          return new Response('Stream unavailable', { status: 502 });
+          return new Response(
+            timedOut ? 'Stream timed out (provider not responding)' : 'Stream unavailable',
+            { status: timedOut ? 504 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+          );
         }
 
         if (!res.ok) {
@@ -147,7 +263,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
-          const text = await res.text();
+          const text = await readManifest(res);
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
@@ -157,6 +273,8 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         headers.set('Accept-Ranges', 'bytes');
+        const fixedType = segmentContentType(upstream, res.headers.get('content-type'));
+        if (fixedType) headers.set('Content-Type', fixedType);
         return new Response(res.body, { status: res.status, headers });
 
       },
