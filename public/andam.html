@@ -2206,7 +2206,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         pl.attachMediaElement(s.video);
         pl.load();
         s.video.play().catch(function(){});
+        /* No first frame at all after one reload attempt: stop spinning and say
+           so instead of leaving the viewer on an endless loader. */
+        var firstTry=true;
+        var startGuard=setInterval(function(){
+          if(!alive()||s.ts!==pl){ clearInterval(startGuard); return }
+          if((s.video.currentTime||0)>0.1||s.video.readyState>=2){ clearInterval(startGuard); return }
+          if(firstTry){ firstTry=false; console.warn('[player] mpegts no frame after 5s — reloading',url); reload(); return }
+          clearInterval(startGuard);
+          console.error('[player] mpegts produced no video frame',url);
+          retryable('Stream unavailable');
+        },5000);
         var tsMove=Date.now(), tsTime=0;
+
         if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
         s.stallTimer=setInterval(function(){
           if(!alive()||s.ts!==pl||s.video.paused||s.video.ended) return;
