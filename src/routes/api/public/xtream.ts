@@ -364,7 +364,10 @@ export const Route = createFileRoute('/api/public/xtream')({
                     plot: ep.info?.plot || '',
                     duration: ep.info?.duration || '',
                     play: await sealUrl(
-                      seriesStreamUrl(source, ep.id, ep.container_extension || 'mp4'),
+                      tagRelay(
+                        seriesStreamUrl(source, ep.id, ep.container_extension || 'mp4'),
+                        source,
+                      ),
                     ),
                   })),
                 ),
@@ -388,7 +391,9 @@ export const Route = createFileRoute('/api/public/xtream')({
               return json({ error: 'stream_id and start (yyyy-MM-dd:HH-mm) are required' }, 400);
             }
             return json({
-              play: await sealUrl(timeshiftUrl(source, streamId, duration, start)),
+              play: await sealUrl(
+                tagRelay(timeshiftUrl(source, streamId, duration, start), source),
+              ),
             });
           }
 
