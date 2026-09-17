@@ -70,14 +70,12 @@ export const Route = createFileRoute('/api/public/iptv')({
         const action = url.searchParams.get('action') ?? 'sources';
 
         try {
-          const granted = await grantedSourceIds(request);
-
           if (action === 'sources') {
-            const sources = visible(await loadPlaylistSources(), granted);
+            const sources = visible(await loadPlaylistSources());
             return json({ sources: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
-          const source = await pickSource(url.searchParams.get('source') ?? '', granted);
+          const source = await pickSource(url.searchParams.get('source') ?? '');
           if (!source) return json({ error: 'No IPTV playlist configured' }, 404);
 
           if (action === 'channels') {
