@@ -2168,6 +2168,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       p.on(mpegts.Events.ERROR,function(t,d){
         console.error('[player] mpegts',t,d);
         if(!alive()||s.mts!==p) return;
+        /* Media/codec errors are the device's decoder saying no (many channels
+           are broadcast in H.265). Retrying the HLS url cannot help, so say
+           what is wrong instead of looping. */
+        var media=(''+t).toLowerCase().indexOf('media')>=0||(''+d).toLowerCase().indexOf('codec')>=0;
+        if(media){ alt=null; retryable('This channel is broadcast in H.265 — this device cannot decode it'); return }
         retryable('Stream failed to load');
       });
       p.attachMediaElement(s.video);
