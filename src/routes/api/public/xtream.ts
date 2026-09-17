@@ -302,8 +302,23 @@ export const Route = createFileRoute('/api/public/xtream')({
             const kind = url.searchParams.get('type') ?? 'live';
             const id = url.searchParams.get('id') ?? '';
             const ext = (url.searchParams.get('ext') || '').replace(/[^a-z0-9]/gi, '');
-            if (!/^\d+$/.test(id)) return json({ error: 'id is required' }, 400);
+            // Curated channel keys are not numeric, so live ids allow the wider set.
+            const valid = kind === 'live' ? /^[A-Za-z0-9_.-]{1,80}$/ : /^\d+$/;
+            if (!valid.test(id)) return json({ error: 'id is required' }, 400);
             if (kind === 'live') {
+              const channel = await (async () => {
+                const { findLiveChannel } = await import('@/lib/live-channels.server');
+                try {
+                  return await findLiveChannel(source.id, id);
+                } catch {
+                  return null;
+                }
+              })();
+              if (channel) {
+                // Imported/curated channels carry their own absolute stream URL.
+                return json({ play: await sealUrl(tagRelay(channel.url, source)) });
+              }
+              if (!/^\d+$/.test(id)) return json({ error: 'Unknown channel' }, 404);
               // Progressive MPEG-TS first: several providers hand out HLS
               // segment URLs whose token is bound to the IP that fetched the
               // playlist, so every segment fetched through the relay dies with
@@ -311,14 +326,18 @@ export const Route = createFileRoute('/api/public/xtream')({
               // endpoint has no such token and streams fine. `fallback` keeps
               // HLS available for providers that only publish playlists.
               return json({
-                play: await sealUrl(liveStreamUrl(source, id, 'ts')),
-                fallback: await sealUrl(liveStreamUrl(source, id, 'm3u8')),
+                play: await sealUrl(tagRelay(liveStreamUrl(source, id, 'ts'), source)),
+                fallback: await sealUrl(tagRelay(liveStreamUrl(source, id, 'm3u8'), source)),
               });
             }
             if (kind === 'vod')
-              return json({ play: await sealUrl(vodStreamUrl(source, id, ext || 'mp4')) });
+              return json({
+                play: await sealUrl(tagRelay(vodStreamUrl(source, id, ext || 'mp4'), source)),
+              });
             if (kind === 'series')
-              return json({ play: await sealUrl(seriesStreamUrl(source, id, ext || 'mp4')) });
+              return json({
+                play: await sealUrl(tagRelay(seriesStreamUrl(source, id, ext || 'mp4'), source)),
+              });
             return json({ error: 'Unknown play type' }, 400);
           }
 
