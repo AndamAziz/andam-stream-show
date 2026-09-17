@@ -2343,9 +2343,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){ if(viaTs()) return }
+        /* Some provider lines serve the playlist happily but reject its signed
+           segment links (403/411). Retrying cannot fix that — switch straight
+           to the raw MPEG-TS endpoint for the same channel. */
+        var segCode=d.response&&d.response.code;
+        if((d.details===Hls.ErrorDetails.FRAG_LOAD_ERROR||d.details===Hls.ErrorDetails.KEY_LOAD_ERROR)
+           &&(segCode===403||segCode===411||segCode===401)){ if(viaTs()) return }
         if(!d.fatal) return;
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
+
           /* Recover even after the channel has already played. Previously a
              single failed live segment after startup permanently stopped both
              picture and sound. Reload the live manifest to obtain its newest
