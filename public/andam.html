@@ -2081,12 +2081,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       clearTimeout(timeout);
       var ct=(r.headers.get('content-type')||'').toLowerCase();
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
+      var isUrl=ct.indexOf('mpegurl')>=0;
       return {ok:r.ok||r.status===206,status:r.status,
-              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0,
+              hls:isUrl,
               dash:ct.indexOf('dash+xml')>=0,
+              /* FLV live streams (e.g. chunklistv hosts) — no browser decodes
+                 them natively either, but mpegts.js has an FLV demuxer. */
+              flv:ct.indexOf('x-flv')>=0||ct.indexOf('video/flv')>=0,
               /* raw MPEG-TS: no browser decodes video/mp2t natively, it needs
-                 mpegts.js. Many playlist entries are plain .ts streams. */
-               mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
+                 mpegts.js. Many playlist entries are plain .ts streams, and
+                 some hosts label them video/mpeg. */
+               mp2t:!isUrl&&(ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0
+                 ||ct.indexOf('mpegts')>=0||ct.indexOf('video/mpeg')>=0)};
     }).catch(function(e){ clearTimeout(timeout); throw e });
   }
 

@@ -376,8 +376,7 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
     return new Response(body, { status: 200, headers });
   }
 
-  if (isManifest(upstream, contentType)) {
-    const text = await readManifestText(res);
+  const hlsResponse = async (text: string) => {
     // The relay may follow redirects without reporting where it landed, so
     // resolve the real base ourselves before rewriting relative URIs. Many
     // provider lines allow a single connection at a time, so only spend that
@@ -392,6 +391,20 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
     const body = await rewriteManifest(text, finalUrl);
     rememberManifest(upstream, body, 'application/vnd.apple.mpegurl');
     return new Response(body, { status: 200, headers });
+  };
+
+  if (isManifest(upstream, contentType)) {
+    return hlsResponse(await readManifestText(res));
+  }
+
+  // Some playlist hosts serve child playlists as text/plain (or with no type at
+  // all). Left untouched, the player would resolve their relative segment URIs
+  // against our own origin and 404. Sniff the body and rewrite it like HLS.
+  const ct = (contentType ?? '').toLowerCase();
+  if (ct === '' || ct.startsWith('text/')) {
+    const text = await readManifestText(res);
+    if (text.trimStart().startsWith('#EXTM3U')) return hlsResponse(text);
+    return new Response(text, { status: 200, headers });
   }
 
 
