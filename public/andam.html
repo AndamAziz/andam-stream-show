@@ -1931,7 +1931,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       tag:document.getElementById(p+'NowTag'),
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
-      hls:null,session:0,last:null,stallTimer:null};
+      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
@@ -1966,6 +1966,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
+    if(s.dash){ var deadDash=s.dash; s.dash=null; setTimeout(function(){ try{deadDash.reset()}catch(_){} },0) }
+
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
     /* load() after clearing the src resets the media element; skipping it left
@@ -2025,6 +2027,31 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     return tsReady;
   }
+
+  /* Playlists also carry DASH (.mpd) channels — BBC News and the FAST channels.
+     Neither the native element nor hls.js can play those, so dash.js is loaded
+     on demand for them. */
+  var dashReady=null;
+  function ensureDash(){
+    if(window.dashjs) return Promise.resolve(window.dashjs);
+    if(dashReady) return dashReady;
+    dashReady=new Promise(function(resolve){
+      var done=false,t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.dashjs){ done=true; return resolve(window.dashjs) }
+        if(Date.now()-t0>8000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var el=document.createElement('script');
+      el.src='https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js';
+      el.onload=function(){ if(!done){ done=true; resolve(window.dashjs||null) } };
+      el.onerror=function(){ if(!done){ done=true; resolve(null) } };
+      document.head.appendChild(el);
+    });
+    return dashReady;
+  }
+
   /* Desktop Chrome/Edge decode HEVC through the OS, but they only admit it for
      some codec strings, and MediaSource.isTypeSupported is stricter than the
      element itself. Probe every spelling before declaring the device unable. */
@@ -2052,9 +2079,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var ct=(r.headers.get('content-type')||'').toLowerCase();
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
       return {ok:r.ok||r.status===206,status:r.status,
-              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0};
+              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0,
+              dash:ct.indexOf('dash+xml')>=0,
+              /* raw MPEG-TS: no browser decodes video/mp2t natively, it needs
+                 mpegts.js. Many playlist entries are plain .ts streams. */
+              mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
     });
   }
+
 
   function lvPlay(kind,token,title,sub,isHls){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
@@ -2108,59 +2140,139 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       s.video.play().catch(function(){});
       s.video.addEventListener('error',function(){
         if(!alive()) return;
-        console.error('[player] native playback error',s.video.error&&s.video.error.code,url);
+        var code=s.video.error&&s.video.error.code;
+        console.error('[player] native playback error',code,url);
+        /* SRC_NOT_SUPPORTED on a live channel almost always means raw MPEG-TS
+           (or HEVC) the element cannot decode — hand it to mpegts.js. */
+        if(isHls&&viaTs()) return;
         retryable('This stream cannot be played here');
       },{once:true});
+
     }
 
 
-    /* HEVC-in-TS live channels: play the provider's raw .ts endpoint through
-       mpegts.js, which transmuxes it into fMP4 the browser can decode. */
-    var tsTried=false;
+    /* mpegts.js path. Used for two cases:
+        - raw MPEG-TS playlist channels (`.ts` links): no browser decodes
+          video/mp2t natively, so the native element fails instantly;
+        - HEVC-in-TS provider channels, where hls.js cannot demux the segments.
+       A watchdog reloads the stream when picture/sound stop advancing, so a
+       relay hiccup no longer freezes the channel for good. */
+    function mountMpegts(url,failMsg){
+      return ensureMpegts().then(function(mp){
+        if(!alive()) return;
+        if(!mp||!mp.isSupported()){ retryable(failMsg); return }
+        /* enableWorker:false — on desktop the worker build re-fetches the
+           stream from a worker scope that resolves URLs differently and dies
+           before the first segment; the main-thread demuxer is reliable and
+           fast enough for a single live stream. */
+        var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
+          {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
+           liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
+           reuseRedirectedURL:true});
+        s.ts=pl;
+        var softErr=0;
+        function reload(){
+          if(!alive()||s.ts!==pl) return;
+          try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
+        }
+        pl.on(mp.Events.ERROR,function(a,b,c){
+          console.error('[player] mpegts',a,b,c);
+          if(!alive()||s.ts!==pl) return;
+          /* Network hiccups from the relay are recoverable: reload a few times
+             before telling the user anything. */
+          if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
+          retryable(failMsg);
+        });
+        pl.attachMediaElement(s.video);
+        pl.load();
+        s.video.play().catch(function(){});
+        var tsMove=Date.now(), tsTime=0;
+        if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+        s.stallTimer=setInterval(function(){
+          if(!alive()||s.ts!==pl||s.video.paused||s.video.ended) return;
+          var t=s.video.currentTime||0, now=Date.now();
+          if(t>tsTime+0.05){ tsTime=t; tsMove=now; return }
+          if(now-tsMove<12000) return;
+          tsMove=now; softErr=0; reload();
+        },3000);
+      }).catch(function(){ retryable('Stream failed to load') });
+    }
+
+    var tsTried=false, srcIsHls=false;
     function viaTs(){
       if(tsTried||!alive()) return false;
       var req=LASTREQ[kind];
-      if(!req||req.type!=='live'||!req.id) return false;
+      var hasProviderTs=!!(req&&req.type==='live'&&req.id);
+      /* mpegts.js only understands a raw MPEG-TS byte stream. An HLS playlist
+         with no raw .ts endpoint behind it cannot be handed to it. */
+      if(!hasProviderTs&&srcIsHls){
+        /* Safari (and any browser with native HLS) decodes HEVC playlists the
+           JS demuxer rejects, so try the built-in player before giving up. */
+        if(s.video.canPlayType('application/vnd.apple.mpegurl')){ tsTried=true; native(true); return true }
+        retryable('This channel uses a video format this browser cannot play (H.265)');
+        return true;
+      }
+
       tsTried=true;
       if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
       var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
-      Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
-        .then(function(r){
-          var mp=r[0], tok=r[1]&&r[1].play;
-          if(!alive()) return;
-          if(!mp||!tok||!mp.isSupported()){ retryable(hevcMsg); return }
-          var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
-          /* enableWorker:false — on desktop the worker build re-fetches the
-             stream from a worker scope that resolves URLs differently and dies
-             before the first segment; the main-thread demuxer is reliable and
-             fast enough for a single live stream. */
-          var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
-            {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
-             liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true});
-          s.ts=pl;
-          var softErr=0;
-          pl.on(mp.Events.ERROR,function(a,b,c){
-            console.error('[player] mpegts',a,b,c);
-            if(!alive()||s.ts!==pl) return;
-            /* Network hiccups from the relay are recoverable: reload once or
-               twice before telling the user anything. */
-            if(String(a)==='NetworkError'&&++softErr<=2){
-              try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
-              return;
-            }
-            retryable(hevcCapable()?'Stream failed to load':hevcMsg);
-          });
-          pl.attachMediaElement(s.video);
-          pl.load();
-          s.video.play().catch(function(){});
-        })
-        .catch(function(){ retryable('Stream failed to load') });
-
+      /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
+         channels are already a direct stream URL, so reuse the same token. */
+      if(hasProviderTs){
+        api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})
+          .then(function(d){
+            if(!alive()) return;
+            var tok=d&&d.play;
+            if(!tok){ retryable(hevcMsg); return }
+            mountMpegts(location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok),
+              hevcCapable()?'Stream failed to load':hevcMsg);
+          })
+          .catch(function(){ mountMpegts(location.origin+src,hevcMsg) });
+        return true;
+      }
+      mountMpegts(location.origin+src,hevcCapable()?'Stream failed to load':hevcMsg);
       return true;
     }
+
+
+    /* DASH (.mpd) channels — dash.js over the same relay proxy. */
+    var dashTried=false;
+    function viaDash(){
+      if(dashTried||!alive()) return false;
+      dashTried=true;
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+      var dead=s.hls; s.hls=null;
+      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      busy(s,true); clearFail(s);
+      ensureDash().then(function(dashjs){
+        if(!alive()) return;
+        if(!dashjs||!dashjs.MediaPlayer){ retryable('This stream cannot be played in this browser'); return }
+        var p=dashjs.MediaPlayer().create();
+        s.dash=p;
+        p.updateSettings({streaming:{buffer:{bufferTimeAtTopQuality:30,stableBufferTime:20,
+          fastSwitchEnabled:true},retryAttempts:{MPD:5,MediaSegment:6},delay:{liveDelay:8}}});
+        p.on(dashjs.MediaPlayer.events.ERROR,function(e){
+          console.error('[player] dash',e&&(e.error||e));
+          if(!alive()||s.dash!==p) return;
+          retryable('Stream failed to load');
+        });
+        p.initialize(s.video,location.origin+src,true);
+        var dMove=Date.now(), dTime=0;
+        s.stallTimer=setInterval(function(){
+          if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
+          var t=s.video.currentTime||0, now=Date.now();
+          if(t>dTime+0.05){ dTime=t; dMove=now; return }
+          if(now-dMove<12000) return;
+          dMove=now;
+          try{ p.attachSource(location.origin+src); s.video.play().catch(function(){}) }catch(_){}
+        },3000);
+      }).catch(function(){ retryable('Stream failed to load') });
+      return true;
+    }
+
 
     var recover=0,networkRecover=0,lastMoveAt=Date.now(),lastMediaTime=0;
     function viaHls(Hls){
@@ -2231,9 +2343,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){ if(viaTs()) return }
+        /* Some provider lines serve the playlist happily but reject its signed
+           segment links (403/411). Retrying cannot fix that — switch straight
+           to the raw MPEG-TS endpoint for the same channel. */
+        var segCode=d.response&&d.response.code;
+        if((d.details===Hls.ErrorDetails.FRAG_LOAD_ERROR||d.details===Hls.ErrorDetails.KEY_LOAD_ERROR)
+           &&(segCode===403||segCode===411||segCode===401)){ if(viaTs()) return }
         if(!d.fatal) return;
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
         if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
+
           /* Recover even after the channel has already played. Previously a
              single failed live segment after startup permanently stopped both
              picture and sound. Reload the live manifest to obtain its newest
@@ -2272,9 +2391,15 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       probeKind(src).then(function(p){
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
+        /* DASH manifests need dash.js; raw MPEG-TS needs mpegts.js — the native
+           element rejects both with MEDIA_ERR_SRC_NOT_SUPPORTED. */
+        if(p.dash){ viaDash(); return }
+        if(p.mp2t){ viaTs(); return }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
 
+
+        srcIsHls=true;
         ensureHls().then(function(Hls){
           if(!alive()) return;
           if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
@@ -2282,11 +2407,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).catch(function(){
         if(!alive()) return;
         /* probe blocked/aborted — fall back to the caller's hint */
-        if(isHls){ ensureHls().then(function(Hls){
+        if(isHls){ srcIsHls=true; ensureHls().then(function(Hls){
           if(!alive()) return;
           if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
         }) } else native(false);
       });
+
     },0);
   }
 

@@ -27,6 +27,7 @@ import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/t
 import { Route as ApiPublicWatchProgressRouteImport } from './routes/api/public/watch-progress'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
+import { Route as ApiPublicStreamSplatRouteImport } from './routes/api/public/stream/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -120,6 +121,11 @@ const ApiPublicXtreamPlayRoute = ApiPublicXtreamPlayRouteImport.update({
   path: '/api/public/xtream-play',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicStreamSplatRoute = ApiPublicStreamSplatRouteImport.update({
+  id: '/api/public/stream/$',
+  path: '/api/public/stream/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/admin/'
+    | '/api/public/stream/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/admin'
+    | '/api/public/stream/$'
   id:
     | '__root__'
     | '/'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/_authenticated/admin/'
+    | '/api/public/stream/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -250,6 +262,7 @@ export interface RootRouteChildren {
   ApiPublicWatchProgressRoute: typeof ApiPublicWatchProgressRoute
   ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
   ApiPublicXtreamPlayRoute: typeof ApiPublicXtreamPlayRoute
+  ApiPublicStreamSplatRoute: typeof ApiPublicStreamSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -380,6 +393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicXtreamPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/stream/$': {
+      id: '/api/public/stream/$'
+      path: '/api/public/stream/$'
+      fullPath: '/api/public/stream/$'
+      preLoaderRoute: typeof ApiPublicStreamSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -431,6 +451,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicWatchProgressRoute: ApiPublicWatchProgressRoute,
   ApiPublicXtreamRoute: ApiPublicXtreamRoute,
   ApiPublicXtreamPlayRoute: ApiPublicXtreamPlayRoute,
+  ApiPublicStreamSplatRoute: ApiPublicStreamSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
