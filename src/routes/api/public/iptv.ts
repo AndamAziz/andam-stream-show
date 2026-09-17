@@ -23,29 +23,17 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-async function grantedSourceIds(request: Request): Promise<Set<string> | null> {
-  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data: userData } = await supabaseAdmin.auth.getUser(token);
-  const userId = userData?.user?.id;
-  if (!userId) return null;
-  const { data } = await supabaseAdmin
-    .from('user_source_access')
-    .select('source_id')
-    .eq('user_id', userId);
-  return new Set((data ?? []).map((r) => String(r.source_id)));
+/**
+ * The IPTV section is free for everyone: no sign-in, no activation code and no
+ * per-source grants. Every active playlist is listed and playable, so `visible`
+ * exists only to keep the call sites unchanged.
+ */
+function visible(sources: PlaylistSource[]): PlaylistSource[] {
+  return sources;
 }
 
-function visible(sources: PlaylistSource[], granted: Set<string> | null): PlaylistSource[] {
-  return sources.filter((s) => s.is_public !== false || granted?.has(s.id));
-}
-
-async function pickSource(
-  slugOrId: string,
-  granted: Set<string> | null,
-): Promise<PlaylistSource | null> {
-  const sources = visible(await loadPlaylistSources(), granted);
+async function pickSource(slugOrId: string): Promise<PlaylistSource | null> {
+  const sources = visible(await loadPlaylistSources());
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
 
@@ -82,14 +70,12 @@ export const Route = createFileRoute('/api/public/iptv')({
         const action = url.searchParams.get('action') ?? 'sources';
 
         try {
-          const granted = await grantedSourceIds(request);
-
           if (action === 'sources') {
-            const sources = visible(await loadPlaylistSources(), granted);
+            const sources = visible(await loadPlaylistSources());
             return json({ sources: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
-          const source = await pickSource(url.searchParams.get('source') ?? '', granted);
+          const source = await pickSource(url.searchParams.get('source') ?? '');
           if (!source) return json({ error: 'No IPTV playlist configured' }, 404);
 
           if (action === 'channels') {
