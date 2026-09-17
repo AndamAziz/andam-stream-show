@@ -1990,11 +1990,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     try{ d.reset() }catch(_){}
     try{ if(d.destroy) d.destroy() }catch(_){}
   }
-  /* Detaches whatever is currently mounted on a surface. Safe to call twice and
-     safe to call when the surface has no engine at all. */
+  /* Timer registry. Anything scheduled for the channel currently on screen is
+     registered here so teardown can cancel it; a guard or watchdog that fired
+     after its engine was destroyed was the source of the late "emit" errors. */
+  function every(s,fn,ms){ var id=setInterval(fn,ms); s.timers.push(id); return id }
+  function later(s,fn,ms){ var id=setTimeout(fn,ms); s.timers.push(id); return id }
+  function clearTimers(s){
+    var list=s.timers||[]; s.timers=[];
+    for(var i=0;i<list.length;i++){
+      try{ clearInterval(list[i]) }catch(_){}
+      try{ clearTimeout(list[i]) }catch(_){}
+    }
+  }
+  /* Detaches whatever is currently mounted on a surface, cancels its timers and
+     aborts its in-flight probes. Safe to call twice and safe to call when the
+     surface has no engine at all. */
   function teardown(s){
     if(!s) return;
     if(s.stallTimer){ try{ clearInterval(s.stallTimer) }catch(_){} s.stallTimer=null }
+    clearTimers(s);
+    if(s.abort){ try{ s.abort.abort() }catch(_){} s.abort=null }
     var h=s.hls, t=s.ts, d=s.dash;
     s.hls=null; s.ts=null; s.dash=null;
     killHls(h); killTs(t); killDash(d);
