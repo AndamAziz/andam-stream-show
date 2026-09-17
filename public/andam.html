@@ -2420,7 +2420,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
 
-    var recover=0,networkRecover=0,signedRefresh=0,lastMoveAt=Date.now(),lastMediaTime=0;
+    var recover=0,networkRecover=0,signedRefresh=0,manifestRetried=false,lastMoveAt=Date.now(),lastMediaTime=0;
     function viaHls(Hls){
       /* Buffer config: the relay delivers segments in bursts, and the previous
          lowLatencyMode + 20s buffer starved the pipeline into
@@ -2496,6 +2496,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            stream at all (raw MPEG-TS answered on a .m3u8 URL, or HEVC-in-TS).
            Tear the instance down first so it stops retrying and spamming
            errors, then hand the same URL to mpegts.js. */
+        /* The sniff request and hls.js's own request are two separate fetches,
+           and past the 2s manifest cache the relay can answer the second one
+           differently (a rotated playlist, or a body the first request already
+           consumed). Retry the real URL once before deciding the stream is
+           unreadable. */
+        if(d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR&&!ok&&!manifestRetried){
+          manifestRetried=true;
+          console.warn('[player] hls manifestParsingError — retrying manifest once in 500ms',src);
+          setTimeout(function(){
+            if(!alive()||s.hls!==h) return;
+            try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1); s.video.play().catch(function(){}) }catch(_){}
+          },500);
+          return;
+        }
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
