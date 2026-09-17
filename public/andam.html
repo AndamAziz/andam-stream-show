@@ -2183,7 +2183,37 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('timeupdate',onProgress);
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
-    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
+    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); killEngines(); fail(s,msg) }
+    /* Report the engine actually chosen so DevTools shows detection working. */
+    function engine(name){ console.log('[player] Using '+name+' — '+kind+' · '+title) }
+    function killEngines(){
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+      var h=s.hls, t=s.ts, dp=s.dash;
+      s.hls=null; s.ts=null; s.dash=null;
+      try{ if(h){ h.stopLoad(); h.destroy() } }catch(_){}
+      try{ if(t){ t.pause(); t.unload(); t.detachMediaElement(); t.destroy() } }catch(_){}
+      try{ if(dp) dp.reset() }catch(_){}
+    }
+    /* Hard IPTV timeout: no picture from any engine within 6s → try the raw
+       MPEG-TS demuxer once, and if that is also silent stop everything instead
+       of leaving an endless spinner. */
+    var hardTries=0;
+    function hardGuard(){
+      if(kind!=='iptv') return;
+      setTimeout(function(){
+        if(!alive()||ok) return;
+        if((s.video.currentTime||0)>0.1||s.video.readyState>=2) return;
+        if(hardTries++===0&&!tsTried&&!dashTried){
+          console.warn('[player] no video frame in 6s — switching engine');
+          if(s.hls){ try{ s.hls.stopLoad(); s.hls.destroy() }catch(_){} s.hls=null }
+          engine('mpegts.js (6s timeout)');
+          if(viaTs('mpegts')){ hardGuard(); return }
+        }
+        console.error('[player] no video frame from any engine',src);
+        retryable('Stream unavailable, try another channel');
+      },6000);
+    }
+
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
        was continuing to download. Engine errors below remain authoritative. */
