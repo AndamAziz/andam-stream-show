@@ -73,14 +73,26 @@ async function readManifest(res: Response): Promise<string> {
 }
 
 
-/** Fetch provider bytes through the configured relay only. */
+/**
+ * Fetch provider bytes through the configured relay only.
+ *
+ * A dead upstream (expired provider account, blackholed host) makes the relay
+ * hold the connection open with no response at all, which used to leave the
+ * player spinning until the browser gave up. Bail out after 15s instead — the
+ * caller turns that into a clean error the UI can show.
+ */
 async function fetchRelay(url: string, request: Request): Promise<Response> {
   const headers = new Headers(relayHeaders());
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url), { headers, redirect: 'follow' });
+  return fetch(relayUrl(url), {
+    headers,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(15_000),
+  });
 }
+
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
