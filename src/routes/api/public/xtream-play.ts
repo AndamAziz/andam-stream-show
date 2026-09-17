@@ -93,6 +93,55 @@ async function fetchRelay(url: string, request: Request): Promise<Response> {
   });
 }
 
+/**
+ * Resolves provider redirects so manifest URIs get the right base.
+ *
+ * Many Xtream/playlist links (`/live/user/pass/123.ts`) answer 30x and hand the
+ * real playlist off to another host. The relay follows redirects internally and
+ * does not always report the final URL, so relative variant/segment URIs in the
+ * returned manifest would be resolved against the *original* path and 404.
+ * Peek at the redirect chain ourselves; if the provider refuses us directly we
+ * simply keep the original URL and let the relay handle it.
+ */
+async function resolveRedirects(url: string): Promise<string> {
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    try {
+      const res = await fetch(current, {
+        method: 'GET',
+        redirect: 'manual',
+        headers: { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' },
+        signal: AbortSignal.timeout(6000),
+      });
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* nothing to drain */
+      }
+      const location = res.headers.get('location');
+      if (res.status >= 300 && res.status < 400 && location) {
+        current = new URL(location, current).toString();
+        continue;
+      }
+      return current;
+    } catch {
+      return current;
+    }
+  }
+  return current;
+}
+
+/** Providers often mislabel segments (text/css, text/html); fix by extension. */
+function segmentContentType(url: string, upstreamType: string | null): string | null {
+  const ct = (upstreamType ?? '').toLowerCase();
+  const path = url.split('?')[0] ?? '';
+  if (/\.ts$/i.test(path)) return 'video/mp2t';
+  if (/\.m4s$/i.test(path) || /\.mp4$/i.test(path)) return 'video/mp4';
+  if (/\.aac$/i.test(path)) return 'audio/aac';
+  if (!ct || ct.startsWith('text/')) return 'application/octet-stream';
+  return null;
+}
+
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
