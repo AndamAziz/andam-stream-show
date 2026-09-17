@@ -2274,29 +2274,40 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     function native(streamIsHls){
       if(!alive()) return;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
-      if(streamIsHls && !s.video.canPlayType('application/vnd.apple.mpegurl')){
+      var v=readyVideo();
+      if(!v){ fail(s,'Player is not ready — reopen the channel'); return }
+      if(streamIsHls && !v.canPlayType('application/vnd.apple.mpegurl')){
         retryable('This stream cannot be played in this browser');
         return;
       }
       var url=src;
-      s.video.preload='auto';
-      s.video.setAttribute('preload','auto');
-      s.video.src=url;
-      try{ s.video.load() }catch(_){}
-      s.video.play().catch(function(){});
-      s.video.addEventListener('error',function(){
-        if(!alive()) return;
-        var code=s.video.error&&s.video.error.code;
+      try{
+        v.preload='auto';
+        v.setAttribute('preload','auto');
+        v.src=url;
+        v.load();
+      }catch(err){
+        console.warn('[player] native mount failed',err&&err.message);
+        retryable('This stream cannot be played here');
+        return;
+      }
+      try{ var p=v.play(); if(p&&p.catch) p.catch(function(){}) }catch(_){}
+      /* The listener is removed on teardown so an error raised by the *previous*
+         attempt can never fail the engine that replaced it. */
+      function onNativeErr(){
+        v.removeEventListener('error',onNativeErr);
+        if(!alive()||ok) return;
+        /* Another engine already took the element over — its own handlers own
+           the failure now. */
+        if(s.hls||s.ts||s.dash) return;
+        var code=v.error&&v.error.code;
         console.error('[player] native playback error',code,url);
         /* SRC_NOT_SUPPORTED on a live channel almost always means raw MPEG-TS
            (or HEVC) the element cannot decode — hand it to mpegts.js. */
         if(isHls&&viaTs()) return;
         retryable('This stream cannot be played here');
-      },{once:true});
-
+      }
+      v.addEventListener('error',onNativeErr);
     }
 
 
