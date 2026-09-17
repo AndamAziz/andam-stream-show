@@ -2107,6 +2107,54 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }).catch(function(e){ clearTimeout(timeout); throw e });
   }
 
+  /* Byte-level sniffing for IPTV links. Content-Type alone lies constantly:
+     playlist entries ending in .m3u8 answer with raw video/MP2T, and some
+     hosts return a JSON/HTML error page with a 200. Read the first chunk of
+     the body and decide from the actual bytes. */
+  function hexOf(b,n){
+    var o=[]; for(var i=0;i<Math.min(n,b.length);i++) o.push(('0'+b[i].toString(16)).slice(-2));
+    return o.join(' ');
+  }
+  function classifyHead(o){
+    var b=o.head||new Uint8Array(0), txt='';
+    for(var i=0;i<Math.min(b.length,600);i++) txt+=String.fromCharCode(b[i]);
+    var head=txt.replace(/^\uFEFF/,'').replace(/^\s+/,'');
+    console.log('[player] stream probe status='+o.status+' content-type='+(o.ct||'(none)')
+      +' bytes='+b.length+' first16='+(hexOf(b,16)||'(empty)'));
+    if(head.indexOf('#EXTM3U')===0){ o.kindOf='hls'; return o }
+    if(b.length&&b[0]===0x47&&(b.length<189||b[188]===0x47)){ o.kindOf='mpegts'; return o }
+    if(b.length>2&&b[0]===0x46&&b[1]===0x4c&&b[2]===0x56){ o.kindOf='flv'; return o }
+    if(head.indexOf('<MPD')>=0||o.ct.indexOf('dash+xml')>=0){ o.kindOf='dash'; return o }
+    if(head.charAt(0)==='{'||head.charAt(0)==='['||/^<!doctype|^<html/i.test(head)
+       ||o.ct.indexOf('json')>=0||o.ct.indexOf('text/html')>=0){ o.kindOf='bad'; o.text=head; return o }
+    if(o.ct.indexOf('mpegurl')>=0) o.kindOf='hls';
+    else if(o.ct.indexOf('x-flv')>=0||o.ct.indexOf('video/flv')>=0) o.kindOf='flv';
+    else if(o.ct.indexOf('mp2t')>=0||o.ct.indexOf('mpegts')>=0||o.ct.indexOf('mpeg-ts')>=0
+            ||o.ct.indexOf('video/mpeg')>=0) o.kindOf='mpegts';
+    else o.kindOf='file';
+    return o;
+  }
+  function sniffStream(src){
+    var ctl=window.AbortController?new AbortController():null;
+    var timeout=setTimeout(function(){ if(ctl) try{ ctl.abort() }catch(_){} },5000);
+    return fetch(src,{headers:{range:'bytes=0-8191'},signal:ctl?ctl.signal:undefined}).then(function(r){
+      var o={ok:r.ok||r.status===206,status:r.status,ct:(r.headers.get('content-type')||'').toLowerCase()};
+      /* Never use arrayBuffer() here: a live MPEG-TS body never ends, so it
+         would hang forever. Read exactly one chunk and cancel. */
+      if(!r.body||!r.body.getReader){ clearTimeout(timeout); o.head=new Uint8Array(0); return classifyHead(o) }
+      var reader=r.body.getReader();
+      return reader.read().then(function(res){
+        clearTimeout(timeout);
+        o.head=res&&res.value?new Uint8Array(res.value):new Uint8Array(0);
+        try{ reader.cancel() }catch(_){}
+        try{ if(ctl) ctl.abort() }catch(_){}
+        return classifyHead(o);
+      });
+    }).catch(function(e){ clearTimeout(timeout); throw e });
+  }
+
+
+
 
   function lvPlay(kind,token,title,sub,isHls,mediaKind){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
@@ -2135,7 +2183,42 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('timeupdate',onProgress);
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
-    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
+    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); killEngines(); fail(s,msg) }
+    /* Report the engine actually chosen so DevTools shows detection working. */
+    function engine(name){ console.log('[player] Using '+name+' — '+kind+' · '+title) }
+    function killEngines(){
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+      var h=s.hls, t=s.ts, dp=s.dash;
+      s.hls=null; s.ts=null; s.dash=null;
+      try{ if(h){ h.stopLoad(); h.destroy() } }catch(_){}
+      try{ if(t){ t.pause(); t.unload(); t.detachMediaElement(); t.destroy() } }catch(_){}
+      try{ if(dp) dp.reset() }catch(_){}
+    }
+    /* Hard IPTV timeout: no picture from any engine within 6s → try the raw
+       MPEG-TS demuxer once, and if that is also silent stop everything instead
+       of leaving an endless spinner. */
+    var hardTries=0, hardGrace=0;
+    function hardGuard(){
+      if(kind!=='iptv') return;
+      setTimeout(function(){
+        if(!alive()||ok) return;
+        if((s.video.currentTime||0)>0.1||s.video.readyState>=2) return;
+        /* Data is already arriving and decoding — a slow line, not a wrong
+           engine. Give it one more window before declaring failure. */
+        var progressing=s.video.readyState>=1||(s.video.buffered&&s.video.buffered.length>0);
+        if(progressing&&hardGrace++<1){ hardGuard(); return }
+        if(hardTries++===0&&!tsTried&&!dashTried){
+          console.warn('[player] no video frame in 6s — switching engine');
+          if(s.hls){ try{ s.hls.stopLoad(); s.hls.destroy() }catch(_){} s.hls=null }
+          engine('mpegts.js (6s timeout)');
+          if(viaTs('mpegts')){ hardGuard(); return }
+        }
+        console.error('[player] no video frame from any engine',src);
+        retryable('Stream unavailable, try another channel');
+      },6000);
+    }
+
+
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
        was continuing to download. Engine errors below remain authoritative. */
@@ -2386,17 +2469,24 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           }catch(_){}
           return;
         }
-        /* fragParsingError means hls.js cannot demux the segments at all —
-           HEVC-in-TS channels do this on every fragment, fatal or not. Switch
-           to the mpegts.js path immediately instead of retrying forever. */
+        /* fragParsingError / manifestParsingError mean hls.js cannot read this
+           stream at all (raw MPEG-TS answered on a .m3u8 URL, or HEVC-in-TS).
+           Tear the instance down first so it stops retrying and spamming
+           errors, then hand the same URL to mpegts.js. */
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
+            ||d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){
-          /* IPTV links that answer with raw video/MP2T land here: hand the same
-             URL to mpegts.js, which demuxes a plain transport stream. */
-          if(kind==='iptv'){ if(viaTs('mpegts')) return }
+          try{ h.stopLoad() }catch(_){}
+          try{ h.detachMedia() }catch(_){}
+          try{ h.destroy() }catch(_){}
+          if(s.hls===h) s.hls=null;
+          if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+          /* IPTV links that answer with raw video/MP2T land here. */
+          if(kind==='iptv'){ engine('mpegts.js (hls parse failed)'); if(viaTs('mpegts')) return }
           if(viaTs()) return;
         }
+
 
         /* Some provider lines serve the playlist happily but reject its signed
            segment links (403/411). Retrying cannot fix that — switch straight
@@ -2471,19 +2561,54 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       /* Most IPTV entries explicitly end in .m3u8/.mpd. Start their proper
          engine directly instead of probing first: some providers allow only
          one connection and rejected the player's immediate second request. */
-      if(mediaKind==='dash'){ viaDash(); return }
+      if(mediaKind==='dash'){ engine('dash.js'); viaDash(); return }
       /* IPTV playlist links lie about their type: a `.m3u8` entry frequently
-         answers with raw video/MP2T, which hls.js cannot parse. Always trust
-         the response for IPTV and only shortcut for provider channels. */
+         answers with raw video/MP2T, which hls.js cannot parse. Sniff the real
+         bytes for IPTV and only shortcut for provider channels. */
       if(mediaKind==='hls'&&kind!=='iptv'){
         srcIsHls=true;
         ensureHls().then(function(Hls){
           if(!alive()) return;
-          if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
+          if(Hls&&Hls.isSupported()){ engine('hls.js'); viaHls(Hls) } else { engine('native'); native(true) }
+        });
+        return;
+      }
+      if(kind==='iptv'){
+        hardGuard();
+        sniffStream(src).then(function(p){
+          if(!alive()) return;
+          if(!p.ok){ retryable('Stream error '+p.status); return }
+          if(p.kindOf==='bad'){
+            console.error('[player] not a media stream — raw response:',p.text);
+            retryable('Stream unavailable, try another channel'); return;
+          }
+          if(p.kindOf==='dash'){ engine('dash.js'); viaDash(); return }
+          if(p.kindOf==='flv'){ engine('mpegts.js (flv)'); viaTs('flv'); return }
+          if(p.kindOf==='mpegts'){ engine('mpegts.js'); viaTs('mpegts'); return }
+          if(p.kindOf==='hls'){
+            srcIsHls=true;
+            if(nativeHls()){ engine('native HLS'); native(true); return }
+            ensureHls().then(function(Hls){
+              if(!alive()) return;
+              if(Hls&&Hls.isSupported()){ engine('hls.js'); viaHls(Hls) } else { engine('native'); native(true) }
+            });
+            return;
+          }
+          engine('native'); native(false);
+        }).catch(function(err){
+          if(!alive()) return;
+          console.warn('[player] sniff failed',err&&err.message);
+          engine('hls.js (sniff failed)');
+          srcIsHls=true;
+          ensureHls().then(function(Hls){
+            if(!alive()) return;
+            if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
+          });
         });
         return;
       }
       probeKind(src).then(function(p){
+
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
         /* DASH manifests need dash.js; raw MPEG-TS needs mpegts.js — the native
