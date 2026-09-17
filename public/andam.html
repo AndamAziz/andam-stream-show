@@ -291,7 +291,7 @@ h1,h2,h3{font-family:'Space Grotesk',sans-serif;margin:0}
 @media (max-width:820px){.mbody{flex-direction:column}.chanlist{width:100%;flex:1 1 auto;max-height:38vh;border-left:0;border-top:1px solid var(--hair)}}
 /* ===== HAMBURGER / MOBILE MENU ===== */
 .status.retry{cursor:pointer;color:var(--ember);border:1px solid rgba(255,69,0,.45);background:rgba(255,69,0,.12);border-radius:999px;padding:10px 18px;min-height:44px;display:inline-flex;align-items:center}
-.burger{display:grid;width:40px;height:40px;border-radius:10px;border:1px solid var(--hair);
+.burger{display:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--hair);
   background:rgba(255,255,255,.03);color:var(--text);font-size:18px;place-items:center}
 .menu{position:fixed;inset:0;z-index:60;display:none;background:rgba(6,7,10,.94);backdrop-filter:blur(12px);
   flex-direction:column;padding:76px 24px 32px}
@@ -881,7 +881,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 </div>
 
 
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script src="/vendor/hls.min.js"></script>
 
 <script>
 (function(){
@@ -1997,7 +1997,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         setTimeout(poll,80);
       })();
       var s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
+      s.src='/vendor/hls.min.js';
       s.onload=function(){ if(!done){ done=true; resolve(window.Hls||null) } };
       document.head.appendChild(s);
     });
@@ -2021,7 +2021,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         setTimeout(poll,80);
       })();
       var el=document.createElement('script');
-      el.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';
+      el.src='/vendor/mpegts.js';
       el.onload=function(){ if(!done){ done=true; resolve(window.mpegts||null) } };
       document.head.appendChild(el);
     });
@@ -2044,7 +2044,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         setTimeout(poll,80);
       })();
       var el=document.createElement('script');
-      el.src='https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js';
+      el.src='/vendor/dash.all.min.js';
       el.onload=function(){ if(!done){ done=true; resolve(window.dashjs||null) } };
       el.onerror=function(){ if(!done){ done=true; resolve(null) } };
       document.head.appendChild(el);
@@ -2645,7 +2645,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       if(!ltv.providers.length){ ltv.started=false; provSel.innerHTML=''; ltvSet('No provider is assigned to your account yet. Please contact the admin to get a provider assigned.'); return }
       var saved=null; try{ saved=localStorage.getItem(PROV_KEY) }catch(_){}
       var pick=ltv.providers.filter(function(p){return p.id===saved})[0]||ltv.providers[0];
-      setProvider(pick.id);
+      /* Do not strand the viewer on a saved provider that currently returns an
+         empty lineup. Select the first assigned provider with live channels. */
+      var ordered=[pick].concat(ltv.providers.filter(function(p){return p.id!==pick.id}));
+      (function choose(i){
+        if(i>=ordered.length){ setProvider(pick.id); return }
+        var candidate=ordered[i];
+        api({action:'live',source:candidate.id}).then(function(result){
+          if((result.items||[]).length){ setProvider(candidate.id) } else choose(i+1)
+        }).catch(function(){ choose(i+1) });
+      })(0);
     }).catch(function(){ ltv.started=false; ltvBody.innerHTML=''; ltvSet('Could not load your providers.') });
   };
 
