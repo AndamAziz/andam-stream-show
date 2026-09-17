@@ -2739,8 +2739,24 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }
       if(kind==='iptv'){
         hardGuard();
-        sniffStream(src).then(function(p){
+        sniffStream(src,s).then(function(p){
           if(!alive()) return;
+          /* The probe was cancelled because the viewer moved on — nothing to do,
+             and nothing to report. */
+          if(p.aborted) return;
+          /* The probe itself could not complete (network drop, blocked request).
+             That says nothing about the container, so let the engines try. */
+          if(p.status===0){
+            console.warn('[player] probe inconclusive:',p.error||'no response');
+            chain=['mpegts','flv','dash','native'];
+            srcIsHls=true;
+            engine('hls.js (probe inconclusive)');
+            ensureHls().then(function(Hls){
+              if(!alive()) return;
+              if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
+            });
+            return;
+          }
           /* A dead link (404/401/403/5xx) is not an engine problem: report it
              at once instead of walking every demuxer against an error page. */
           if(!p.ok){
