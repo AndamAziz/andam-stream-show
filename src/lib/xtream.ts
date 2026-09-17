@@ -84,7 +84,12 @@ function fromB64url(value: string): string {
 
 /** Adds the relay marker to an upstream URL, unless it uses the shared relay. */
 export function tagRelay(upstream: string, source?: Source): string {
-  const relay = relayConfig(source);
+  return tagWithRelay(upstream, relayConfig(source));
+}
+
+/** Same, from an already-resolved relay (used when rewriting HLS manifests). */
+export function tagWithRelay(upstream: string, relay: RelayConfig | null): string {
+  if (!relay) return upstream;
   const shared = defaultRelay();
   if (relay.base === shared.base && relay.token === shared.token) return upstream;
   const mark = b64url(JSON.stringify(relay));

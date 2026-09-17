@@ -147,8 +147,12 @@ function segmentContentType(url: string, upstreamType: string | null): string | 
 }
 
 
-async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
-  let res = await fetchRelay(upstream, request);
+async function fetchUpstream(
+  upstream: string,
+  request: Request,
+  relay: RelayConfig | null,
+): Promise<Response> {
+  let res = await fetchRelay(upstream, request, relay);
   // 403/411/5xx from the relay are usually transient — retry once.
   if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
     try {
@@ -157,7 +161,7 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
       /* nothing to drain */
     }
     await new Promise((r) => setTimeout(r, 350));
-    res = await fetchRelay(upstream, request);
+    res = await fetchRelay(upstream, request, relay);
   }
   return res;
 }
@@ -169,14 +173,21 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
  * the incoming request origin are wrong behind the preview/published proxy
  * (the server sees http://localhost:8080), which made the browser request a
  * dead origin and left the player spinning forever.
+ *
+ * Child URLs keep the provider's relay marker so segments travel the same relay
+ * as the manifest they came from.
  */
-async function rewriteManifest(text: string, upstream: string): Promise<string> {
+async function rewriteManifest(
+  text: string,
+  upstream: string,
+  relay: RelayConfig | null,
+): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
   // `s=1` marks a URL we generated from an already-resolved manifest, so the
   // handler can skip the redirect probe for it.
   const token = async (ref: string) =>
-    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(tagWithRelay(absolute(ref), relay)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
