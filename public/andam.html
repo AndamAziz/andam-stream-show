@@ -2694,7 +2694,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         hardGuard();
         sniffStream(src).then(function(p){
           if(!alive()) return;
-          if(!p.ok){ retryable('Stream error '+p.status); return }
+          /* A dead link (404/401/403/5xx) is not an engine problem: report it
+             at once instead of walking every demuxer against an error page. */
+          if(!p.ok){
+            chain=[]; chainIx=0;
+            retryable(p.status===404?'Channel not available (404)':'Stream error '+p.status);
+            return;
+          }
           if(p.kindOf==='bad'){
             console.error('[player] not a media stream — raw response:',p.text);
             retryable('Stream unavailable, try another channel'); return;
