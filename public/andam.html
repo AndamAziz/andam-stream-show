@@ -2144,53 +2144,116 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
 
-    /* HEVC-in-TS live channels: play the provider's raw .ts endpoint through
-       mpegts.js, which transmuxes it into fMP4 the browser can decode. */
+    /* mpegts.js path. Used for two cases:
+        - raw MPEG-TS playlist channels (`.ts` links): no browser decodes
+          video/mp2t natively, so the native element fails instantly;
+        - HEVC-in-TS provider channels, where hls.js cannot demux the segments.
+       A watchdog reloads the stream when picture/sound stop advancing, so a
+       relay hiccup no longer freezes the channel for good. */
+    function mountMpegts(url,failMsg){
+      return ensureMpegts().then(function(mp){
+        if(!alive()) return;
+        if(!mp||!mp.isSupported()){ retryable(failMsg); return }
+        /* enableWorker:false — on desktop the worker build re-fetches the
+           stream from a worker scope that resolves URLs differently and dies
+           before the first segment; the main-thread demuxer is reliable and
+           fast enough for a single live stream. */
+        var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
+          {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
+           liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
+           reuseRedirectedURL:true});
+        s.ts=pl;
+        var softErr=0;
+        function reload(){
+          if(!alive()||s.ts!==pl) return;
+          try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
+        }
+        pl.on(mp.Events.ERROR,function(a,b,c){
+          console.error('[player] mpegts',a,b,c);
+          if(!alive()||s.ts!==pl) return;
+          /* Network hiccups from the relay are recoverable: reload a few times
+             before telling the user anything. */
+          if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
+          retryable(failMsg);
+        });
+        pl.attachMediaElement(s.video);
+        pl.load();
+        s.video.play().catch(function(){});
+        var tsMove=Date.now(), tsTime=0;
+        if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+        s.stallTimer=setInterval(function(){
+          if(!alive()||s.ts!==pl||s.video.paused||s.video.ended) return;
+          var t=s.video.currentTime||0, now=Date.now();
+          if(t>tsTime+0.05){ tsTime=t; tsMove=now; return }
+          if(now-tsMove<12000) return;
+          tsMove=now; softErr=0; reload();
+        },3000);
+      }).catch(function(){ retryable('Stream failed to load') });
+    }
+
     var tsTried=false;
     function viaTs(){
       if(tsTried||!alive()) return false;
-      var req=LASTREQ[kind];
-      if(!req||req.type!=='live'||!req.id) return false;
       tsTried=true;
       if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
       var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
-      Promise.all([ensureMpegts(),api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})])
-        .then(function(r){
-          var mp=r[0], tok=r[1]&&r[1].play;
-          if(!alive()) return;
-          if(!mp||!tok||!mp.isSupported()){ retryable(hevcMsg); return }
-          var url=location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok);
-          /* enableWorker:false — on desktop the worker build re-fetches the
-             stream from a worker scope that resolves URLs differently and dies
-             before the first segment; the main-thread demuxer is reliable and
-             fast enough for a single live stream. */
-          var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
-            {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
-             liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true});
-          s.ts=pl;
-          var softErr=0;
-          pl.on(mp.Events.ERROR,function(a,b,c){
-            console.error('[player] mpegts',a,b,c);
-            if(!alive()||s.ts!==pl) return;
-            /* Network hiccups from the relay are recoverable: reload once or
-               twice before telling the user anything. */
-            if(String(a)==='NetworkError'&&++softErr<=2){
-              try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
-              return;
-            }
-            retryable(hevcCapable()?'Stream failed to load':hevcMsg);
-          });
-          pl.attachMediaElement(s.video);
-          pl.load();
-          s.video.play().catch(function(){});
-        })
-        .catch(function(){ retryable('Stream failed to load') });
-
+      var req=LASTREQ[kind];
+      /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
+         channels are already a direct stream URL, so reuse the same token. */
+      if(req&&req.type==='live'&&req.id){
+        api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})
+          .then(function(d){
+            if(!alive()) return;
+            var tok=d&&d.play;
+            if(!tok){ retryable(hevcMsg); return }
+            mountMpegts(location.origin+'/api/public/xtream-play?t='+encodeURIComponent(tok),
+              hevcCapable()?'Stream failed to load':hevcMsg);
+          })
+          .catch(function(){ mountMpegts(location.origin+src,hevcMsg) });
+        return true;
+      }
+      mountMpegts(location.origin+src,hevcCapable()?'Stream failed to load':hevcMsg);
       return true;
     }
+
+    /* DASH (.mpd) channels — dash.js over the same relay proxy. */
+    var dashTried=false;
+    function viaDash(){
+      if(dashTried||!alive()) return false;
+      dashTried=true;
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+      var dead=s.hls; s.hls=null;
+      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      busy(s,true); clearFail(s);
+      ensureDash().then(function(dashjs){
+        if(!alive()) return;
+        if(!dashjs||!dashjs.MediaPlayer){ retryable('This stream cannot be played in this browser'); return }
+        var p=dashjs.MediaPlayer().create();
+        s.dash=p;
+        p.updateSettings({streaming:{buffer:{bufferTimeAtTopQuality:30,stableBufferTime:20,
+          fastSwitchEnabled:true},retryAttempts:{MPD:5,MediaSegment:6},delay:{liveDelay:8}}});
+        p.on(dashjs.MediaPlayer.events.ERROR,function(e){
+          console.error('[player] dash',e&&(e.error||e));
+          if(!alive()||s.dash!==p) return;
+          retryable('Stream failed to load');
+        });
+        p.initialize(s.video,location.origin+src,true);
+        var dMove=Date.now(), dTime=0;
+        s.stallTimer=setInterval(function(){
+          if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
+          var t=s.video.currentTime||0, now=Date.now();
+          if(t>dTime+0.05){ dTime=t; dMove=now; return }
+          if(now-dMove<12000) return;
+          dMove=now;
+          try{ p.attachSource(location.origin+src); s.video.play().catch(function(){}) }catch(_){}
+        },3000);
+      }).catch(function(){ retryable('Stream failed to load') });
+      return true;
+    }
+
 
     var recover=0,networkRecover=0,lastMoveAt=Date.now(),lastMediaTime=0;
     function viaHls(Hls){
