@@ -2166,7 +2166,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         - HEVC-in-TS provider channels, where hls.js cannot demux the segments.
        A watchdog reloads the stream when picture/sound stop advancing, so a
        relay hiccup no longer freezes the channel for good. */
-    function mountMpegts(url,failMsg){
+    function mountMpegts(url,failMsg,type){
       return ensureMpegts().then(function(mp){
         if(!alive()) return;
         if(!mp||!mp.isSupported()){ retryable(failMsg); return }
@@ -2174,7 +2174,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            stream from a worker scope that resolves URLs differently and dies
            before the first segment; the main-thread demuxer is reliable and
            fast enough for a single live stream. */
-        var pl=mp.createPlayer({type:'mpegts',isLive:true,url:url},
+        var pl=mp.createPlayer({type:type||'mpegts',isLive:true,url:url},
           {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
            liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
            reuseRedirectedURL:true});
@@ -2208,13 +2208,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
     var tsTried=false, srcIsHls=false;
-    function viaTs(){
+    function viaTs(forceType){
       if(tsTried||!alive()) return false;
       var req=LASTREQ[kind];
       var hasProviderTs=!!(req&&req.type==='live'&&req.id);
       /* mpegts.js only understands a raw MPEG-TS byte stream. An HLS playlist
          with no raw .ts endpoint behind it cannot be handed to it. */
-      if(!hasProviderTs&&srcIsHls){
+      if(!hasProviderTs&&srcIsHls&&!forceType){
         /* Safari (and any browser with native HLS) decodes HEVC playlists the
            JS demuxer rejects, so try the built-in player before giving up. */
         if(s.video.canPlayType('application/vnd.apple.mpegurl')){ tsTried=true; native(true); return true }
@@ -2242,7 +2242,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           .catch(function(){ mountMpegts(location.origin+src,hevcMsg) });
         return true;
       }
-      mountMpegts(location.origin+src,hevcCapable()?'Stream failed to load':hevcMsg);
+      mountMpegts(location.origin+src,
+        forceType==='flv'?'This stream cannot be played here':(hevcCapable()?'Stream failed to load':hevcMsg),
+        forceType);
       return true;
     }
 
@@ -2449,6 +2451,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* DASH manifests need dash.js; raw MPEG-TS needs mpegts.js — the native
            element rejects both with MEDIA_ERR_SRC_NOT_SUPPORTED. */
         if(p.dash){ viaDash(); return }
+        if(p.flv){ viaTs('flv'); return }
         if(p.mp2t){ viaTs(); return }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
