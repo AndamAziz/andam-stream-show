@@ -1931,7 +1931,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       tag:document.getElementById(p+'NowTag'),
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
-      hls:null,session:0,last:null,stallTimer:null};
+      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
@@ -1966,6 +1966,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
+    if(s.dash){ var deadDash=s.dash; s.dash=null; setTimeout(function(){ try{deadDash.reset()}catch(_){} },0) }
+
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
     /* load() after clearing the src resets the media element; skipping it left
