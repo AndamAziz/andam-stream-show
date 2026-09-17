@@ -2504,8 +2504,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         fragLoadingTimeOut:20000,fragLoadingMaxRetry:5,fragLoadingMaxRetryTimeout:8000,
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
+      /* Detach any previous engine before hls.js claims the element. */
+      if(!readyVideo()){ killHls(h); fail(s,'Player is not ready — reopen the channel'); return }
       s.hls=h;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       h.on(Hls.Events.MANIFEST_PARSED,function(){
         if(!alive()) return;
         /* Start at the newest segment. Beginning at the oldest advertised
