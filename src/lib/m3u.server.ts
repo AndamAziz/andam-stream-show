@@ -128,10 +128,12 @@ export async function refreshPlaylist(source: PlaylistSource): Promise<{
   const categoryCount = new Set(channels.map((c) => c.group)).size;
   const fetchedAt = new Date().toISOString();
 
+  await storeChannels(source.id, channels);
+
   const { error } = await supabaseAdmin.from('playlist_cache').upsert(
     {
       source_id: source.id,
-      channels,
+      channels: [],
       channel_count: channels.length,
       category_count: categoryCount,
       fetched_at: fetchedAt,
@@ -143,27 +145,86 @@ export async function refreshPlaylist(source: PlaylistSource): Promise<{
   return { channels, channelCount: channels.length, categoryCount, fetchedAt };
 }
 
-/** Cached channel list; refreshes automatically once the cache goes stale. */
+/** Media hint stored with each channel so playback skips a probe request. */
+function mediaKindOf(url: string): 'hls' | 'dash' | 'file' | 'auto' {
+  let path = url;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* Invalid URLs fail naturally at playback time. */
+  }
+  if (/\.m3u8$/i.test(path)) return 'hls';
+  if (/\.mpd$/i.test(path)) return 'dash';
+  if (/\.(mp4|m4v|webm|mkv)$/i.test(path)) return 'file';
+  return 'auto';
+}
+
+/** Replaces the stored channel rows for a playlist source. */
+async function storeChannels(sourceId: string, channels: M3uChannel[]): Promise<void> {
+  const del = await supabaseAdmin.from('iptv_channels').delete().eq('source_id', sourceId);
+  if (del.error) throw new Error(del.error.message);
+
+  const CHUNK = 1000;
+  for (let i = 0; i < channels.length; i += CHUNK) {
+    const rows = channels.slice(i, i + CHUNK).map((c) => ({
+      source_id: sourceId,
+      channel_key: c.id,
+      num: c.num,
+      name: c.name,
+      logo: c.logo || null,
+      group_title: c.group,
+      url: c.url,
+      media_kind: mediaKindOf(c.url),
+    }));
+    const { error } = await supabaseAdmin.from('iptv_channels').insert(rows);
+    if (error) throw new Error(error.message);
+  }
+}
+
+/** Reads the stored channel rows for a playlist source, in playlist order. */
+async function readChannels(sourceId: string): Promise<M3uChannel[]> {
+  const PAGE = 1000;
+  const out: M3uChannel[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from('iptv_channels')
+      .select('channel_key, num, name, logo, group_title, url')
+      .eq('source_id', sourceId)
+      .order('num', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const page = data ?? [];
+    for (const r of page) {
+      out.push({
+        id: r.channel_key,
+        num: r.num,
+        name: r.name,
+        logo: r.logo ?? '',
+        group: r.group_title,
+        url: r.url,
+      });
+    }
+    if (page.length < PAGE) break;
+  }
+  return out;
+}
+
+/** Channel list from the database; refreshes automatically once it goes stale. */
 export async function getPlaylistChannels(
   source: PlaylistSource,
   force = false,
 ): Promise<{ channels: M3uChannel[]; fetchedAt: string; stale: boolean }> {
-  if (!force) {
-    const { data } = await supabaseAdmin
-      .from('playlist_cache')
-      .select('channels, fetched_at')
-      .eq('source_id', source.id)
-      .maybeSingle();
-    const fetchedAt = data?.fetched_at;
-    if (data && fetchedAt) {
-      const ageHours = (Date.now() - new Date(fetchedAt).getTime()) / 3_600_000;
-      if (ageHours < PLAYLIST_TTL_HOURS) {
-        return {
-          channels: (data.channels ?? []) as unknown as M3uChannel[],
-          fetchedAt,
-          stale: false,
-        };
-      }
+  const { data: meta } = await supabaseAdmin
+    .from('playlist_cache')
+    .select('fetched_at, channel_count')
+    .eq('source_id', source.id)
+    .maybeSingle();
+
+  if (!force && meta?.fetched_at && (meta.channel_count ?? 0) > 0) {
+    const ageHours = (Date.now() - new Date(meta.fetched_at).getTime()) / 3_600_000;
+    if (ageHours < PLAYLIST_TTL_HOURS) {
+      const channels = await readChannels(source.id);
+      if (channels.length) return { channels, fetchedAt: meta.fetched_at, stale: false };
     }
   }
 
@@ -171,22 +232,15 @@ export async function getPlaylistChannels(
     const fresh = await refreshPlaylist(source);
     return { channels: fresh.channels, fetchedAt: fresh.fetchedAt, stale: false };
   } catch (err) {
-    // A failed refresh must not blank the IPTV page — serve the stale copy.
-    const { data } = await supabaseAdmin
-      .from('playlist_cache')
-      .select('channels, fetched_at')
-      .eq('source_id', source.id)
-      .maybeSingle();
-    if (data?.fetched_at) {
-      return {
-        channels: (data.channels ?? []) as unknown as M3uChannel[],
-        fetchedAt: data.fetched_at,
-        stale: true,
-      };
+    // A failed refresh must not blank the IPTV page — serve the stored copy.
+    const channels = await readChannels(source.id);
+    if (channels.length && meta?.fetched_at) {
+      return { channels, fetchedAt: meta.fetched_at, stale: true };
     }
     throw err;
   }
 }
+
 
 export async function playlistCacheStats(): Promise<
   Record<string, { channelCount: number; categoryCount: number; fetchedAt: string }>
