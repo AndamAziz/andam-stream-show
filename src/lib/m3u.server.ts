@@ -155,14 +155,13 @@ export async function getPlaylistChannels(
       .eq('source_id', source.id)
       .maybeSingle();
     const fetchedAt = data?.fetched_at;
-    if (data && fetchedAt) {
+    const cached = (data?.channels ?? []) as unknown as M3uChannel[];
+    // An empty cached list is treated as a miss: a partially written cache row
+    // would otherwise leave the IPTV page permanently blank until the TTL ran out.
+    if (data && fetchedAt && cached.length > 0) {
       const ageHours = (Date.now() - new Date(fetchedAt).getTime()) / 3_600_000;
       if (ageHours < PLAYLIST_TTL_HOURS) {
-        return {
-          channels: (data.channels ?? []) as unknown as M3uChannel[],
-          fetchedAt,
-          stale: false,
-        };
+        return { channels: cached, fetchedAt, stale: false };
       }
     }
   }
