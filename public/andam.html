@@ -2422,9 +2422,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }
 
       tsTried=true;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      /* Detach hls.js/dash.js synchronously: a deferred destroy left the old
+         instance writing into the element mpegts.js was taking over. */
+      killEngines();
       busy(s,true); clearFail(s);
       var hevcMsg=HEVC_MSG;
       /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
