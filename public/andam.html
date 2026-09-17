@@ -2401,7 +2401,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           clearInterval(startGuard);
           console.error('[player] mpegts produced no video frame',url);
           retryable('Stream unavailable');
-        },5000);
+        /* Playlist channels are often slow to hand over the first keyframe;
+           give them a longer warm-up before declaring failure. */
+        },kind==='iptv'?8000:5000);
         var tsMove=Date.now(), tsTime=0;
 
         if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
