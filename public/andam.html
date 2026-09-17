@@ -2703,6 +2703,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           }
           if(p.kindOf==='bad'){
             console.error('[player] not a media stream — raw response:',p.text);
+            chain=[]; chainIx=0;
             retryable('Stream unavailable, try another channel'); return;
           }
           /* Whatever the bytes say first, keep the other engines queued. */
