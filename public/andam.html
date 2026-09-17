@@ -1932,7 +1932,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       tag:document.getElementById(p+'NowTag'),
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
-      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null};
+      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null,
+      /* every timer started for the current channel, plus the abort controller
+         for its network probes, so teardown can cancel all of them at once */
+      timers:[],abort:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls,s.last.mediaKind) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
@@ -1977,6 +1980,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function killTs(t){
     if(!t) return;
+    /* Drop our listeners first. A loader task that lands after destroy() tries
+       to emit on an emitter that no longer exists ("reading 'emit'"); with the
+       listeners gone the event is discarded instead. */
+    try{
+      var hs=t.__h||[]; t.__h=[];
+      for(var i=0;i<hs.length;i++){ try{ t.off(hs[i][0],hs[i][1]) }catch(_){} }
+    }catch(_){}
     try{ t.pause() }catch(_){}
     try{ t.unload() }catch(_){}
     try{ t.detachMediaElement() }catch(_){}
@@ -1987,11 +1997,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     try{ d.reset() }catch(_){}
     try{ if(d.destroy) d.destroy() }catch(_){}
   }
-  /* Detaches whatever is currently mounted on a surface. Safe to call twice and
-     safe to call when the surface has no engine at all. */
+  /* Timer registry. Anything scheduled for the channel currently on screen is
+     registered here so teardown can cancel it; a guard or watchdog that fired
+     after its engine was destroyed was the source of the late "emit" errors. */
+  function every(s,fn,ms){ var id=setInterval(fn,ms); s.timers.push(id); return id }
+  function later(s,fn,ms){ var id=setTimeout(fn,ms); s.timers.push(id); return id }
+  function clearTimers(s){
+    var list=s.timers||[]; s.timers=[];
+    for(var i=0;i<list.length;i++){
+      try{ clearInterval(list[i]) }catch(_){}
+      try{ clearTimeout(list[i]) }catch(_){}
+    }
+  }
+  /* Detaches whatever is currently mounted on a surface, cancels its timers and
+     aborts its in-flight probes. Safe to call twice and safe to call when the
+     surface has no engine at all. */
   function teardown(s){
     if(!s) return;
     if(s.stallTimer){ try{ clearInterval(s.stallTimer) }catch(_){} s.stallTimer=null }
+    clearTimers(s);
+    if(s.abort){ try{ s.abort.abort() }catch(_){} s.abort=null }
     var h=s.hls, t=s.ts, d=s.dash;
     s.hls=null; s.ts=null; s.dash=null;
     killHls(h); killTs(t); killDash(d);
@@ -2156,7 +2181,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      admin bulk audit page can reuse the exact same classification. */
   function hexOf(b,n){ return window.AndamSniff.hexOf(b,n) }
   function classifyHead(o){ return window.AndamSniff.classifyHead(o) }
-  function sniffStream(src){ return window.AndamSniff.sniffStream(src) }
+  /* `s` supplies the abort signal, so switching channel cancels the probe. */
+  function sniffStream(src,s){
+    var sig=s&&s.abort?s.abort.signal:undefined;
+    return window.AndamSniff.sniffStream(src,{signal:sig});
+  }
 
 
 
@@ -2165,6 +2194,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
+    /* Fresh controller for this channel's probes; teardown aborts it. */
+    s.abort=window.AbortController?new AbortController():null;
     s.idle.classList.add('hide');
     setNow(s,title,sub,nowLogoOf(kind));
 
@@ -2268,7 +2299,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
        was continuing to download. Engine errors below remain authoritative. */
-    timer=setTimeout(function(){
+    timer=later(s,function(){
       if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<1) retryable('Stream failed to load');
     },60000);
 
@@ -2349,19 +2380,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(!alive()||s.ts!==pl) return;
           try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
         }
-        pl.on(mp.Events.ERROR,function(a,b,c){
+        pl.__h=[];
+        function plOn(ev,fn){ pl.__h.push([ev,fn]); pl.on(ev,fn) }
+        plOn(mp.Events.ERROR,function(a,b,c){
           console.error('[player] mpegts',a,b,c);
           if(!alive()||s.ts!==pl) return;
           /* Network hiccups from the relay are recoverable: reload a few times
              before telling the user anything. */
-          if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
+          if(String(a)==='NetworkError'&&++softErr<=4){ later(s,reload,600*softErr); return }
           retryable(failMsg);
         });
         /* Codec truth from the demuxer itself. A stream whose video track is
            HEVC (or missing altogether) plays sound over a black picture, and
            the old start guard accepted that as success. Report it at once with
            the accurate reason instead of waiting on the 5s timer. */
-        pl.on(mp.Events.MEDIA_INFO,function(mediaInfo){
+        plOn(mp.Events.MEDIA_INFO,function(mediaInfo){
           console.log('[player] mpegts MEDIA_INFO videoCodec='+(mediaInfo.videoCodec||'none')
             +' audioCodec='+(mediaInfo.audioCodec||'none')
             +' width='+mediaInfo.width+' height='+mediaInfo.height);
@@ -2392,7 +2425,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* No first frame at all after one reload attempt: stop spinning and say
            so instead of leaving the viewer on an endless loader. */
         var firstTry=true;
-        var startGuard=setInterval(function(){
+        var startGuard=every(s,function(){
           if(!alive()||s.ts!==pl){ clearInterval(startGuard); return }
           /* videoWidth confirms a decoded picture: readyState>=2 alone is true
              for audio-only playback and hid black-screen channels. */
@@ -2407,7 +2440,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         var tsMove=Date.now(), tsTime=0;
 
         if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-        s.stallTimer=setInterval(function(){
+        s.stallTimer=every(s,function(){
           if(!alive()||s.ts!==pl||s.video.paused||s.video.ended) return;
           var t=s.video.currentTime||0, now=Date.now();
           if(t>tsTime+0.05){ tsTime=t; tsMove=now; return }
@@ -2494,7 +2527,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           retryable('Stream failed to load'); return;
         }
         var dMove=Date.now(), dTime=0;
-        s.stallTimer=setInterval(function(){
+        s.stallTimer=every(s,function(){
           if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
           var t=s.video.currentTime||0, now=Date.now();
           if(t>dTime+0.05){ dTime=t; dMove=now; return }
@@ -2540,7 +2573,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
          interruption. A stall used to remain frozen forever once playback had
          started because the fatal-network recovery below only ran before the
          first frame. */
-      s.stallTimer=setInterval(function(){
+      s.stallTimer=every(s,function(){
         if(!alive()||s.hls!==h||s.video.paused||s.video.ended) return;
         var now=Date.now(), t=s.video.currentTime||0;
         if(t>lastMediaTime+0.05){ lastMediaTime=t; lastMoveAt=now; return }
@@ -2682,7 +2715,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
     /* Start the network work off the click's task so the tap never janks. */
-    setTimeout(function(){
+    later(s,function(){
       if(!alive()) return;
       /* Movies/episodes are progressive files and the account allows a single
          provider connection, so probing first would spend it (and the probe
@@ -2706,8 +2739,24 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }
       if(kind==='iptv'){
         hardGuard();
-        sniffStream(src).then(function(p){
+        sniffStream(src,s).then(function(p){
           if(!alive()) return;
+          /* The probe was cancelled because the viewer moved on — nothing to do,
+             and nothing to report. */
+          if(p.aborted) return;
+          /* The probe itself could not complete (network drop, blocked request).
+             That says nothing about the container, so let the engines try. */
+          if(p.status===0){
+            console.warn('[player] probe inconclusive:',p.error||'no response');
+            chain=['mpegts','flv','dash','native'];
+            srcIsHls=true;
+            engine('hls.js (probe inconclusive)');
+            ensureHls().then(function(Hls){
+              if(!alive()) return;
+              if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
+            });
+            return;
+          }
           /* A dead link (404/401/403/5xx) is not an engine problem: report it
              at once instead of walking every demuxer against an error page. */
           if(!p.ok){
