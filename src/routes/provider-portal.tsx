@@ -11,11 +11,11 @@ import { getPortalInvite, submitProviderChannels } from '@/lib/portal.functions'
 const DESCRIPTION =
   'Stream providers submit their own channel playlist to Andam through a private link — no account needed.';
 
-type Search = { p?: string };
+type Search = { p: string };
 
 export const Route = createFileRoute('/provider-portal')({
   validateSearch: (search: Record<string, unknown>): Search => ({
-    p: typeof search['p'] === 'string' ? search['p'] : undefined,
+    p: typeof search['p'] === 'string' ? search['p'] : '',
   }),
   head: () => ({
     meta: [
