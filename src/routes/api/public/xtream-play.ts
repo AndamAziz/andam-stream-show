@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { openUrl, sealUrl } from '@/lib/xtream-crypto';
-import { readRelay, relayHeaders, relayUrl, tagRelay, type RelayConfig } from '@/lib/xtream';
+import { readRelay, relayHeaders, relayUrl, tagWithRelay, type RelayConfig } from '@/lib/xtream';
 
 /**
  * Playback proxy.
@@ -225,7 +225,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
         // Providers may carry their own relay host/token; the marker travels
         // inside the sealed link and never reaches the provider itself.
-        const { url: target, relay } = readRelay(sealed);
+        const { upstream: target, relay } = readRelay(sealed);
 
         // Only the first hop (the link the UI hands us) may still redirect.
         const upstream =
