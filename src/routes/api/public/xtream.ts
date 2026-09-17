@@ -4,6 +4,7 @@ import {
   liveStreamUrl,
   playerApi,
   seriesStreamUrl,
+  tagRelay,
   timeshiftUrl,
   vodStreamUrl,
   type Source,
@@ -82,7 +83,7 @@ async function loadSources(): Promise<Source[]> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .select('id, slug, name, base_url, username, password, is_public')
+    .select('id, slug, name, base_url, username, password, is_public, relay_url, relay_token')
     .eq('type', 'xtream')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
@@ -95,6 +96,8 @@ async function loadSources(): Promise<Source[]> {
     username: s.username ?? '',
     password: s.password ?? '',
     is_public: s.is_public,
+    relay_url: s.relay_url,
+    relay_token: s.relay_token,
   })) as Source[];
 }
 
@@ -113,6 +116,18 @@ async function loadSource(slugOrId: string, allowed: string[] | 'all'): Promise<
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
 
+
+/** Curated Live TV channels for a provider; empty when none were imported. */
+async function curatedChannels(sourceId: string) {
+  const { listLiveChannels } = await import('@/lib/live-channels.server');
+  try {
+    return await listLiveChannels(sourceId);
+  } catch (err) {
+    // A curated-list read must never take Live TV down; fall back to the provider.
+    console.error('[xtream] curated list unavailable', err);
+    return [];
+  }
+}
 
 const num = (v: unknown, fallback = 0) => {
   const n = Number(v);
@@ -151,6 +166,24 @@ export const Route = createFileRoute('/api/public/xtream')({
 
           if (action === 'categories') {
             const kind = (url.searchParams.get('type') ?? 'live') as XtreamKind;
+
+            // Curated live lists carry their own groups instead of provider
+            // category ids, so the filter bar must list those.
+            if (kind === 'live') {
+              const curated = await curatedChannels(source.id);
+              if (curated.length > 0) {
+                const groups = [...new Set(curated.map((c) => c.group))].sort((a, b) =>
+                  a.localeCompare(b),
+                );
+                return json({
+                  categories: applyOverrides(
+                    groups.map((g) => ({ id: g, name: g })),
+                    await loadOverrides(source.id, 'category'),
+                  ),
+                });
+              }
+            }
+
             const map: Record<XtreamKind, string> = {
               live: 'get_live_categories',
               vod: 'get_vod_categories',
@@ -168,6 +201,26 @@ export const Route = createFileRoute('/api/public/xtream')({
 
           if (action === 'live') {
             const categoryId = url.searchParams.get('category_id') ?? '';
+
+            // A curated list (rebuilt from stored credentials, or imported from a
+            // provider submission) replaces the provider's own live list.
+            const curated = await curatedChannels(source.id);
+            if (curated.length > 0) {
+              const items = curated
+                .filter((c) => !categoryId || c.group === categoryId)
+                .map((c) => ({
+                  id: c.key,
+                  num: c.num,
+                  name: c.name,
+                  logo: c.logo,
+                  archive: false,
+                  archiveDays: 0,
+                  categoryId: c.group,
+                }));
+              const shown = applyOverrides(items, await loadOverrides(source.id, 'live'), 'logo');
+              return json({ items: shown, hasArchive: false, curated: true });
+            }
+
             const streams = await playerApi<LiveStream[]>(source, {
               action: 'get_live_streams',
               ...(categoryId ? { category_id: categoryId } : {}),
@@ -249,8 +302,23 @@ export const Route = createFileRoute('/api/public/xtream')({
             const kind = url.searchParams.get('type') ?? 'live';
             const id = url.searchParams.get('id') ?? '';
             const ext = (url.searchParams.get('ext') || '').replace(/[^a-z0-9]/gi, '');
-            if (!/^\d+$/.test(id)) return json({ error: 'id is required' }, 400);
+            // Curated channel keys are not numeric, so live ids allow the wider set.
+            const valid = kind === 'live' ? /^[A-Za-z0-9_.-]{1,80}$/ : /^\d+$/;
+            if (!valid.test(id)) return json({ error: 'id is required' }, 400);
             if (kind === 'live') {
+              const channel = await (async () => {
+                const { findLiveChannel } = await import('@/lib/live-channels.server');
+                try {
+                  return await findLiveChannel(source.id, id);
+                } catch {
+                  return null;
+                }
+              })();
+              if (channel) {
+                // Imported/curated channels carry their own absolute stream URL.
+                return json({ play: await sealUrl(tagRelay(channel.url, source)) });
+              }
+              if (!/^\d+$/.test(id)) return json({ error: 'Unknown channel' }, 404);
               // Progressive MPEG-TS first: several providers hand out HLS
               // segment URLs whose token is bound to the IP that fetched the
               // playlist, so every segment fetched through the relay dies with
@@ -258,14 +326,18 @@ export const Route = createFileRoute('/api/public/xtream')({
               // endpoint has no such token and streams fine. `fallback` keeps
               // HLS available for providers that only publish playlists.
               return json({
-                play: await sealUrl(liveStreamUrl(source, id, 'ts')),
-                fallback: await sealUrl(liveStreamUrl(source, id, 'm3u8')),
+                play: await sealUrl(tagRelay(liveStreamUrl(source, id, 'ts'), source)),
+                fallback: await sealUrl(tagRelay(liveStreamUrl(source, id, 'm3u8'), source)),
               });
             }
             if (kind === 'vod')
-              return json({ play: await sealUrl(vodStreamUrl(source, id, ext || 'mp4')) });
+              return json({
+                play: await sealUrl(tagRelay(vodStreamUrl(source, id, ext || 'mp4'), source)),
+              });
             if (kind === 'series')
-              return json({ play: await sealUrl(seriesStreamUrl(source, id, ext || 'mp4')) });
+              return json({
+                play: await sealUrl(tagRelay(seriesStreamUrl(source, id, ext || 'mp4'), source)),
+              });
             return json({ error: 'Unknown play type' }, 400);
           }
 
@@ -292,7 +364,10 @@ export const Route = createFileRoute('/api/public/xtream')({
                     plot: ep.info?.plot || '',
                     duration: ep.info?.duration || '',
                     play: await sealUrl(
-                      seriesStreamUrl(source, ep.id, ep.container_extension || 'mp4'),
+                      tagRelay(
+                        seriesStreamUrl(source, ep.id, ep.container_extension || 'mp4'),
+                        source,
+                      ),
                     ),
                   })),
                 ),
@@ -316,7 +391,9 @@ export const Route = createFileRoute('/api/public/xtream')({
               return json({ error: 'stream_id and start (yyyy-MM-dd:HH-mm) are required' }, 400);
             }
             return json({
-              play: await sealUrl(timeshiftUrl(source, streamId, duration, start)),
+              play: await sealUrl(
+                tagRelay(timeshiftUrl(source, streamId, duration, start), source),
+              ),
             });
           }
 

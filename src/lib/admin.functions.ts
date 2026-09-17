@@ -283,3 +283,115 @@ export const changeUserSectionAccess = createServerFn({ method: 'POST' })
     await setEntitlement(data.userId, data.section, data.grant);
     return { ok: true };
   });
+
+/* ---------- Provider credentials, portal links and submissions ---------- */
+
+async function portalOps(supabase: unknown, userId: string) {
+  const { assertAdmin } = await import('@/lib/admin.server');
+  await assertAdmin(supabase as never, userId);
+  return import('@/lib/provider-portal.server');
+}
+
+export const getProviderCredentials = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.listCredentials();
+  });
+
+export const saveProviderCredentials = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { id: string; relayUrl: string; relayToken?: string; clearToken?: boolean }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.saveCredentials(data);
+  });
+
+export const rebuildLiveChannels = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.rebuildLiveChannels(data.id);
+  });
+
+export const resetLiveChannels = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.resetLiveChannels(data.id);
+  });
+
+export const getProviderInvites = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.listInvites();
+  });
+
+export const createProviderInvite = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { sourceId: string; label?: string; note?: string; expiresAt: string | null }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.createInvite({
+      sourceId: data.sourceId,
+      label: data.label ?? '',
+      note: data.note ?? '',
+      expiresAt: data.expiresAt,
+      createdBy: context.userId,
+    });
+  });
+
+export const changeProviderInvite = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; revoked: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.setInviteRevoked(data.id, data.revoked);
+  });
+
+export const removeProviderInvite = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.deleteInvite(data.id);
+  });
+
+export const getProviderSubmissions = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { status?: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.listSubmissions(data.status);
+  });
+
+export const importProviderSubmission = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; replace: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.importSubmission({ id: data.id, adminId: context.userId, replace: data.replace });
+  });
+
+export const rejectProviderSubmission = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.rejectSubmission(data.id, context.userId);
+  });
+
+export const removeProviderSubmission = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const ops = await portalOps(context.supabase, context.userId);
+    return ops.deleteSubmission(data.id);
+  });

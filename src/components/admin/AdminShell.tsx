@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 const NAV = [
   { to: '/admin', label: 'Overview' },
   { to: '/admin/providers', label: 'Providers' },
+  { to: '/admin/credentials', label: 'Credentials' },
+  { to: '/admin/submissions', label: 'Provider portal' },
   { to: '/admin/content', label: 'Content' },
   { to: '/admin/codes', label: 'Activation codes' },
   { to: '/admin/users', label: 'Users' },

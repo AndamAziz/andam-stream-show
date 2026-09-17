@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { openUrl, sealUrl } from '@/lib/xtream-crypto';
-import { relayHeaders, relayUrl } from '@/lib/xtream';
+import { readRelay, relayHeaders, relayUrl, tagWithRelay, type RelayConfig } from '@/lib/xtream';
 
 /**
  * Playback proxy.
@@ -81,12 +81,16 @@ async function readManifest(res: Response): Promise<string> {
  * player spinning until the browser gave up. Bail out after 15s instead — the
  * caller turns that into a clean error the UI can show.
  */
-async function fetchRelay(url: string, request: Request): Promise<Response> {
-  const headers = new Headers(relayHeaders());
+async function fetchRelay(
+  url: string,
+  request: Request,
+  relay: RelayConfig | null,
+): Promise<Response> {
+  const headers = new Headers(relayHeaders(relay));
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url), {
+  return fetch(relayUrl(url, relay), {
     headers,
     redirect: 'follow',
     signal: AbortSignal.timeout(15_000),
@@ -143,8 +147,12 @@ function segmentContentType(url: string, upstreamType: string | null): string | 
 }
 
 
-async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
-  let res = await fetchRelay(upstream, request);
+async function fetchUpstream(
+  upstream: string,
+  request: Request,
+  relay: RelayConfig | null,
+): Promise<Response> {
+  let res = await fetchRelay(upstream, request, relay);
   // 403/411/5xx from the relay are usually transient — retry once.
   if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
     try {
@@ -153,7 +161,7 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
       /* nothing to drain */
     }
     await new Promise((r) => setTimeout(r, 350));
-    res = await fetchRelay(upstream, request);
+    res = await fetchRelay(upstream, request, relay);
   }
   return res;
 }
@@ -165,14 +173,21 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
  * the incoming request origin are wrong behind the preview/published proxy
  * (the server sees http://localhost:8080), which made the browser request a
  * dead origin and left the player spinning forever.
+ *
+ * Child URLs keep the provider's relay marker so segments travel the same relay
+ * as the manifest they came from.
  */
-async function rewriteManifest(text: string, upstream: string): Promise<string> {
+async function rewriteManifest(
+  text: string,
+  upstream: string,
+  relay: RelayConfig | null,
+): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
   // `s=1` marks a URL we generated from an already-resolved manifest, so the
   // handler can skip the redirect probe for it.
   const token = async (ref: string) =>
-    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(tagWithRelay(absolute(ref), relay)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
@@ -208,13 +223,17 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const sealed = await openUrl(token);
         if (!sealed) return new Response('Link expired', { status: 410 });
 
+        // Providers may carry their own relay host/token; the marker travels
+        // inside the sealed link and never reaches the provider itself.
+        const { upstream: target, relay } = readRelay(sealed);
+
         // Only the first hop (the link the UI hands us) may still redirect.
         const upstream =
-          url.searchParams.get('s') === '1' ? sealed : await resolveRedirects(sealed);
+          url.searchParams.get('s') === '1' ? target : await resolveRedirects(target);
 
         let res: Response;
         try {
-          res = await fetchUpstream(upstream, request);
+          res = await fetchUpstream(upstream, request, relay);
         } catch (err) {
           const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + err.message);
           console.error('[xtream-play] relay error', err);
@@ -267,7 +286,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
-          const body = await rewriteManifest(text, finalUrl);
+          const body = await rewriteManifest(text, finalUrl, relay);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }

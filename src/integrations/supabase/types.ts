@@ -345,6 +345,116 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_invites: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          label: string
+          last_used_at: string | null
+          note: string
+          revoked: boolean
+          source_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          note?: string
+          revoked?: boolean
+          source_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          note?: string
+          revoked?: boolean
+          source_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_invites_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_submissions: {
+        Row: {
+          channel_count: number
+          contact: string
+          created_at: string
+          id: string
+          invite_id: string | null
+          note: string
+          playlist: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_count?: number
+          contact?: string
+          created_at?: string
+          id?: string
+          invite_id?: string | null
+          note?: string
+          playlist: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_count?: number
+          contact?: string
+          created_at?: string
+          id?: string
+          invite_id?: string | null
+          note?: string
+          playlist?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_submissions_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "provider_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_submissions_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           base_url: string | null
@@ -355,6 +465,8 @@ export type Database = {
           name: string
           password: string | null
           playlist_url: string | null
+          relay_token: string | null
+          relay_url: string | null
           slug: string
           sort_order: number
           type: string
@@ -369,6 +481,8 @@ export type Database = {
           name: string
           password?: string | null
           playlist_url?: string | null
+          relay_token?: string | null
+          relay_url?: string | null
           slug: string
           sort_order?: number
           type?: string
@@ -383,6 +497,8 @@ export type Database = {
           name?: string
           password?: string | null
           playlist_url?: string | null
+          relay_token?: string | null
+          relay_url?: string | null
           slug?: string
           sort_order?: number
           type?: string

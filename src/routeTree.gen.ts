@@ -12,14 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ProviderPortalRouteImport } from './routes/provider-portal'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminCodesRouteImport } from './routes/_authenticated/admin/codes'
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
+import { Route as AuthenticatedAdminCredentialsRouteImport } from './routes/_authenticated/admin/credentials'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
+import { Route as AuthenticatedAdminSubmissionsRouteImport } from './routes/_authenticated/admin/submissions'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicAccessRouteImport } from './routes/api/public/access'
 import { Route as ApiPublicIptvRouteImport } from './routes/api/public/iptv'
@@ -40,6 +43,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProviderPortalRoute = ProviderPortalRouteImport.update({
+  id: '/provider-portal',
+  path: '/provider-portal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -73,6 +81,12 @@ const AuthenticatedAdminContentRoute =
     path: '/content',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminCredentialsRoute =
+  AuthenticatedAdminCredentialsRouteImport.update({
+    id: '/credentials',
+    path: '/credentials',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminMonitoringRoute =
   AuthenticatedAdminMonitoringRouteImport.update({
     id: '/monitoring',
@@ -83,6 +97,12 @@ const AuthenticatedAdminProvidersRoute =
   AuthenticatedAdminProvidersRouteImport.update({
     id: '/providers',
     path: '/providers',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminSubmissionsRoute =
+  AuthenticatedAdminSubmissionsRouteImport.update({
+    id: '/submissions',
+    path: '/submissions',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
@@ -124,13 +144,16 @@ const ApiPublicXtreamPlayRoute = ApiPublicXtreamPlayRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/provider-portal': typeof ProviderPortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
+  '/admin/credentials': typeof AuthenticatedAdminCredentialsRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -143,12 +166,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/provider-portal': typeof ProviderPortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/account': typeof AuthenticatedAccountRoute
   '/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/admin/content': typeof AuthenticatedAdminContentRoute
+  '/admin/credentials': typeof AuthenticatedAdminCredentialsRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -163,13 +189,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/provider-portal': typeof ProviderPortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/admin/codes': typeof AuthenticatedAdminCodesRoute
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
+  '/_authenticated/admin/credentials': typeof AuthenticatedAdminCredentialsRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/_authenticated/admin/submissions': typeof AuthenticatedAdminSubmissionsRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -184,13 +213,16 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/provider-portal'
     | '/reset-password'
     | '/admin'
     | '/account'
     | '/admin/codes'
     | '/admin/content'
+    | '/admin/credentials'
     | '/admin/monitoring'
     | '/admin/providers'
+    | '/admin/submissions'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -203,12 +235,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/provider-portal'
     | '/reset-password'
     | '/account'
     | '/admin/codes'
     | '/admin/content'
+    | '/admin/credentials'
     | '/admin/monitoring'
     | '/admin/providers'
+    | '/admin/submissions'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -222,13 +257,16 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/provider-portal'
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/account'
     | '/_authenticated/admin/codes'
     | '/_authenticated/admin/content'
+    | '/_authenticated/admin/credentials'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
+    | '/_authenticated/admin/submissions'
     | '/_authenticated/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -243,6 +281,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ProviderPortalRoute: typeof ProviderPortalRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicAccessRoute: typeof ApiPublicAccessRoute
   ApiPublicIptvRoute: typeof ApiPublicIptvRoute
@@ -273,6 +312,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/provider-portal': {
+      id: '/provider-portal'
+      path: '/provider-portal'
+      fullPath: '/provider-portal'
+      preLoaderRoute: typeof ProviderPortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -317,6 +363,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminContentRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/credentials': {
+      id: '/_authenticated/admin/credentials'
+      path: '/credentials'
+      fullPath: '/admin/credentials'
+      preLoaderRoute: typeof AuthenticatedAdminCredentialsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/monitoring': {
       id: '/_authenticated/admin/monitoring'
       path: '/monitoring'
@@ -329,6 +382,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/admin/providers'
       preLoaderRoute: typeof AuthenticatedAdminProvidersRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/submissions': {
+      id: '/_authenticated/admin/submissions'
+      path: '/submissions'
+      fullPath: '/admin/submissions'
+      preLoaderRoute: typeof AuthenticatedAdminSubmissionsRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/admin/users': {
@@ -386,8 +446,10 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminCodesRoute: typeof AuthenticatedAdminCodesRoute
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
+  AuthenticatedAdminCredentialsRoute: typeof AuthenticatedAdminCredentialsRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
+  AuthenticatedAdminSubmissionsRoute: typeof AuthenticatedAdminSubmissionsRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -396,8 +458,10 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
   {
     AuthenticatedAdminCodesRoute: AuthenticatedAdminCodesRoute,
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
+    AuthenticatedAdminCredentialsRoute: AuthenticatedAdminCredentialsRoute,
     AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
+    AuthenticatedAdminSubmissionsRoute: AuthenticatedAdminSubmissionsRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
@@ -424,6 +488,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ProviderPortalRoute: ProviderPortalRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicAccessRoute: ApiPublicAccessRoute,
   ApiPublicIptvRoute: ApiPublicIptvRoute,
