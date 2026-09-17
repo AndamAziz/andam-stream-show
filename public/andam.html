@@ -2078,7 +2078,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
       return {ok:r.ok||r.status===206,status:r.status,
               hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0,
-              dash:ct.indexOf('dash+xml')>=0||ct.indexOf('/xml')>=0&&false,
+              dash:ct.indexOf('dash+xml')>=0,
               /* raw MPEG-TS: no browser decodes video/mp2t natively, it needs
                  mpegts.js. Many playlist entries are plain .ts streams. */
               mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
