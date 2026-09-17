@@ -58,4 +58,4 @@ The app is designed to be developed through [Lovable](https://lovable.dev) — d
 
 ## Live app
 
-Continue building this project in the [Lovable editor](https://lovable.dev/projects/95d85232-db75-4159-9721-d19dc3cd946f) or visit **https://andam-stream-show.lovable.app**.
+Continue building this project in the [Lovable editor](https://lovable.dev/projects/95d85232-db75-4159-ac2f-6879afabb373) or visit **https://andam-stream-show.lovable.app**.
