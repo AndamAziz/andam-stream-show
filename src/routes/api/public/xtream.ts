@@ -117,6 +117,18 @@ async function loadSource(slugOrId: string, allowed: string[] | 'all'): Promise<
 }
 
 
+/** Curated Live TV channels for a provider; empty when none were imported. */
+async function curatedChannels(sourceId: string) {
+  const { listLiveChannels } = await import('@/lib/live-channels.server');
+  try {
+    return await listLiveChannels(sourceId);
+  } catch (err) {
+    // A curated-list read must never take Live TV down; fall back to the provider.
+    console.error('[xtream] curated list unavailable', err);
+    return [];
+  }
+}
+
 const num = (v: unknown, fallback = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
