@@ -205,8 +205,12 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const token = url.searchParams.get('t');
         if (!token) return new Response('Missing token', { status: 400 });
 
-        const upstream = await openUrl(token);
-        if (!upstream) return new Response('Link expired', { status: 410 });
+        const sealed = await openUrl(token);
+        if (!sealed) return new Response('Link expired', { status: 410 });
+
+        // Only the first hop (the link the UI hands us) may still redirect.
+        const upstream =
+          url.searchParams.get('s') === '1' ? sealed : await resolveRedirects(sealed);
 
         let res: Response;
         try {
