@@ -176,12 +176,9 @@ export async function getPlaylistChannels(
       .select('channels, fetched_at')
       .eq('source_id', source.id)
       .maybeSingle();
-    if (data?.fetched_at) {
-      return {
-        channels: (data.channels ?? []) as unknown as M3uChannel[],
-        fetchedAt: data.fetched_at,
-        stale: true,
-      };
+    const stale = (data?.channels ?? []) as unknown as M3uChannel[];
+    if (data?.fetched_at && stale.length > 0) {
+      return { channels: stale, fetchedAt: data.fetched_at, stale: true };
     }
     throw err;
   }
