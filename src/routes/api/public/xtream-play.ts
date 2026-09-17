@@ -277,6 +277,23 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const upstream =
           url.searchParams.get('s') === '1' ? target : await resolveRedirects(target);
 
+        // Repair path: the player asks for a transcode only after the plain
+        // stream stalled or the decoder refused it. If the transcoder is not
+        // reachable we silently continue with the normal relay path.
+        if (url.searchParams.get('tc') === '1') {
+          const tc = await fetchTranscoded(upstream, relay);
+          if (tc) {
+            return new Response(tc.body, {
+              status: 200,
+              headers: {
+                'Content-Type': 'video/mp2t',
+                'Cache-Control': 'no-store',
+                'Access-Control-Allow-Origin': '*',
+              },
+            });
+          }
+        }
+
         let res: Response;
         try {
           res = await fetchUpstream(upstream, request, relay);
