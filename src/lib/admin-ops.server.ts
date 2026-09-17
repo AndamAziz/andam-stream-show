@@ -4,7 +4,14 @@
  * These run with the service role, but only after `assertAdmin` has verified
  * the caller's role against the database.
  */
-import { supabaseAdmin, maskSecret, probeProvider, relayHealth, verifyOwnPassword } from '@/lib/admin.server';
+import {
+  supabaseAdmin,
+  maskSecret,
+  probeProvider,
+  relayHealth,
+  verifyOwnPassword,
+  type HealthSource,
+} from '@/lib/admin.server';
 import { playerApi, type Source } from '@/lib/xtream';
 import type { OverrideKind } from '@/lib/overrides.server';
 
@@ -481,7 +488,7 @@ export async function adminOverview() {
     .from('sources')
     .select('*')
     .order('sort_order', { ascending: true });
-  const sources = (sourceRows ?? []) as Source[];
+  const sources = (sourceRows ?? []) as HealthSource[];
   const liveSources = sources.filter((s) => s.is_active && s.type === 'xtream');
 
   const [providers, health, probes, users, logins, errors] = await Promise.all([
