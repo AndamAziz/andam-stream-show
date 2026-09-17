@@ -2093,6 +2093,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     function native(streamIsHls){
       if(!alive()) return;
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       if(streamIsHls && !s.video.canPlayType('application/vnd.apple.mpegurl')){
@@ -2121,6 +2122,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var req=LASTREQ[kind];
       if(!req||req.type!=='live'||!req.id) return false;
       tsTried=true;
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
@@ -2176,6 +2178,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
       s.hls=h;
+      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       h.on(Hls.Events.MANIFEST_PARSED,function(){
         if(!alive()) return;
         /* Start at the newest segment. Beginning at the oldest advertised
