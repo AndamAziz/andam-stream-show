@@ -2144,7 +2144,43 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('timeupdate',onProgress);
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
-    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); killEngines(); fail(s,msg) }
+    /* IPTV playlists mix every container/codec combination (HLS, raw MPEG-TS,
+       FLV, DASH; H.264/H.265 with AAC/MP3/AC3). One detection can still pick
+       the wrong demuxer, so IPTV walks an ordered fallback chain and only
+       reports failure once every engine has been tried. */
+    var chain=[], chainIx=0;
+    function startHls(){
+      srcIsHls=true;
+      if(nativeHls()){ engine('native HLS (fallback)'); native(true); return true }
+      ensureHls().then(function(Hls){
+        if(!alive()) return;
+        if(Hls&&Hls.isSupported()){ engine('hls.js (fallback)'); viaHls(Hls) }
+        else { engine('native (fallback)'); native(true) }
+      });
+      return true;
+    }
+    function tryChain(){
+      while(chainIx<chain.length){
+        var nx=chain[chainIx++];
+        if(nx==='hls'){ return startHls() }
+        if(nx==='mpegts'||nx==='flv'){
+          tsTried=false;
+          engine('mpegts.js ('+nx+' fallback)');
+          if(viaTs(nx)) return true;
+          continue;
+        }
+        if(nx==='dash'){ dashTried=false; engine('dash.js (fallback)'); if(viaDash()) return true; continue }
+        if(nx==='native'){ engine('native element (fallback)'); native(false); return true }
+      }
+      return false;
+    }
+    function retryable(msg){
+      if(!alive()||ok) return;
+      clearTimeout(timer);
+      killEngines();
+      if(kind==='iptv'&&chainIx<chain.length){ busy(s,true); clearFail(s); if(tryChain()) return }
+      fail(s,msg);
+    }
     /* Report the engine actually chosen so DevTools shows detection working. */
     function engine(name){ console.log('[player] Using '+name+' — '+kind+' · '+title) }
     function killEngines(){
