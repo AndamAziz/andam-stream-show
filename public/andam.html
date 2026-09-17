@@ -2246,7 +2246,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            are broadcast in H.265). Retrying the HLS url cannot help, so say
            what is wrong instead of looping. */
         var media=(''+t).toLowerCase().indexOf('media')>=0||(''+d).toLowerCase().indexOf('codec')>=0;
-        if(media){ alt=null; retryable('This channel is broadcast in H.265 — this device cannot decode it'); return }
+        if(media){
+          alt=null;
+          /* Codec this decoder refuses → re-run it through the transcoder once
+             before telling the user anything is wrong. */
+          if(!tc){ healN=Math.max(healN,4); restart(true); return }
+          retryable('This channel is broadcast in H.265 — this device cannot decode it'); return;
+        }
         retryable('Stream failed to load');
       });
       p.attachMediaElement(s.video);
@@ -2261,6 +2267,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
          provider connection, so probing first would spend it (and the probe
          cannot follow the provider redirect anyway). Hand it straight to the
          native element. */
+      /* Transcoded output is always MPEG-TS; skip the probe (it would spawn a
+         second transcode) and hand it straight to the remuxer. */
+      if(tc){
+        ensureMpegts().then(function(m){
+          if(!alive()) return;
+          if(m&&m.getFeatureList&&m.getFeatureList().mseLivePlayback) viaMpegts(m);
+          else native(false);
+        });
+        return;
+      }
       if(!isHls){ native(false); return }
       probeKind(src).then(function(p){
         if(!alive()) return;
