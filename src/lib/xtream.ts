@@ -95,8 +95,14 @@ export async function playerApi<T>(source: Source, params: Record<string, string
 
 export function liveStreamUrl(source: Source, streamId: string | number, ext = 'm3u8'): string {
   const base = source.base_url.replace(/\/+$/, '');
+  /* `ext=ts` uses the legacy progressive path (`/user/pass/id`), which streams
+     continuous MPEG-TS. The `/live/....ts` form answers with an HLS playlist
+     whose signed segment links some lines refuse (provider 411 "invalid
+     data"), so it is unusable as a raw-TS fallback. */
+  if (ext === 'ts') return `${base}/${source.username}/${source.password}/${streamId}`;
   return `${base}/live/${source.username}/${source.password}/${streamId}.${ext}`;
 }
+
 
 export function vodStreamUrl(source: Source, streamId: string | number, ext = 'mp4'): string {
   const base = source.base_url.replace(/\/+$/, '');
