@@ -58,6 +58,22 @@ async function withOverrides(
   return applyOverrides(channels, overrides, 'logo');
 }
 
+/** A non-sensitive player hint avoids opening a second provider connection
+ * just to identify obvious M3U8/MPD/file URLs. Redirecting `.ts` entries stay
+ * `auto`, because many of them actually resolve to HLS manifests. */
+function mediaKind(url: string): 'hls' | 'dash' | 'file' | 'auto' {
+  let path = url;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    /* Invalid provider URLs will fail naturally in the playback proxy. */
+  }
+  if (/\.m3u8$/i.test(path)) return 'hls';
+  if (/\.mpd$/i.test(path)) return 'dash';
+  if (/\.(mp4|m4v|webm|mkv)$/i.test(path)) return 'file';
+  return 'auto';
+}
+
 export const Route = createFileRoute('/api/public/iptv')({
   server: {
     handlers: {
@@ -110,6 +126,7 @@ export const Route = createFileRoute('/api/public/iptv')({
               name: channel.name,
               logo: channel.logo,
               token: await sealUrl(channel.url),
+              mediaKind: mediaKind(channel.url),
             });
           }
 
