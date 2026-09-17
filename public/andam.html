@@ -2314,7 +2314,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         var firstTry=true;
         var startGuard=setInterval(function(){
           if(!alive()||s.ts!==pl){ clearInterval(startGuard); return }
-          if((s.video.currentTime||0)>0.1||s.video.readyState>=2){ clearInterval(startGuard); return }
+          /* videoWidth confirms a decoded picture: readyState>=2 alone is true
+             for audio-only playback and hid black-screen channels. */
+          if((((s.video.currentTime||0)>0.1)&&s.video.videoWidth>0)||s.video.readyState>=3){ clearInterval(startGuard); return }
           if(firstTry){ firstTry=false; console.warn('[player] mpegts no frame after 5s — reloading',url); reload(); return }
           clearInterval(startGuard);
           console.error('[player] mpegts produced no video frame',url);
@@ -2333,6 +2335,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).catch(function(){ retryable('Stream failed to load') });
     }
 
+    var HEVC_MSG='This channel is H.265 \u2014 use Chrome or Edge (Safari on Mac) to watch it';
     var tsTried=false, srcIsHls=false;
     function viaTs(forceType){
       if(tsTried||!alive()) return false;
@@ -2355,7 +2358,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
-      var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
+      var hevcMsg=HEVC_MSG;
       /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
          channels are already a direct stream URL, so reuse the same token. */
       if(hasProviderTs){
