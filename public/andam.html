@@ -2715,7 +2715,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
     /* Start the network work off the click's task so the tap never janks. */
-    setTimeout(function(){
+    later(s,function(){
       if(!alive()) return;
       /* Movies/episodes are progressive files and the account allows a single
          provider connection, so probing first would spend it (and the probe
