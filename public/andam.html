@@ -2286,6 +2286,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
           retryable(failMsg);
         });
+        /* Codec truth from the demuxer itself. A stream whose video track is
+           HEVC (or missing altogether) plays sound over a black picture, and
+           the old start guard accepted that as success. Report it at once with
+           the accurate reason instead of waiting on the 5s timer. */
+        pl.on(mp.Events.MEDIA_INFO,function(mediaInfo){
+          console.log('[player] mpegts MEDIA_INFO videoCodec='+(mediaInfo.videoCodec||'none')
+            +' audioCodec='+(mediaInfo.audioCodec||'none')
+            +' width='+mediaInfo.width+' height='+mediaInfo.height);
+          if(!alive()||s.ts!==pl) return;
+          var vc=String(mediaInfo.videoCodec||'').toLowerCase();
+          if(!mediaInfo.videoCodec&&mediaInfo.audioCodec){
+            console.warn('[player] mpegts stream has audio only, no video track:',url);
+            retryable(HEVC_MSG); return;
+          }
+          if((vc.indexOf('hevc')>=0||vc.indexOf('h.265')>=0||vc.indexOf('h265')>=0
+              ||vc.indexOf('hvc1')>=0||vc.indexOf('hev1')>=0)&&!hevcCapable()){
+            console.warn('[player] mpegts HEVC video track unsupported by this browser:',url);
+            retryable(HEVC_MSG); return;
+          }
+        });
         pl.attachMediaElement(s.video);
         pl.load();
         s.video.play().catch(function(){});
