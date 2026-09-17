@@ -1929,7 +1929,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
       hls:null,session:0,last:null};
-    s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
+    s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls,null,s.last.tc) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
       var v=s.video;
@@ -1960,6 +1960,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
+    if(s.hb){ clearInterval(s.hb); s.hb=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     if(s.mts){ var deadM=s.mts; s.mts=null; setTimeout(function(){ try{deadM.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
@@ -2035,15 +2036,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
   }
 
-  function lvPlay(kind,token,title,sub,isHls,alt){
-    var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
+  function lvPlay(kind,token,title,sub,isHls,alt,tc){
+    var s=surf(kind),
+        src='/api/public/xtream-play?t='+encodeURIComponent(token)+(tc?'&tc=1':'');
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
     s.idle.classList.add('hide');
     setNow(s,title,sub,nowLogoOf(kind));
 
     clearFail(s); busy(s,true);
-    s.last={token:token,title:title,sub:sub,isHls:isHls,alt:alt};
+    s.last={token:token,title:title,sub:sub,isHls:isHls,alt:alt,tc:tc};
     var ok=false,timer=null;
 
 
@@ -2064,12 +2066,83 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('timeupdate',onProgress);
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
+
+    /* ---- self-healing -------------------------------------------------
+       A channel must never sit frozen. A heartbeat watches the clock and,
+       ONLY when playback actually stops moving (or an engine reports a
+       fatal error), escalates through the cheapest repair first:
+         1. nudge over the gap / kick the loader
+         2. reload the current engine in place
+         3. restart the channel from scratch
+         4. restart it through the relay's transcoder (fixes streams whose
+            audio or video codec this device cannot decode)
+       While everything plays, none of this runs. */
+    var healN=0,lastT=-1,lastMove=Date.now(),healing=false;
+    if(s.hb){ clearInterval(s.hb); s.hb=null }
+    function restart(useTc){
+      if(!alive()) return;
+      var wait=Math.min(1200*healN,5000);
+      setTimeout(function(){
+        if(!alive()) return;
+        lvPlay(kind,token,title,sub,isHls,alt,useTc||tc);
+      },wait);
+    }
+    function nudge(){
+      var v=s.video;
+      try{
+        var b=v.buffered,moved=false;
+        for(var i=0;i<b.length;i++){
+          if(b.start(i)>v.currentTime){ v.currentTime=b.start(i)+0.1; moved=true; break }
+          if(b.end(i)-v.currentTime>1.2){ v.currentTime=b.end(i)-0.6; moved=true; break }
+        }
+        if(!moved&&s.hls){ try{ s.hls.startLoad(-1) }catch(_){} }
+        v.play().catch(function(){});
+      }catch(_){}
+    }
+    function reloadEngine(){
+      try{
+        if(s.hls){ s.hls.stopLoad(); s.hls.startLoad(-1); s.video.play().catch(function(){}); return }
+        if(s.mts){ var p=s.mts; p.unload(); p.load(); var r=p.play(); if(r&&r.catch) r.catch(function(){}); return }
+        s.video.load(); s.video.play().catch(function(){});
+      }catch(_){ restart(); }
+    }
+    function selfHeal(reason){
+      if(!alive()||healing) return;
+      healing=true; healN++;
+      console.warn('[player] self-heal step',healN,reason||'');
+      busy(s,true);
+      setTimeout(function(){ healing=false },1500);
+      if(healN===1){ nudge(); return }
+      if(healN===2){ reloadEngine(); return }
+      if(healN===3){ restart(tc); return }
+      if(healN===4){ restart(true); return }
+      if(healN>8){ fail(s,'Channel is not responding'); if(s.hb){ clearInterval(s.hb); s.hb=null } return }
+      restart(true);
+    }
+    s.hb=setInterval(function beat(){
+      if(!alive()){ clearInterval(s.hb); s.hb=null; return }
+      var v=s.video;
+      /* Paused by the user, or seeking: nothing to repair. */
+      if(v.paused||v.ended||v.seeking){ lastT=v.currentTime; lastMove=Date.now(); return }
+      if(v.currentTime>lastT+0.05){
+        lastT=v.currentTime; lastMove=Date.now();
+        if(healN){ healN=0; clearFail(s) }
+        busy(s,false);
+        return;
+      }
+      if(Date.now()-lastMove<7000) return;
+      lastMove=Date.now();
+      selfHeal('no progress');
+    },2000);
+
     /* Live channels ship a progressive TS url plus an HLS `alt`. If the first
-       engine cannot start, switch to the other one once before failing. */
+       engine cannot start, switch to the other one once before failing; if the
+       problem is the codec, try the transcoder before giving up. */
     function retryable(msg){
       if(!alive()||ok) return;
       clearTimeout(timer);
-      if(alt){ var a=alt; alt=null; setTimeout(function(){ if(alive()) lvPlay(kind,a,title,sub,true,null) },0); return }
+      if(alt){ var a=alt; alt=null; setTimeout(function(){ if(alive()) lvPlay(kind,a,title,sub,true,null,tc) },0); return }
+      if(!tc){ healN=Math.max(healN,4); restart(true); return }
       fail(s,msg);
     }
     /* A relay segment can legitimately take longer than 15s to buffer. The old
@@ -2078,6 +2151,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     timer=setTimeout(function(){
       if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<1) retryable('Stream failed to load');
     },60000);
+
 
     function native(streamIsHls){
       if(!alive()) return;
