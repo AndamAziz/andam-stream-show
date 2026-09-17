@@ -357,7 +357,12 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
         let res: Response;
         try {
-          res = await fetchUpstream(upstream, request, relay);
+          res = await fetchUpstream(
+            upstream,
+            request,
+            relay,
+            url.searchParams.get('s') === '1',
+          );
         } catch (err) {
           const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + err.message);
           console.error('[xtream-play] relay error', err);
