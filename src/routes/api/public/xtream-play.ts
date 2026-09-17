@@ -90,11 +90,21 @@ async function fetchRelay(
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url, relay), {
-    headers,
-    redirect: 'follow',
-    signal: AbortSignal.timeout(15_000),
-  });
+  // The 15s budget covers *answering*, not streaming. `AbortSignal.timeout`
+  // kept aborting the response body mid-flight, so a live MPEG-TS channel died
+  // exactly 15 seconds in and the picture froze. Cancel the timer as soon as
+  // the headers arrive and let the body run for as long as the viewer watches.
+  const ac = new AbortController();
+  const guard = setTimeout(() => ac.abort(), 15_000);
+  try {
+    return await fetch(relayUrl(url, relay), {
+      headers,
+      redirect: 'follow',
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(guard);
+  }
 }
 
 /**
