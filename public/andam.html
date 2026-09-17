@@ -2181,7 +2181,11 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      admin bulk audit page can reuse the exact same classification. */
   function hexOf(b,n){ return window.AndamSniff.hexOf(b,n) }
   function classifyHead(o){ return window.AndamSniff.classifyHead(o) }
-  function sniffStream(src){ return window.AndamSniff.sniffStream(src) }
+  /* `s` supplies the abort signal, so switching channel cancels the probe. */
+  function sniffStream(src,s){
+    var sig=s&&s.abort?s.abort.signal:undefined;
+    return window.AndamSniff.sniffStream(src,{signal:sig});
+  }
 
 
 
