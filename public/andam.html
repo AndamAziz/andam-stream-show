@@ -2140,9 +2140,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       s.video.play().catch(function(){});
       s.video.addEventListener('error',function(){
         if(!alive()) return;
-        console.error('[player] native playback error',s.video.error&&s.video.error.code,url);
+        var code=s.video.error&&s.video.error.code;
+        console.error('[player] native playback error',code,url);
+        /* SRC_NOT_SUPPORTED on a live channel almost always means raw MPEG-TS
+           (or HEVC) the element cannot decode — hand it to mpegts.js. */
+        if(isHls&&viaTs()) return;
         retryable('This stream cannot be played here');
       },{once:true});
+
     }
 
 
