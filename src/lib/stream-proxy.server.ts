@@ -364,7 +364,9 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
       res.headers.get('x-final-url') ||
       (/\.mpd(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
     headers.set('Content-Type', 'application/dash+xml');
-    return new Response(await rewriteMpd(text, finalUrl), { status: 200, headers });
+    const body = await rewriteMpd(text, finalUrl);
+    rememberManifest(upstream, body, 'application/dash+xml');
+    return new Response(body, { status: 200, headers });
   }
 
   if (isManifest(upstream, contentType)) {
@@ -380,8 +382,11 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
       res.headers.get('x-final-url') ||
       (!hasRelative || /\.m3u8(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
     headers.set('Content-Type', 'application/vnd.apple.mpegurl');
-    return new Response(await rewriteManifest(text, finalUrl), { status: 200, headers });
+    const body = await rewriteManifest(text, finalUrl);
+    rememberManifest(upstream, body, 'application/vnd.apple.mpegurl');
+    return new Response(body, { status: 200, headers });
   }
+
 
 
   headers.set('Accept-Ranges', 'bytes');
