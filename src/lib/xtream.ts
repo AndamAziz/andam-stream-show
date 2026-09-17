@@ -134,8 +134,12 @@ export async function playerApi<T>(source: Source, params: Record<string, string
     () => fetch(target, { headers: { 'User-Agent': 'AndamTV/1.0', Accept: 'application/json' } }),
     () => fetch(target, { headers: { 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20', Accept: '*/*' } }),
     () =>
-      fetch(relayUrl(target), {
-        headers: { ...relayHeaders(), 'User-Agent': 'AndamTV/1.0', Accept: 'application/json' },
+      fetch(relayUrl(target, relayConfig(source)), {
+        headers: {
+          ...relayHeaders(relayConfig(source)),
+          'User-Agent': 'AndamTV/1.0',
+          Accept: 'application/json',
+        },
         redirect: 'follow',
       }),
   ];
