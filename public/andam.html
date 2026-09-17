@@ -2299,7 +2299,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
        was continuing to download. Engine errors below remain authoritative. */
-    timer=setTimeout(function(){
+    timer=later(s,function(){
       if(alive()&&!ok&&s.video.currentTime===0&&s.video.readyState<1) retryable('Stream failed to load');
     },60000);
 
@@ -2380,19 +2380,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(!alive()||s.ts!==pl) return;
           try{ pl.unload(); pl.load(); s.video.play().catch(function(){}) }catch(_){}
         }
-        pl.on(mp.Events.ERROR,function(a,b,c){
+        pl.__h=[];
+        function plOn(ev,fn){ pl.__h.push([ev,fn]); pl.on(ev,fn) }
+        plOn(mp.Events.ERROR,function(a,b,c){
           console.error('[player] mpegts',a,b,c);
           if(!alive()||s.ts!==pl) return;
           /* Network hiccups from the relay are recoverable: reload a few times
              before telling the user anything. */
-          if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
+          if(String(a)==='NetworkError'&&++softErr<=4){ later(s,reload,600*softErr); return }
           retryable(failMsg);
         });
         /* Codec truth from the demuxer itself. A stream whose video track is
            HEVC (or missing altogether) plays sound over a black picture, and
            the old start guard accepted that as success. Report it at once with
            the accurate reason instead of waiting on the 5s timer. */
-        pl.on(mp.Events.MEDIA_INFO,function(mediaInfo){
+        plOn(mp.Events.MEDIA_INFO,function(mediaInfo){
           console.log('[player] mpegts MEDIA_INFO videoCodec='+(mediaInfo.videoCodec||'none')
             +' audioCodec='+(mediaInfo.audioCodec||'none')
             +' width='+mediaInfo.width+' height='+mediaInfo.height);
@@ -2423,7 +2425,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* No first frame at all after one reload attempt: stop spinning and say
            so instead of leaving the viewer on an endless loader. */
         var firstTry=true;
-        var startGuard=setInterval(function(){
+        var startGuard=every(s,function(){
           if(!alive()||s.ts!==pl){ clearInterval(startGuard); return }
           /* videoWidth confirms a decoded picture: readyState>=2 alone is true
              for audio-only playback and hid black-screen channels. */
@@ -2438,7 +2440,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         var tsMove=Date.now(), tsTime=0;
 
         if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-        s.stallTimer=setInterval(function(){
+        s.stallTimer=every(s,function(){
           if(!alive()||s.ts!==pl||s.video.paused||s.video.ended) return;
           var t=s.video.currentTime||0, now=Date.now();
           if(t>tsTime+0.05){ tsTime=t; tsMove=now; return }
@@ -2525,7 +2527,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           retryable('Stream failed to load'); return;
         }
         var dMove=Date.now(), dTime=0;
-        s.stallTimer=setInterval(function(){
+        s.stallTimer=every(s,function(){
           if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
           var t=s.video.currentTime||0, now=Date.now();
           if(t>dTime+0.05){ dTime=t; dMove=now; return }
@@ -2571,7 +2573,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
          interruption. A stall used to remain frozen forever once playback had
          started because the fatal-network recovery below only ran before the
          first frame. */
-      s.stallTimer=setInterval(function(){
+      s.stallTimer=every(s,function(){
         if(!alive()||s.hls!==h||s.video.paused||s.video.ended) return;
         var now=Date.now(), t=s.video.currentTime||0;
         if(t>lastMediaTime+0.05){ lastMediaTime=t; lastMoveAt=now; return }
