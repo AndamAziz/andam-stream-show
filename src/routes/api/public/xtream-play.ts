@@ -90,11 +90,21 @@ async function fetchRelay(
   headers.set('User-Agent', 'AndamTV/1.0');
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
-  return fetch(relayUrl(url, relay), {
-    headers,
-    redirect: 'follow',
-    signal: AbortSignal.timeout(15_000),
-  });
+  // The 15s budget covers *answering*, not streaming. `AbortSignal.timeout`
+  // kept aborting the response body mid-flight, so a live MPEG-TS channel died
+  // exactly 15 seconds in and the picture froze. Cancel the timer as soon as
+  // the headers arrive and let the body run for as long as the viewer watches.
+  const ac = new AbortController();
+  const guard = setTimeout(() => ac.abort(), 15_000);
+  try {
+    return await fetch(relayUrl(url, relay), {
+      headers,
+      redirect: 'follow',
+      signal: ac.signal,
+    });
+  } finally {
+    clearTimeout(guard);
+  }
 }
 
 /**
@@ -166,6 +176,58 @@ async function fetchUpstream(
   return res;
 }
 
+/**
+ * On-demand transcode (`&tc=1`).
+ *
+ * Some channels are broadcast with a codec the browser cannot decode (H.265
+ * video, AC3/E-AC3 audio). The relay host runs `relay/transcode.php`, which
+ * copies the video and re-encodes the audio to AAC in an MPEG-TS stream. This
+ * path is only taken when the player has already failed or stalled on the
+ * normal stream, so healthy channels never pay for it.
+ */
+function transcodeEndpoint(relay: RelayConfig | null): string | null {
+  const explicit = process.env['TRANSCODE_URL'];
+  if (explicit) return explicit;
+  const base = relay?.base;
+  if (!base) return null;
+  return base.replace(/\/proxy\/?$/i, '') + '/transcode.php';
+}
+
+async function fetchTranscoded(
+  upstream: string,
+  relay: RelayConfig | null,
+): Promise<Response | null> {
+  const endpoint = transcodeEndpoint(relay);
+  if (!endpoint) return null;
+  const target = `${endpoint}${endpoint.includes('?') ? '&' : '?'}stream=${encodeURIComponent(upstream)}`;
+  const ac = new AbortController();
+  // ffmpeg needs a moment to open the source; once it answers the stream must
+  // keep running, so the guard only covers the handshake.
+  const guard = setTimeout(() => ac.abort(), 25_000);
+  try {
+    const res = await fetch(target, {
+      headers: { ...relayHeaders(relay), 'User-Agent': 'AndamTV/1.0' },
+      redirect: 'follow',
+      signal: ac.signal,
+    });
+    clearTimeout(guard);
+    if (!res.ok || !res.body) {
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* nothing to drain */
+      }
+      console.error('[xtream-play] transcoder responded', res.status);
+      return null;
+    }
+    return res;
+  } catch (err) {
+    clearTimeout(guard);
+    console.error('[xtream-play] transcoder error', err);
+    return null;
+  }
+}
+
 
 
 /**
@@ -230,6 +292,23 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         // Only the first hop (the link the UI hands us) may still redirect.
         const upstream =
           url.searchParams.get('s') === '1' ? target : await resolveRedirects(target);
+
+        // Repair path: the player asks for a transcode only after the plain
+        // stream stalled or the decoder refused it. If the transcoder is not
+        // reachable we silently continue with the normal relay path.
+        if (url.searchParams.get('tc') === '1') {
+          const tc = await fetchTranscoded(upstream, relay);
+          if (tc) {
+            return new Response(tc.body, {
+              status: 200,
+              headers: {
+                'Content-Type': 'video/mp2t',
+                'Cache-Control': 'no-store',
+                'Access-Control-Allow-Origin': '*',
+              },
+            });
+          }
+        }
 
         let res: Response;
         try {
