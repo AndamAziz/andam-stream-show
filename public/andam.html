@@ -2194,6 +2194,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
+    /* Fresh controller for this channel's probes; teardown aborts it. */
+    s.abort=window.AbortController?new AbortController():null;
     s.idle.classList.add('hide');
     setNow(s,title,sub,nowLogoOf(kind));
 
