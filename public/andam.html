@@ -2198,19 +2198,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).catch(function(){ retryable('Stream failed to load') });
     }
 
-    var tsTried=false;
+    var tsTried=false, srcIsHls=false;
     function viaTs(){
       if(tsTried||!alive()) return false;
+      var req=LASTREQ[kind];
+      var hasProviderTs=!!(req&&req.type==='live'&&req.id);
+      /* mpegts.js only understands a raw MPEG-TS byte stream. An HLS playlist
+         with no raw .ts endpoint behind it cannot be handed to it. */
+      if(!hasProviderTs&&srcIsHls){
+        retryable('This channel uses a video format this browser cannot play (H.265)');
+        return true;
+      }
       tsTried=true;
       if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
       var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
-      var req=LASTREQ[kind];
       /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
          channels are already a direct stream URL, so reuse the same token. */
-      if(req&&req.type==='live'&&req.id){
+      if(hasProviderTs){
         api({action:'play',source:ltv.prov,type:'live',id:req.id,ext:'ts'})
           .then(function(d){
             if(!alive()) return;
@@ -2225,6 +2232,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       mountMpegts(location.origin+src,hevcCapable()?'Stream failed to load':hevcMsg);
       return true;
     }
+
 
     /* DASH (.mpd) channels — dash.js over the same relay proxy. */
     var dashTried=false;
