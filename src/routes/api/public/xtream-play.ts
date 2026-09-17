@@ -192,7 +192,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
-          const text = await res.text();
+          const text = await readManifest(res);
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
