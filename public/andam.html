@@ -2286,6 +2286,26 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(String(a)==='NetworkError'&&++softErr<=4){ setTimeout(reload,600*softErr); return }
           retryable(failMsg);
         });
+        /* Codec truth from the demuxer itself. A stream whose video track is
+           HEVC (or missing altogether) plays sound over a black picture, and
+           the old start guard accepted that as success. Report it at once with
+           the accurate reason instead of waiting on the 5s timer. */
+        pl.on(mp.Events.MEDIA_INFO,function(mediaInfo){
+          console.log('[player] mpegts MEDIA_INFO videoCodec='+(mediaInfo.videoCodec||'none')
+            +' audioCodec='+(mediaInfo.audioCodec||'none')
+            +' width='+mediaInfo.width+' height='+mediaInfo.height);
+          if(!alive()||s.ts!==pl) return;
+          var vc=String(mediaInfo.videoCodec||'').toLowerCase();
+          if(!mediaInfo.videoCodec&&mediaInfo.audioCodec){
+            console.warn('[player] mpegts stream has audio only, no video track:',url);
+            retryable(HEVC_MSG); return;
+          }
+          if((vc.indexOf('hevc')>=0||vc.indexOf('h.265')>=0||vc.indexOf('h265')>=0
+              ||vc.indexOf('hvc1')>=0||vc.indexOf('hev1')>=0)&&!hevcCapable()){
+            console.warn('[player] mpegts HEVC video track unsupported by this browser:',url);
+            retryable(HEVC_MSG); return;
+          }
+        });
         pl.attachMediaElement(s.video);
         pl.load();
         s.video.play().catch(function(){});
@@ -2294,7 +2314,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         var firstTry=true;
         var startGuard=setInterval(function(){
           if(!alive()||s.ts!==pl){ clearInterval(startGuard); return }
-          if((s.video.currentTime||0)>0.1||s.video.readyState>=2){ clearInterval(startGuard); return }
+          /* videoWidth confirms a decoded picture: readyState>=2 alone is true
+             for audio-only playback and hid black-screen channels. */
+          if((((s.video.currentTime||0)>0.1)&&s.video.videoWidth>0)||s.video.readyState>=3){ clearInterval(startGuard); return }
           if(firstTry){ firstTry=false; console.warn('[player] mpegts no frame after 5s — reloading',url); reload(); return }
           clearInterval(startGuard);
           console.error('[player] mpegts produced no video frame',url);
@@ -2313,6 +2335,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).catch(function(){ retryable('Stream failed to load') });
     }
 
+    var HEVC_MSG='This channel is H.265 \u2014 use Chrome or Edge (Safari on Mac) to watch it';
     var tsTried=false, srcIsHls=false;
     function viaTs(forceType){
       if(tsTried||!alive()) return false;
@@ -2335,7 +2358,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var dead=s.hls; s.hls=null;
       if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
       busy(s,true); clearFail(s);
-      var hevcMsg='This channel is H.265 — use Chrome or Edge (Safari on Mac) to watch it';
+      var hevcMsg=HEVC_MSG;
       /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
          channels are already a direct stream URL, so reuse the same token. */
       if(hasProviderTs){
@@ -2397,7 +2420,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
 
 
-    var recover=0,networkRecover=0,signedRefresh=0,lastMoveAt=Date.now(),lastMediaTime=0;
+    var recover=0,networkRecover=0,signedRefresh=0,manifestRetried=false,lastMoveAt=Date.now(),lastMediaTime=0;
     function viaHls(Hls){
       /* Buffer config: the relay delivers segments in bursts, and the previous
          lowLatencyMode + 20s buffer starved the pipeline into
@@ -2473,6 +2496,20 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            stream at all (raw MPEG-TS answered on a .m3u8 URL, or HEVC-in-TS).
            Tear the instance down first so it stops retrying and spamming
            errors, then hand the same URL to mpegts.js. */
+        /* The sniff request and hls.js's own request are two separate fetches,
+           and past the 2s manifest cache the relay can answer the second one
+           differently (a rotated playlist, or a body the first request already
+           consumed). Retry the real URL once before deciding the stream is
+           unreadable. */
+        if(d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR&&!ok&&!manifestRetried){
+          manifestRetried=true;
+          console.warn('[player] hls manifestParsingError — retrying manifest once in 500ms',src);
+          setTimeout(function(){
+            if(!alive()||s.hls!==h) return;
+            try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1); s.video.play().catch(function(){}) }catch(_){}
+          },500);
+          return;
+        }
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
