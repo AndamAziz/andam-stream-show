@@ -157,11 +157,53 @@ function segmentContentType(url: string, upstreamType: string | null): string | 
 }
 
 
+/** A finite media chunk (as opposed to a manifest or an endless live stream). */
+function isSegment(url: string): boolean {
+  const path = (url.split('?')[0] ?? '').toLowerCase();
+  return /\.(ts|m4s|mp4|aac|vtt|key)$/.test(path);
+}
+
+/**
+ * Fetch one finite segment straight from its host.
+ *
+ * Public CDN playlists (Akamai and friends) hand out closed, content-length'd
+ * segments. The relay in front of them does not always forward that end: it
+ * keeps the socket open and streams on forever, so a 10-second, 3 MB chunk
+ * arrived as hundreds of megabytes that never finished and the picture never
+ * started. Those hosts need no relay at all, so try them directly first and
+ * fall back to the relay whenever the host refuses us (IP-bound providers).
+ */
+async function fetchDirectSegment(url: string, request: Request): Promise<Response | null> {
+  const headers = new Headers({ 'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20' });
+  const range = request.headers.get('range');
+  if (range) headers.set('Range', range);
+  const ac = new AbortController();
+  const guard = setTimeout(() => ac.abort(), 8000);
+  try {
+    const res = await fetch(url, { headers, redirect: 'follow', signal: ac.signal });
+    clearTimeout(guard);
+    if (res.ok || res.status === 206) return res;
+    try {
+      await res.body?.cancel();
+    } catch {
+      /* nothing to drain */
+    }
+    return null;
+  } catch {
+    clearTimeout(guard);
+    return null;
+  }
+}
+
 async function fetchUpstream(
   upstream: string,
   request: Request,
   relay: RelayConfig | null,
 ): Promise<Response> {
+  if (isSegment(upstream)) {
+    const direct = await fetchDirectSegment(upstream, request);
+    if (direct) return direct;
+  }
   let res = await fetchRelay(upstream, request, relay);
   // 403/411/5xx from the relay are usually transient — retry once.
   if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
