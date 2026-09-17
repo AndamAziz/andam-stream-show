@@ -20,7 +20,6 @@ import { Route as AuthenticatedAdminCodesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
-import { Route as AuthenticatedAdminStreamAuditRouteImport } from './routes/_authenticated/admin/stream-audit'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicAccessRouteImport } from './routes/api/public/access'
 import { Route as ApiPublicIptvRouteImport } from './routes/api/public/iptv'
@@ -28,7 +27,6 @@ import { Route as ApiPublicTmdbDiscoverRouteImport } from './routes/api/public/t
 import { Route as ApiPublicWatchProgressRouteImport } from './routes/api/public/watch-progress'
 import { Route as ApiPublicXtreamRouteImport } from './routes/api/public/xtream'
 import { Route as ApiPublicXtreamPlayRouteImport } from './routes/api/public/xtream-play'
-import { Route as ApiPublicStreamSplatRouteImport } from './routes/api/public/stream/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -87,12 +85,6 @@ const AuthenticatedAdminProvidersRoute =
     path: '/providers',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminStreamAuditRoute =
-  AuthenticatedAdminStreamAuditRouteImport.update({
-    id: '/stream-audit',
-    path: '/stream-audit',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -128,11 +120,6 @@ const ApiPublicXtreamPlayRoute = ApiPublicXtreamPlayRouteImport.update({
   path: '/api/public/xtream-play',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicStreamSplatRoute = ApiPublicStreamSplatRouteImport.update({
-  id: '/api/public/stream/$',
-  path: '/api/public/stream/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -144,7 +131,6 @@ export interface FileRoutesByFullPath {
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
-  '/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -153,7 +139,6 @@ export interface FileRoutesByFullPath {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
-  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -164,7 +149,6 @@ export interface FileRoutesByTo {
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
-  '/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -173,7 +157,6 @@ export interface FileRoutesByTo {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
-  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,7 +170,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
-  '/_authenticated/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -196,7 +178,6 @@ export interface FileRoutesById {
   '/api/public/xtream': typeof ApiPublicXtreamRoute
   '/api/public/xtream-play': typeof ApiPublicXtreamPlayRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
-  '/api/public/stream/$': typeof ApiPublicStreamSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -210,7 +191,6 @@ export interface FileRouteTypes {
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
-    | '/admin/stream-audit'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -219,7 +199,6 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/admin/'
-    | '/api/public/stream/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -230,7 +209,6 @@ export interface FileRouteTypes {
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
-    | '/admin/stream-audit'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -239,7 +217,6 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/admin'
-    | '/api/public/stream/$'
   id:
     | '__root__'
     | '/'
@@ -252,7 +229,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/content'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
-    | '/_authenticated/admin/stream-audit'
     | '/_authenticated/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -261,7 +237,6 @@ export interface FileRouteTypes {
     | '/api/public/xtream'
     | '/api/public/xtream-play'
     | '/_authenticated/admin/'
-    | '/api/public/stream/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -275,7 +250,6 @@ export interface RootRouteChildren {
   ApiPublicWatchProgressRoute: typeof ApiPublicWatchProgressRoute
   ApiPublicXtreamRoute: typeof ApiPublicXtreamRoute
   ApiPublicXtreamPlayRoute: typeof ApiPublicXtreamPlayRoute
-  ApiPublicStreamSplatRoute: typeof ApiPublicStreamSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -357,13 +331,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProvidersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/admin/stream-audit': {
-      id: '/_authenticated/admin/stream-audit'
-      path: '/stream-audit'
-      fullPath: '/admin/stream-audit'
-      preLoaderRoute: typeof AuthenticatedAdminStreamAuditRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -413,13 +380,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicXtreamPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/stream/$': {
-      id: '/api/public/stream/$'
-      path: '/api/public/stream/$'
-      fullPath: '/api/public/stream/$'
-      preLoaderRoute: typeof ApiPublicStreamSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -428,7 +388,6 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
-  AuthenticatedAdminStreamAuditRoute: typeof AuthenticatedAdminStreamAuditRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -439,7 +398,6 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
     AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
-    AuthenticatedAdminStreamAuditRoute: AuthenticatedAdminStreamAuditRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
@@ -473,7 +431,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicWatchProgressRoute: ApiPublicWatchProgressRoute,
   ApiPublicXtreamRoute: ApiPublicXtreamRoute,
   ApiPublicXtreamPlayRoute: ApiPublicXtreamPlayRoute,
-  ApiPublicStreamSplatRoute: ApiPublicStreamSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

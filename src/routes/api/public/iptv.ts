@@ -23,17 +23,29 @@ const json = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
 
-/**
- * The IPTV section is free for everyone: no sign-in, no activation code and no
- * per-source grants. Every active playlist is listed and playable, so `visible`
- * exists only to keep the call sites unchanged.
- */
-function visible(sources: PlaylistSource[]): PlaylistSource[] {
-  return sources;
+async function grantedSourceIds(request: Request): Promise<Set<string> | null> {
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data: userData } = await supabaseAdmin.auth.getUser(token);
+  const userId = userData?.user?.id;
+  if (!userId) return null;
+  const { data } = await supabaseAdmin
+    .from('user_source_access')
+    .select('source_id')
+    .eq('user_id', userId);
+  return new Set((data ?? []).map((r) => String(r.source_id)));
 }
 
-async function pickSource(slugOrId: string): Promise<PlaylistSource | null> {
-  const sources = visible(await loadPlaylistSources());
+function visible(sources: PlaylistSource[], granted: Set<string> | null): PlaylistSource[] {
+  return sources.filter((s) => s.is_public !== false || granted?.has(s.id));
+}
+
+async function pickSource(
+  slugOrId: string,
+  granted: Set<string> | null,
+): Promise<PlaylistSource | null> {
+  const sources = visible(await loadPlaylistSources(), granted);
   return sources.find((s) => s.slug === slugOrId || s.id === slugOrId) ?? sources[0] ?? null;
 }
 
@@ -46,22 +58,6 @@ async function withOverrides(
   return applyOverrides(channels, overrides, 'logo');
 }
 
-/** A non-sensitive player hint avoids opening a second provider connection
- * just to identify obvious M3U8/MPD/file URLs. Redirecting `.ts` entries stay
- * `auto`, because many of them actually resolve to HLS manifests. */
-function mediaKind(url: string): 'hls' | 'dash' | 'file' | 'auto' {
-  let path = url;
-  try {
-    path = new URL(url).pathname;
-  } catch {
-    /* Invalid provider URLs will fail naturally in the playback proxy. */
-  }
-  if (/\.m3u8$/i.test(path)) return 'hls';
-  if (/\.mpd$/i.test(path)) return 'dash';
-  if (/\.(mp4|m4v|webm|mkv)$/i.test(path)) return 'file';
-  return 'auto';
-}
-
 export const Route = createFileRoute('/api/public/iptv')({
   server: {
     handlers: {
@@ -70,12 +66,14 @@ export const Route = createFileRoute('/api/public/iptv')({
         const action = url.searchParams.get('action') ?? 'sources';
 
         try {
+          const granted = await grantedSourceIds(request);
+
           if (action === 'sources') {
-            const sources = visible(await loadPlaylistSources());
+            const sources = visible(await loadPlaylistSources(), granted);
             return json({ sources: sources.map((s) => ({ id: s.slug, name: s.name })) });
           }
 
-          const source = await pickSource(url.searchParams.get('source') ?? '');
+          const source = await pickSource(url.searchParams.get('source') ?? '', granted);
           if (!source) return json({ error: 'No IPTV playlist configured' }, 404);
 
           if (action === 'channels') {
@@ -112,34 +110,7 @@ export const Route = createFileRoute('/api/public/iptv')({
               name: channel.name,
               logo: channel.logo,
               token: await sealUrl(channel.url),
-              mediaKind: mediaKind(channel.url),
             });
-          }
-
-          /* Batched sealed tokens for the admin bulk stream audit: 500 single
-             `play` calls would rebuild the channel list 500 times. Returns the
-             same opaque tokens, never a raw provider URL. */
-          if (action === 'tokens') {
-            const ids = (url.searchParams.get('ids') ?? '')
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .slice(0, 500);
-            if (!ids.length) return json({ error: 'No ids given' }, 400);
-            const { channels } = await getPlaylistChannels(source);
-            const visibleList = (await withOverrides(source, channels)) as M3uChannel[];
-            const byId = new Map(visibleList.map((c) => [c.id, c]));
-            const out: { id: string; token: string; mediaKind: string }[] = [];
-            for (const id of ids) {
-              const channel = byId.get(id);
-              if (!channel) continue;
-              out.push({
-                id,
-                token: await sealUrl(channel.url),
-                mediaKind: mediaKind(channel.url),
-              });
-            }
-            return json({ tokens: out });
           }
 
           return json({ error: `Unknown action: ${action}` }, 400);
