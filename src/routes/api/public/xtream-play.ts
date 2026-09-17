@@ -161,8 +161,12 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         try {
           res = await fetchUpstream(upstream, request);
         } catch (err) {
+          const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + err.message);
           console.error('[xtream-play] relay error', err);
-          return new Response('Stream unavailable', { status: 502 });
+          return new Response(
+            timedOut ? 'Stream timed out (provider not responding)' : 'Stream unavailable',
+            { status: timedOut ? 504 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+          );
         }
 
         if (!res.ok) {
