@@ -59,15 +59,22 @@ function isTransient(status: number): boolean {
 
 export async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
-  // Retry only genuine transient failures. A 401/403/411 response comes from
-  // the provider and retrying it (or bypassing the relay) cannot repair it.
+  // Retry genuine transient failures. A 401/404 comes from the provider and
+  // retrying cannot repair it, but 403/411 is also what single-connection
+  // provider lines answer while a previous request is still winding down, so
+  // give those one slower retry.
   if (!res.ok && isTransient(res.status)) {
     await drain(res);
     await new Promise((r) => setTimeout(r, 350));
     res = await fetchRelay(upstream, request);
+  } else if (res.status === 403 || res.status === 411) {
+    await drain(res);
+    await new Promise((r) => setTimeout(r, 1200));
+    res = await fetchRelay(upstream, request);
   }
   return res;
 }
+
 
 export function clientStatus(status: number): number {
   // Preserve meaningful provider failures instead of turning every response
