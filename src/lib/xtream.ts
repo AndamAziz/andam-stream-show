@@ -15,21 +15,101 @@ export type Source = {
   base_url: string;
   username: string;
   password: string;
+  /** Optional per-provider relay, stored in the admin panel. */
+  relay_url?: string | null;
+  relay_token?: string | null;
 };
 
 export type XtreamKind = 'live' | 'vod' | 'series';
 
-export function relayUrl(upstream: string): string {
-  return RELAY_BASE + encodeURIComponent(upstream);
-}
+/** A resolved relay endpoint: the `?url=` prefix plus the token to send. */
+export type RelayConfig = { base: string; token: string };
 
-export function relayHeaders(): Record<string, string> {
-  return { 'X-Relay-Token': process.env['RELAY_TOKEN'] ?? DEFAULT_RELAY_TOKEN };
-}
+/**
+ * Query parameter that carries a per-provider relay through a sealed token.
+ *
+ * Playback tokens only hold the upstream URL, and /api/public/xtream-play has
+ * no idea which provider produced one. Tagging the URL before it is sealed lets
+ * the playback route use that provider's own relay and token; the marker is
+ * stripped again before anything is sent upstream.
+ */
+export const RELAY_PARAM = '__arly';
 
 /** The relay token shipped with the project; overridable through a secret. */
 const DEFAULT_RELAY_TOKEN =
   '009c95e9a8c6e50d992b8313bb90b01948b4a58e870bd69504a640b32306a5da';
+
+const defaultRelay = (): RelayConfig => ({
+  base: process.env['RELAY_URL'] ?? RELAY_BASE,
+  token: process.env['RELAY_TOKEN'] ?? DEFAULT_RELAY_TOKEN,
+});
+
+/** Accepts `https://host/proxy` or `https://host/proxy?url=` and normalises it. */
+function normaliseRelayBase(value: string): string {
+  const base = value.trim();
+  if (!base) return RELAY_BASE;
+  if (/[?&]url=$/.test(base)) return base;
+  return base.includes('?') ? `${base}&url=` : `${base}?url=`;
+}
+
+/** The relay to use for one provider: its stored values, else the shared relay. */
+export function relayConfig(source?: {
+  relay_url?: string | null;
+  relay_token?: string | null;
+}): RelayConfig {
+  const fallback = defaultRelay();
+  const base = (source?.relay_url ?? '').trim();
+  const token = (source?.relay_token ?? '').trim();
+  return {
+    base: base ? normaliseRelayBase(base) : fallback.base,
+    token: token || fallback.token,
+  };
+}
+
+export function relayUrl(upstream: string, relay?: RelayConfig | null): string {
+  return (relay?.base ?? defaultRelay().base) + encodeURIComponent(upstream);
+}
+
+export function relayHeaders(relay?: RelayConfig | null): Record<string, string> {
+  return { 'X-Relay-Token': relay?.token ?? defaultRelay().token };
+}
+
+const b64url = (value: string) =>
+  btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+function fromB64url(value: string): string {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/');
+  return atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
+}
+
+/** Adds the relay marker to an upstream URL, unless it uses the shared relay. */
+export function tagRelay(upstream: string, source?: Source): string {
+  const relay = relayConfig(source);
+  const shared = defaultRelay();
+  if (relay.base === shared.base && relay.token === shared.token) return upstream;
+  const mark = b64url(JSON.stringify(relay));
+  return upstream + (upstream.includes('?') ? '&' : '?') + `${RELAY_PARAM}=${mark}`;
+}
+
+/** Splits a tagged URL back into the real upstream URL and its relay. */
+export function readRelay(tagged: string): { upstream: string; relay: RelayConfig | null } {
+  const at = tagged.indexOf(`${RELAY_PARAM}=`);
+  if (at < 0) return { upstream: tagged, relay: null };
+  const separator = tagged[at - 1];
+  const raw = tagged.slice(at + RELAY_PARAM.length + 1).split('&')[0] ?? '';
+  const rest = tagged.slice(at + RELAY_PARAM.length + 1 + raw.length).replace(/^&/, '');
+  const upstream =
+    tagged.slice(0, at - 1) + (rest ? (separator === '?' ? `?${rest}` : `&${rest}`) : '');
+  try {
+    const parsed = JSON.parse(fromB64url(raw)) as RelayConfig;
+    if (typeof parsed.base === 'string' && typeof parsed.token === 'string') {
+      return { upstream, relay: parsed };
+    }
+  } catch {
+    /* malformed marker — fall back to the shared relay */
+  }
+  return { upstream, relay: null };
+}
 
 function apiUrl(source: Source, params: Record<string, string>): string {
   const base = source.base_url.replace(/\/+$/, '');
