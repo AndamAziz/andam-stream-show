@@ -199,8 +199,11 @@ async function fetchUpstream(
   upstream: string,
   request: Request,
   relay: RelayConfig | null,
+  fromManifest = false,
 ): Promise<Response> {
-  if (isSegment(upstream)) {
+  // Only chunks we pulled out of a manifest are known-finite. A first-hop
+  // `.ts` link is an endless live stream and stays on the relay.
+  if (fromManifest && isSegment(upstream)) {
     const direct = await fetchDirectSegment(upstream, request);
     if (direct) return direct;
   }
