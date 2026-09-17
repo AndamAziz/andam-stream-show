@@ -154,6 +154,24 @@ export const Route = createFileRoute('/api/public/xtream')({
 
           if (action === 'categories') {
             const kind = (url.searchParams.get('type') ?? 'live') as XtreamKind;
+
+            // Curated live lists carry their own groups instead of provider
+            // category ids, so the filter bar must list those.
+            if (kind === 'live') {
+              const curated = await curatedChannels(source.id);
+              if (curated.length > 0) {
+                const groups = [...new Set(curated.map((c) => c.group))].sort((a, b) =>
+                  a.localeCompare(b),
+                );
+                return json({
+                  categories: applyOverrides(
+                    groups.map((g) => ({ id: g, name: g })),
+                    await loadOverrides(source.id, 'category'),
+                  ),
+                });
+              }
+            }
+
             const map: Record<XtreamKind, string> = {
               live: 'get_live_categories',
               vod: 'get_vod_categories',
@@ -171,6 +189,26 @@ export const Route = createFileRoute('/api/public/xtream')({
 
           if (action === 'live') {
             const categoryId = url.searchParams.get('category_id') ?? '';
+
+            // A curated list (rebuilt from stored credentials, or imported from a
+            // provider submission) replaces the provider's own live list.
+            const curated = await curatedChannels(source.id);
+            if (curated.length > 0) {
+              const items = curated
+                .filter((c) => !categoryId || c.group === categoryId)
+                .map((c) => ({
+                  id: c.key,
+                  num: c.num,
+                  name: c.name,
+                  logo: c.logo,
+                  archive: false,
+                  archiveDays: 0,
+                  categoryId: c.group,
+                }));
+              const shown = applyOverrides(items, await loadOverrides(source.id, 'live'), 'logo');
+              return json({ items: shown, hasArchive: false, curated: true });
+            }
+
             const streams = await playerApi<LiveStream[]>(source, {
               action: 'get_live_streams',
               ...(categoryId ? { category_id: categoryId } : {}),
