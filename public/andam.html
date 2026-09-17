@@ -2077,9 +2077,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var ct=(r.headers.get('content-type')||'').toLowerCase();
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
       return {ok:r.ok||r.status===206,status:r.status,
-              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0};
+              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0,
+              dash:ct.indexOf('dash+xml')>=0||ct.indexOf('/xml')>=0&&false,
+              /* raw MPEG-TS: no browser decodes video/mp2t natively, it needs
+                 mpegts.js. Many playlist entries are plain .ts streams. */
+              mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
     });
   }
+
 
   function lvPlay(kind,token,title,sub,isHls){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
