@@ -12,6 +12,7 @@ const NAV = [
   { to: '/admin/codes', label: 'Activation codes' },
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/monitoring', label: 'Monitoring' },
+  { to: '/admin/stream-audit', label: 'Stream audit' },
 ] as const;
 
 export function AdminShell({ children, email }: { children: ReactNode; email: string }) {
