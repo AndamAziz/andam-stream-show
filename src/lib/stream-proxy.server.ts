@@ -309,8 +309,38 @@ export function errorResponse(status: number): Response {
   );
 }
 
+/**
+ * Very short-lived manifest cache. Most provider lines allow a single
+ * connection at a time, and playback normally asks for the same playlist twice
+ * within a second (format probe, then the player itself), which the provider
+ * answers with 403/411. Serving the second read from memory keeps one
+ * connection open per channel; 2s is far below a live target duration.
+ */
+const manifestCache = new Map<string, { body: string; type: string; expires: number }>();
+
+function cachedManifest(upstream: string): Response | null {
+  const hit = manifestCache.get(upstream);
+  if (!hit || hit.expires < Date.now()) return null;
+  return new Response(hit.body, {
+    status: 200,
+    headers: {
+      'Content-Type': hit.type,
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function rememberManifest(upstream: string, body: string, type: string) {
+  if (manifestCache.size > 200) manifestCache.clear();
+  manifestCache.set(upstream, { body, type, expires: Date.now() + 2000 });
+}
+
 /** Shared body: relay `upstream`, rewriting HLS/DASH manifests on the way out. */
 export async function proxyStream(upstream: string, request: Request): Promise<Response> {
+  const cached = cachedManifest(upstream);
+  if (cached) return cached;
+
   let res: Response;
   try {
     res = await fetchUpstream(upstream, request);
@@ -323,6 +353,7 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
     console.error('[stream-proxy] relay responded', res.status, res.statusText);
     return errorResponse(res.status);
   }
+
 
   const contentType = res.headers.get('content-type');
   const headers = safeHeaders(res, request);
