@@ -164,6 +164,56 @@ export type Database = {
         }
         Relationships: []
       }
+      iptv_channels: {
+        Row: {
+          channel_key: string
+          created_at: string
+          group_title: string
+          id: string
+          logo: string | null
+          media_kind: string
+          name: string
+          num: number
+          source_id: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          channel_key: string
+          created_at?: string
+          group_title?: string
+          id?: string
+          logo?: string | null
+          media_kind?: string
+          name: string
+          num?: number
+          source_id: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          channel_key?: string
+          created_at?: string
+          group_title?: string
+          id?: string
+          logo?: string | null
+          media_kind?: string
+          name?: string
+          num?: number
+          source_id?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iptv_channels_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_activity: {
         Row: {
           created_at: string
