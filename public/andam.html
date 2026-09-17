@@ -2227,13 +2227,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
     /* Report the engine actually chosen so DevTools shows detection working. */
     function engine(name){ console.log('[player] Using '+name+' — '+kind+' · '+title) }
-    function killEngines(){
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var h=s.hls, t=s.ts, dp=s.dash;
-      s.hls=null; s.ts=null; s.dash=null;
-      try{ if(h){ h.stopLoad(); h.destroy() } }catch(_){}
-      try{ if(t){ t.pause(); t.unload(); t.detachMediaElement(); t.destroy() } }catch(_){}
-      try{ if(dp) dp.reset() }catch(_){}
+    /* Single teardown path (shared with lvStop) so no engine is ever left
+       half-attached to the media element when the next one mounts. */
+    function killEngines(){ teardown(s) }
+    /* Frees the element for a new engine: detach everything, drop the old
+       resource selection, and confirm the element is really there. */
+    function readyVideo(){
+      killEngines();
+      var v=s.video||(s.video=document.getElementById(kind==='iptv'?'ipVideo':'ltvVideo'));
+      if(!v) return null;
+      try{ v.pause() }catch(_){}
+      try{ v.removeAttribute('src'); v.load() }catch(_){}
+      return v;
     }
     /* Hard IPTV timeout: no picture from any engine within 6s → try the raw
        MPEG-TS demuxer once, and if that is also silent stop everything instead
