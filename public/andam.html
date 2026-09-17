@@ -2241,7 +2241,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         /* Safari (and any browser with native HLS) decodes HEVC playlists the
            JS demuxer rejects, so try the built-in player before giving up. */
         if(s.video.canPlayType('application/vnd.apple.mpegurl')){ tsTried=true; native(true); return true }
-        retryable('This channel uses a video format this browser cannot play (H.265)');
+        retryable(kind==='iptv'?'Stream unavailable'
+          :'This channel uses a video format this browser cannot play (H.265)');
+
         return true;
       }
 
@@ -2265,9 +2267,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           .catch(function(){ mountMpegts(location.origin+src,hevcMsg) });
         return true;
       }
+      /* IPTV playlist streams are plain MPEG-TS/FLV, so a failure here is a
+         source problem, not an H.265 codec problem — don't misreport it. */
       mountMpegts(location.origin+src,
-        forceType==='flv'?'This stream cannot be played here':(hevcCapable()?'Stream failed to load':hevcMsg),
+        (kind==='iptv'||forceType==='flv')?'Stream unavailable'
+          :(hevcCapable()?'Stream failed to load':hevcMsg),
         forceType);
+
       return true;
     }
 
