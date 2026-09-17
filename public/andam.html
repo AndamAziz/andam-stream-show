@@ -2068,6 +2068,17 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return false;
   }
 
+  /* Native HLS is only preferred where hls.js cannot run (iOS Safari): there the
+     media element plays the manifest directly. */
+  function nativeHls(){
+    try{
+      var v=document.createElement('video');
+      if(!v.canPlayType||!v.canPlayType('application/vnd.apple.mpegurl')) return false;
+      return !(window.MediaSource&&MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"'));
+    }catch(_){ return false }
+  }
+
+
 
 
   /* Trust the response, not the caller's flag: providers happily serve an
