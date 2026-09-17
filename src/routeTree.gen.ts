@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminCodesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminContentRouteImport } from './routes/_authenticated/admin/content'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin/monitoring'
 import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
+import { Route as AuthenticatedAdminStreamAuditRouteImport } from './routes/_authenticated/admin/stream-audit'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as ApiPublicAccessRouteImport } from './routes/api/public/access'
 import { Route as ApiPublicIptvRouteImport } from './routes/api/public/iptv'
@@ -86,6 +87,12 @@ const AuthenticatedAdminProvidersRoute =
     path: '/providers',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminStreamAuditRoute =
+  AuthenticatedAdminStreamAuditRouteImport.update({
+    id: '/stream-audit',
+    path: '/stream-audit',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -137,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -156,6 +164,7 @@ export interface FileRoutesByTo {
   '/admin/content': typeof AuthenticatedAdminContentRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -178,6 +187,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/content': typeof AuthenticatedAdminContentRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRoute
+  '/_authenticated/admin/stream-audit': typeof AuthenticatedAdminStreamAuditRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/api/public/access': typeof ApiPublicAccessRoute
   '/api/public/iptv': typeof ApiPublicIptvRoute
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
+    | '/admin/stream-audit'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/admin/content'
     | '/admin/monitoring'
     | '/admin/providers'
+    | '/admin/stream-audit'
     | '/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -240,6 +252,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/content'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/providers'
+    | '/_authenticated/admin/stream-audit'
     | '/_authenticated/admin/users'
     | '/api/public/access'
     | '/api/public/iptv'
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProvidersRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/stream-audit': {
+      id: '/_authenticated/admin/stream-audit'
+      path: '/stream-audit'
+      fullPath: '/admin/stream-audit'
+      preLoaderRoute: typeof AuthenticatedAdminStreamAuditRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -408,6 +428,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminContentRoute: typeof AuthenticatedAdminContentRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRoute
+  AuthenticatedAdminStreamAuditRoute: typeof AuthenticatedAdminStreamAuditRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -418,6 +439,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminContentRoute: AuthenticatedAdminContentRoute,
     AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
     AuthenticatedAdminProvidersRoute: AuthenticatedAdminProvidersRoute,
+    AuthenticatedAdminStreamAuditRoute: AuthenticatedAdminStreamAuditRoute,
     AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   }
