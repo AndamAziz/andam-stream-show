@@ -2392,6 +2392,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         if(!streamIsHls){ native(false); return }
 
 
+        srcIsHls=true;
         ensureHls().then(function(Hls){
           if(!alive()) return;
           if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
@@ -2399,11 +2400,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }).catch(function(){
         if(!alive()) return;
         /* probe blocked/aborted — fall back to the caller's hint */
-        if(isHls){ ensureHls().then(function(Hls){
+        if(isHls){ srcIsHls=true; ensureHls().then(function(Hls){
           if(!alive()) return;
           if(Hls&&Hls.isSupported()) viaHls(Hls); else native(true);
         }) } else native(false);
       });
+
     },0);
   }
 
