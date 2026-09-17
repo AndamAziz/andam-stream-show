@@ -14,9 +14,10 @@ const DESCRIPTION =
 type Search = { p: string };
 
 export const Route = createFileRoute('/provider-portal')({
-  validateSearch: (search: Record<string, unknown>): Search => ({
-    p: typeof search['p'] === 'string' ? search['p'] : '',
-  }),
+  validateSearch: (search: Record<string, unknown>): Search => {
+    const raw = search['p'];
+    return { p: typeof raw === 'string' ? raw : '' };
+  },
   head: () => ({
     meta: [
       { title: 'Andam provider portal' },
