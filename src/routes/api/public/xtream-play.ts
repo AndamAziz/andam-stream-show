@@ -223,13 +223,17 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         const sealed = await openUrl(token);
         if (!sealed) return new Response('Link expired', { status: 410 });
 
+        // Providers may carry their own relay host/token; the marker travels
+        // inside the sealed link and never reaches the provider itself.
+        const { url: target, relay } = readRelay(sealed);
+
         // Only the first hop (the link the UI hands us) may still redirect.
         const upstream =
-          url.searchParams.get('s') === '1' ? sealed : await resolveRedirects(sealed);
+          url.searchParams.get('s') === '1' ? target : await resolveRedirects(target);
 
         let res: Response;
         try {
-          res = await fetchUpstream(upstream, request);
+          res = await fetchUpstream(upstream, request, relay);
         } catch (err) {
           const timedOut = err instanceof Error && /timeout|abort/i.test(err.name + err.message);
           console.error('[xtream-play] relay error', err);
@@ -282,7 +286,7 @@ export const Route = createFileRoute('/api/public/xtream-play')({
           // The relay may follow redirects; resolve relative URIs against the
           // URL the manifest actually came from when the relay reports it.
           const finalUrl = res.headers.get('x-final-url') || upstream;
-          const body = await rewriteManifest(text, finalUrl);
+          const body = await rewriteManifest(text, finalUrl, relay);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
