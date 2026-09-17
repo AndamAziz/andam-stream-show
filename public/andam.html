@@ -2367,8 +2367,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       probeKind(src).then(function(p){
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
+        /* DASH manifests need dash.js; raw MPEG-TS needs mpegts.js — the native
+           element rejects both with MEDIA_ERR_SRC_NOT_SUPPORTED. */
+        if(p.dash){ viaDash(); return }
+        if(p.mp2t){ viaTs(); return }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
+
 
         ensureHls().then(function(Hls){
           if(!alive()) return;
