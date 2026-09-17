@@ -2286,7 +2286,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         lowLatencyMode:false,
         maxBufferLength:45,maxMaxBufferLength:120,maxBufferSize:60*1000*1000,
         backBufferLength:60,
-        liveSyncDurationCount:4,liveMaxLatencyDurationCount:10,
+        /* IPTV playlist links often rotate quickly. Stay close to the live edge
+           so a segment is not already expired by the time the relay requests it. */
+        liveSyncDurationCount:kind==='iptv'?2:4,
+        liveMaxLatencyDurationCount:kind==='iptv'?5:10,
         manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:4,
         levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
         fragLoadingTimeOut:20000,fragLoadingMaxRetry:5,fragLoadingMaxRetryTimeout:8000,
@@ -2364,10 +2367,22 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
              rejected segment means the rolling manifest must be fetched again;
              treating it as a codec error incorrectly sent IPTV into the H.265
              fallback and left a permanent black screen. */
-          signedRefresh++;
+           signedRefresh++;
           setTimeout(function(){
             if(!alive()||s.hls!==h) return;
-            try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1); s.video.play().catch(function(){}) }catch(_){}
+             /* A rejected IPTV segment belongs to an expired rolling manifest.
+                Destroy the old loader completely before fetching a fresh one;
+                reusing it kept the failed request alive and produced another
+                403/411 on providers that permit one active connection. */
+             if(kind==='iptv'){
+               try{ h.destroy() }catch(_){}
+               if(s.hls===h) s.hls=null;
+               ensureHls().then(function(FreshHls){
+                 if(alive()&&!s.hls&&FreshHls) viaHls(FreshHls);
+               });
+               return;
+             }
+             try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1); s.video.play().catch(function(){}) }catch(_){}
           },Math.min(6000,500*Math.pow(1.6,Math.min(signedRefresh,6))));
           return;
         }
