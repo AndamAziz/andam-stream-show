@@ -47,6 +47,8 @@ async function drain(res: Response) {
 
 const TRANSIENT = new Set([408, 429]);
 
+const finalUrlCache = new Map<string, { url: string; expires: number }>();
+
 function isTransient(status: number): boolean {
   return TRANSIENT.has(status) || status >= 500;
 }
@@ -78,6 +80,8 @@ function clientStatus(status: number): number {
  * the real base; if the provider refuses a direct call we keep the original URL.
  */
 async function resolveFinalUrl(upstream: string): Promise<string> {
+  const cached = finalUrlCache.get(upstream);
+  if (cached && cached.expires > Date.now()) return cached.url;
   let current = upstream;
   for (let i = 0; i < 5; i += 1) {
     let res: Response;
@@ -87,6 +91,7 @@ async function resolveFinalUrl(upstream: string): Promise<string> {
         headers: { 'User-Agent': 'AndamTV/1.0', Accept: '*/*' },
       });
     } catch {
+      finalUrlCache.set(upstream, { url: current, expires: Date.now() + 60_000 });
       return current;
     }
     try {
@@ -100,11 +105,14 @@ async function resolveFinalUrl(upstream: string): Promise<string> {
         current = new URL(location, current).toString();
         continue;
       } catch {
+        finalUrlCache.set(upstream, { url: current, expires: Date.now() + 60_000 });
         return current;
       }
     }
+    finalUrlCache.set(upstream, { url: current, expires: Date.now() + 60_000 });
     return current;
   }
+  finalUrlCache.set(upstream, { url: current, expires: Date.now() + 60_000 });
   return current;
 }
 

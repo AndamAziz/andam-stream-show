@@ -1931,7 +1931,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       tag:document.getElementById(p+'NowTag'),
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
-      hls:null,session:0,last:null};
+      hls:null,session:0,last:null,stallTimer:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
@@ -1963,6 +1963,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
   function lvStop(kind){
     var s=surf(kind); s.session++;
+    if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
     if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
@@ -2159,19 +2160,19 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       return true;
     }
 
-    var recover=0;
+    var recover=0,networkRecover=0,lastMoveAt=Date.now(),lastMediaTime=0;
     function viaHls(Hls){
       /* Buffer config: the relay delivers segments in bursts, and the previous
          lowLatencyMode + 20s buffer starved the pipeline into
          bufferStalledError. Deeper buffers, generous timeouts and retries. */
       var h=new Hls({
         lowLatencyMode:false,
-        maxBufferLength:15,maxMaxBufferLength:45,maxBufferSize:30*1000*1000,
-        backBufferLength:30,
-        liveSyncDurationCount:2,liveMaxLatencyDurationCount:8,
+        maxBufferLength:45,maxMaxBufferLength:120,maxBufferSize:60*1000*1000,
+        backBufferLength:60,
+        liveSyncDurationCount:4,liveMaxLatencyDurationCount:10,
         manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:4,
         levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
-        fragLoadingTimeOut:90000,fragLoadingMaxRetry:6,fragLoadingMaxRetryTimeout:12000,
+        fragLoadingTimeOut:90000,fragLoadingMaxRetry:8,fragLoadingMaxRetryTimeout:16000,
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
       s.hls=h;
@@ -2182,6 +2183,27 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         try{ h.startLoad(-1) }catch(_){}
         s.video.play().catch(function(){});
       });
+      h.on(Hls.Events.FRAG_BUFFERED,function(){ networkRecover=0 });
+      /* Keep a live channel moving through a slow segment or a brief relay
+         interruption. A stall used to remain frozen forever once playback had
+         started because the fatal-network recovery below only ran before the
+         first frame. */
+      s.stallTimer=setInterval(function(){
+        if(!alive()||s.hls!==h||s.video.paused||s.video.ended) return;
+        var now=Date.now(), t=s.video.currentTime||0;
+        if(t>lastMediaTime+0.05){ lastMediaTime=t; lastMoveAt=now; return }
+        if(now-lastMoveAt<9000) return;
+        try{
+          var live=h.liveSyncPosition;
+          if(typeof live==='number'&&isFinite(live)&&live>t+1) s.video.currentTime=Math.max(0,live-0.5);
+          h.startLoad(-1);
+          s.video.play().catch(function(){});
+        }catch(_){}
+        if(now-lastMoveAt>22000){
+          lastMoveAt=now;
+          try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1) }catch(_){}
+        }
+      },3000);
       h.on(Hls.Events.ERROR,function(e,d){
         console[d.fatal?'error':'warn']('[player] hls',d.type,d.details,d.response?('http '+d.response.code):'',d.url||'');
         if(!alive()||s.hls!==h) return;
@@ -2189,9 +2211,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         if(d.details===Hls.ErrorDetails.BUFFER_STALLED_ERROR){
           try{
             var b=s.video.buffered;
+            var jumped=false;
             for(var i=0;i<b.length;i++){
-              if(b.start(i)>s.video.currentTime){ s.video.currentTime=b.start(i)+0.1; break }
+              if(b.start(i)>s.video.currentTime){ s.video.currentTime=b.start(i)+0.1; jumped=true; break }
             }
+            if(!jumped&&typeof h.liveSyncPosition==='number'&&h.liveSyncPosition>s.video.currentTime+1)
+              s.video.currentTime=Math.max(0,h.liveSyncPosition-0.5);
+            h.startLoad(-1);
             s.video.play().catch(function(){});
           }catch(_){}
           return;
@@ -2204,8 +2230,21 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
             ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){ if(viaTs()) return }
         if(!d.fatal) return;
         if(d.details===Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR){ if(viaTs()) return; setTimeout(function(){ native(false) },0); return }
-        if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!ok){
-          setTimeout(function(){ if(alive()&&!ok&&s.hls===h){ try{ h.startLoad() }catch(_){ h.loadSource(src) } } },1200);
+        if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
+          /* Recover even after the channel has already played. Previously a
+             single failed live segment after startup permanently stopped both
+             picture and sound. Reload the live manifest to obtain its newest
+             rolling window after repeated failures. */
+          networkRecover++;
+          var wait=Math.min(6000,700*Math.pow(1.6,Math.min(networkRecover,5)));
+          setTimeout(function(){
+            if(!alive()||s.hls!==h) return;
+            try{
+              if(networkRecover>=2){ h.stopLoad(); h.loadSource(src); h.startLoad(-1) }
+              else h.startLoad(-1);
+              s.video.play().catch(function(){});
+            }catch(_){}
+          },wait);
         }else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
           /* Cap recovery: a codec this device cannot decode otherwise loops
              forever (append → error → recover → append). */
