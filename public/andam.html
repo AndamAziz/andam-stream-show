@@ -1932,7 +1932,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       tag:document.getElementById(p+'NowTag'),
       live:document.getElementById(p+'Live'),
       fs:document.getElementById(p+'Fs'),
-      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null};
+      hls:null,ts:null,dash:null,session:0,last:null,stallTimer:null,
+      /* every timer started for the current channel, plus the abort controller
+         for its network probes, so teardown can cancel all of them at once */
+      timers:[],abort:null};
     s.err.addEventListener('click',function(){ if(s.last) lvPlay(kind,s.last.token,s.last.title,s.last.sub,s.last.isHls,s.last.mediaKind) });
     s.err.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') s.err.click() });
     s.fs.addEventListener('click',function(){
