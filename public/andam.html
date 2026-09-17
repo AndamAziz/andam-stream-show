@@ -2471,7 +2471,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(!alive()||s.dash!==p) return;
           retryable('Stream failed to load');
         });
-        p.initialize(s.video,location.origin+src,true);
+        if(!s.video||s.dash!==p){ killDash(p); if(s.dash===p) s.dash=null; return }
+        try{
+          p.initialize(s.video,location.origin+src,true);
+        }catch(err){
+          console.warn('[player] dash mount failed',err&&err.message);
+          killDash(p); if(s.dash===p) s.dash=null;
+          retryable('Stream failed to load'); return;
+        }
         var dMove=Date.now(), dTime=0;
         s.stallTimer=setInterval(function(){
           if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
