@@ -90,7 +90,9 @@ export async function listCredentials(): Promise<CredentialRow[]> {
         relayTokenMasked: maskSecret(s.relay_token ?? ''),
         effectiveRelay: relay.base,
         usesSharedRelay: relay.base === shared.base && relay.token === shared.token,
-        curatedChannels: await countLiveChannels(s.id),
+        // Only Xtream providers keep a curated Live TV list; the playlist rows of
+        // an M3U provider belong to IPTV and must never be counted or cleared here.
+        curatedChannels: s.type === 'm3u' ? 0 : await countLiveChannels(s.id),
       };
     }),
   );
@@ -155,6 +157,10 @@ export async function rebuildLiveChannels(
 
 /** Drops the curated list so Live TV reads straight from the provider again. */
 export async function resetLiveChannels(id: string): Promise<{ ok: true }> {
+  const source = await loadSource(id);
+  if (source.type === 'm3u') {
+    throw new Error('This is an IPTV playlist provider — refresh it from the Providers page instead');
+  }
   await clearLiveChannels(id);
   return { ok: true };
 }
