@@ -2363,9 +2363,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
             retryable(HEVC_MSG); return;
           }
         });
-        pl.attachMediaElement(s.video);
-        pl.load();
-        s.video.play().catch(function(){});
+        /* Attach only when the element is free and still on the page. */
+        var mv=s.video;
+        if(!mv||s.ts!==pl){ killTs(pl); if(s.ts===pl) s.ts=null; if(!mv) fail(s,'Player is not ready — reopen the channel'); return }
+        try{
+          pl.attachMediaElement(mv);
+          pl.load();
+        }catch(err){
+          console.warn('[player] mpegts mount failed',err&&err.message);
+          killTs(pl); if(s.ts===pl) s.ts=null;
+          retryable(failMsg); return;
+        }
+        try{ var mp1=mv.play(); if(mp1&&mp1.catch) mp1.catch(function(){}) }catch(_){}
         /* No first frame at all after one reload attempt: stop spinning and say
            so instead of leaving the viewer on an endless loader. */
         var firstTry=true;
