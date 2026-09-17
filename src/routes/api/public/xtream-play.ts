@@ -27,6 +27,51 @@ function isManifest(url: string, contentType: string | null): boolean {
   const ct = (contentType ?? '').toLowerCase();
   return ct.includes('mpegurl') || ct.includes('vnd.apple.mpegurl');
 }
+/**
+ * Reads a manifest without waiting for the connection to close.
+ *
+ * Some upstreams (and the relay in front of them) treat a `.m3u8` request as a
+ * long-lived stream: they keep the socket open and re-send the playlist over and
+ * over. `res.text()` then never resolves and the player spins forever, so read
+ * incrementally, stop at the first complete playlist, and cap size/time.
+ */
+async function readManifest(res: Response): Promise<string> {
+  const MAX_BYTES = 2_000_000;
+  const MAX_MS = 8000;
+  const reader = res.body?.getReader();
+  if (!reader) return '';
+  const decoder = new TextDecoder();
+  const started = Date.now();
+  let text = '';
+  try {
+    for (;;) {
+      if (Date.now() - started > MAX_MS) break;
+      const { done, value } = await Promise.race([
+        reader.read(),
+        new Promise<{ done: true; value: undefined }>((r) =>
+          setTimeout(() => r({ done: true, value: undefined }), Math.max(0, MAX_MS - (Date.now() - started))),
+        ),
+      ]);
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      // A repeated `#EXTM3U` header means the upstream restarted the playlist.
+      const repeat = text.indexOf('#EXTM3U', text.indexOf('#EXTM3U') + 1);
+      if (repeat > 0) {
+        text = text.slice(0, repeat);
+        break;
+      }
+      if (text.includes('#EXT-X-ENDLIST') || text.length > MAX_BYTES) break;
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* upstream already gone */
+    }
+  }
+  return text;
+}
+
 
 /** Fetch provider bytes through the configured relay only. */
 async function fetchRelay(url: string, request: Request): Promise<Response> {
