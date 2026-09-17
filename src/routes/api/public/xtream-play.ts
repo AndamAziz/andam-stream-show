@@ -37,14 +37,6 @@ async function fetchRelay(url: string, request: Request): Promise<Response> {
   return fetch(relayUrl(url), { headers, redirect: 'follow' });
 }
 
-/** Fetch provider bytes directly, used when the relay cannot reach the host. */
-async function fetchDirect(url: string, request: Request): Promise<Response> {
-  const headers = new Headers({ 'User-Agent': 'AndamTV/1.0', Accept: '*/*' });
-  const range = request.headers.get('range');
-  if (range) headers.set('Range', range);
-  return fetch(url, { headers, redirect: 'follow' });
-}
-
 async function drain(res: Response) {
   try {
     await res.body?.cancel();
@@ -53,7 +45,7 @@ async function drain(res: Response) {
   }
 }
 
-const TRANSIENT = new Set([403, 408, 411, 429]);
+const TRANSIENT = new Set([408, 429]);
 
 function isTransient(status: number): boolean {
   return TRANSIENT.has(status) || status >= 500;
@@ -61,26 +53,21 @@ function isTransient(status: number): boolean {
 
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
-  // 403/408/411/429/5xx from the relay are usually transient — retry once.
+  // Retry only genuine transient failures. A 401/403/411 response comes from
+  // the provider and retrying it (or bypassing the relay) cannot repair it.
   if (!res.ok && isTransient(res.status)) {
     await drain(res);
     await new Promise((r) => setTimeout(r, 350));
     res = await fetchRelay(upstream, request);
   }
-  // The relay timed out or died on this host (502/504 are the common cases) —
-  // fall back to a direct fetch instead of failing playback outright.
-  if (!res.ok && isTransient(res.status)) {
-    await drain(res);
-    try {
-      const direct = await fetchDirect(upstream, request);
-      if (direct.ok) return direct;
-      await drain(direct);
-      return direct;
-    } catch {
-      return new Response('Stream unavailable', { status: 502 });
-    }
-  }
   return res;
+}
+
+function clientStatus(status: number): number {
+  // Preserve meaningful provider failures instead of turning every response
+  // into a route-level 502, which the app shell treats as a server crash.
+  if ([400, 401, 403, 404, 408, 410, 411, 429].includes(status)) return status;
+  return 502;
 }
 
 /**
@@ -213,8 +200,15 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         if (!res.ok) {
           console.error('[xtream-play] relay responded', res.status, res.statusText);
           return new Response(
-            res.status === 404 ? 'Stream not found' : `Stream unavailable (relay ${res.status})`,
-            { status: res.status === 404 ? 404 : 502, headers: { 'Access-Control-Allow-Origin': '*' } },
+            res.status === 404 ? 'Stream not found' : `Stream unavailable (provider ${res.status})`,
+            {
+              status: clientStatus(res.status),
+              headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-store',
+                'Content-Type': 'text/plain; charset=utf-8',
+              },
+            },
           );
         }
 
