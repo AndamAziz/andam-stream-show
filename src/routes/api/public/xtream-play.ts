@@ -218,14 +218,17 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
-          const text = await res.text();
-          // The relay may follow redirects; resolve relative URIs against the
-          // URL the manifest actually came from when the relay reports it.
-          const finalUrl = res.headers.get('x-final-url') || upstream;
+          const text = await readManifestText(res);
+          // The relay may follow redirects without reporting where it landed, so
+          // resolve the real base ourselves before rewriting relative URIs.
+          const finalUrl =
+            res.headers.get('x-final-url') ||
+            (/\.m3u8(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
           const body = await rewriteManifest(text, finalUrl);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
+
 
         headers.set('Accept-Ranges', 'bytes');
         return new Response(res.body, { status: res.status, headers });
