@@ -200,12 +200,17 @@ async function fetchTranscoded(
   const endpoint = transcodeEndpoint(relay);
   if (!endpoint) return null;
   const target = `${endpoint}${endpoint.includes('?') ? '&' : '?'}stream=${encodeURIComponent(upstream)}`;
+  const ac = new AbortController();
+  // ffmpeg needs a moment to open the source; once it answers the stream must
+  // keep running, so the guard only covers the handshake.
+  const guard = setTimeout(() => ac.abort(), 25_000);
   try {
     const res = await fetch(target, {
       headers: { ...relayHeaders(relay), 'User-Agent': 'AndamTV/1.0' },
       redirect: 'follow',
-      signal: AbortSignal.timeout(25_000),
+      signal: ac.signal,
     });
+    clearTimeout(guard);
     if (!res.ok || !res.body) {
       try {
         await res.body?.cancel();
