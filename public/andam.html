@@ -2025,6 +2025,31 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     });
     return tsReady;
   }
+
+  /* Playlists also carry DASH (.mpd) channels — BBC News and the FAST channels.
+     Neither the native element nor hls.js can play those, so dash.js is loaded
+     on demand for them. */
+  var dashReady=null;
+  function ensureDash(){
+    if(window.dashjs) return Promise.resolve(window.dashjs);
+    if(dashReady) return dashReady;
+    dashReady=new Promise(function(resolve){
+      var done=false,t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.dashjs){ done=true; return resolve(window.dashjs) }
+        if(Date.now()-t0>8000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var el=document.createElement('script');
+      el.src='https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js';
+      el.onload=function(){ if(!done){ done=true; resolve(window.dashjs||null) } };
+      el.onerror=function(){ if(!done){ done=true; resolve(null) } };
+      document.head.appendChild(el);
+    });
+    return dashReady;
+  }
+
   /* Desktop Chrome/Edge decode HEVC through the OS, but they only admit it for
      some codec strings, and MediaSource.isTypeSupported is stricter than the
      element itself. Probe every spelling before declaring the device unable. */
