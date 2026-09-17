@@ -2434,17 +2434,24 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           }catch(_){}
           return;
         }
-        /* fragParsingError means hls.js cannot demux the segments at all —
-           HEVC-in-TS channels do this on every fragment, fatal or not. Switch
-           to the mpegts.js path immediately instead of retrying forever. */
+        /* fragParsingError / manifestParsingError mean hls.js cannot read this
+           stream at all (raw MPEG-TS answered on a .m3u8 URL, or HEVC-in-TS).
+           Tear the instance down first so it stops retrying and spamming
+           errors, then hand the same URL to mpegts.js. */
         if((d.details===Hls.ErrorDetails.FRAG_PARSING_ERROR
+            ||d.details===Hls.ErrorDetails.MANIFEST_PARSING_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
             ||d.details===Hls.ErrorDetails.BUFFER_INCOMPATIBLE_CODECS_ERROR)&&!ok){
-          /* IPTV links that answer with raw video/MP2T land here: hand the same
-             URL to mpegts.js, which demuxes a plain transport stream. */
-          if(kind==='iptv'){ if(viaTs('mpegts')) return }
+          try{ h.stopLoad() }catch(_){}
+          try{ h.detachMedia() }catch(_){}
+          try{ h.destroy() }catch(_){}
+          if(s.hls===h) s.hls=null;
+          if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
+          /* IPTV links that answer with raw video/MP2T land here. */
+          if(kind==='iptv'){ engine('mpegts.js (hls parse failed)'); if(viaTs('mpegts')) return }
           if(viaTs()) return;
         }
+
 
         /* Some provider lines serve the playlist happily but reject its signed
            segment links (403/411). Retrying cannot fix that — switch straight
