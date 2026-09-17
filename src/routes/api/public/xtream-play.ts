@@ -169,8 +169,10 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
 async function rewriteManifest(text: string, upstream: string): Promise<string> {
   const base = new URL(upstream);
   const absolute = (ref: string) => new URL(ref, base).toString();
+  // `s=1` marks a URL we generated from an already-resolved manifest, so the
+  // handler can skip the redirect probe for it.
   const token = async (ref: string) =>
-    `/api/public/xtream-play?t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
+    `/api/public/xtream-play?s=1&t=${encodeURIComponent(await sealUrl(absolute(ref)))}`;
 
   const lines = text.split(/\r?\n/);
   const out: string[] = [];
