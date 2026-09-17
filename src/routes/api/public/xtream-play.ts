@@ -166,6 +166,52 @@ async function fetchUpstream(
   return res;
 }
 
+/**
+ * On-demand transcode (`&tc=1`).
+ *
+ * Some channels are broadcast with a codec the browser cannot decode (H.265
+ * video, AC3/E-AC3 audio). The relay host runs `relay/transcode.php`, which
+ * copies the video and re-encodes the audio to AAC in an MPEG-TS stream. This
+ * path is only taken when the player has already failed or stalled on the
+ * normal stream, so healthy channels never pay for it.
+ */
+function transcodeEndpoint(relay: RelayConfig | null): string | null {
+  const explicit = process.env['TRANSCODE_URL'];
+  if (explicit) return explicit;
+  const base = relay?.base;
+  if (!base) return null;
+  return base.replace(/\/proxy\/?$/i, '') + '/transcode.php';
+}
+
+async function fetchTranscoded(
+  upstream: string,
+  relay: RelayConfig | null,
+): Promise<Response | null> {
+  const endpoint = transcodeEndpoint(relay);
+  if (!endpoint) return null;
+  const target = `${endpoint}${endpoint.includes('?') ? '&' : '?'}stream=${encodeURIComponent(upstream)}`;
+  try {
+    const res = await fetch(target, {
+      headers: { ...relayHeaders(relay), 'User-Agent': 'AndamTV/1.0' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok || !res.body) {
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* nothing to drain */
+      }
+      console.error('[xtream-play] transcoder responded', res.status);
+      return null;
+    }
+    return res;
+  } catch (err) {
+    console.error('[xtream-play] transcoder error', err);
+    return null;
+  }
+}
+
 
 
 /**
