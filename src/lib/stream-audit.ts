@@ -57,9 +57,9 @@ function loadScript(src: string, globalKey: string): Promise<unknown> {
 }
 
 async function api<T>(path: string, token: string | null): Promise<T> {
-  const res = await fetch(path, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  });
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(path, { headers });
   const body = (await res.json()) as T & { error?: string };
   if (!res.ok || body.error) throw new Error(body.error || `Request failed (${res.status})`);
   return body;
