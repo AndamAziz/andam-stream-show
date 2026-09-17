@@ -2075,7 +2075,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
      probe tells us which engine to use, so the native element never receives a
      manifest it cannot decode. */
   function probeKind(src){
-    return fetch(src,{headers:{range:'bytes=0-1'}}).then(function(r){
+    var ctl=window.AbortController?new AbortController():null;
+    var timeout=setTimeout(function(){ if(ctl) ctl.abort() },4500);
+    return fetch(src,{headers:{range:'bytes=0-1'},signal:ctl?ctl.signal:undefined}).then(function(r){
+      clearTimeout(timeout);
       var ct=(r.headers.get('content-type')||'').toLowerCase();
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
       return {ok:r.ok||r.status===206,status:r.status,
@@ -2083,8 +2086,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
               dash:ct.indexOf('dash+xml')>=0,
               /* raw MPEG-TS: no browser decodes video/mp2t natively, it needs
                  mpegts.js. Many playlist entries are plain .ts streams. */
-              mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
-    });
+               mp2t:ct.indexOf('mp2t')>=0||ct.indexOf('mpeg-ts')>=0||ct.indexOf('mpegts')>=0};
+    }).catch(function(e){ clearTimeout(timeout); throw e });
   }
 
 
@@ -2286,7 +2289,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         liveSyncDurationCount:4,liveMaxLatencyDurationCount:10,
         manifestLoadingTimeOut:30000,manifestLoadingMaxRetry:4,
         levelLoadingTimeOut:30000,levelLoadingMaxRetry:4,
-        fragLoadingTimeOut:90000,fragLoadingMaxRetry:8,fragLoadingMaxRetryTimeout:16000,
+        fragLoadingTimeOut:20000,fragLoadingMaxRetry:5,fragLoadingMaxRetryTimeout:8000,
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
       s.hls=h;
@@ -2316,7 +2319,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         }catch(_){}
         if(now-lastMoveAt>22000){
           lastMoveAt=now;
-          try{ h.stopLoad(); h.loadSource(src); h.startLoad(-1) }catch(_){}
+          /* Recreate the engine so the stalled fragment request is truly
+             aborted before opening a fresh manifest connection. Reloading the
+             source on the same instance left the old relay request alive and
+             single-connection providers answered the new request with 411. */
+          try{ h.destroy() }catch(_){}
+          if(s.hls===h) s.hls=null;
+          ensureHls().then(function(Hls){ if(alive()&&!s.hls&&Hls) viaHls(Hls) });
         }
       },3000);
       h.on(Hls.Events.ERROR,function(e,d){
