@@ -1962,19 +1962,63 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
 
-  function lvStop(kind){
-    var s=surf(kind); s.session++;
-    if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-    if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
-    if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
-    if(s.dash){ var deadDash=s.dash; s.dash=null; setTimeout(function(){ try{deadDash.reset()}catch(_){} },0) }
+  /* ---- engine teardown ----
+     Every engine holds a reference to the <video> element. Handing the element
+     to a second engine (or clearing its src) while the first one is still
+     attached made the old instance's callbacks run against a media element it
+     no longer owns, which threw "Cannot read properties of null" and killed the
+     switch. Teardown is therefore synchronous, ordered (stop → detach →
+     destroy) and every step is individually guarded. */
+  function killHls(h){
+    if(!h) return;
+    try{ h.stopLoad() }catch(_){}
+    try{ h.detachMedia() }catch(_){}
+    try{ h.destroy() }catch(_){}
+  }
+  function killTs(t){
+    if(!t) return;
+    try{ t.pause() }catch(_){}
+    try{ t.unload() }catch(_){}
+    try{ t.detachMediaElement() }catch(_){}
+    try{ t.destroy() }catch(_){}
+  }
+  function killDash(d){
+    if(!d) return;
+    try{ d.reset() }catch(_){}
+    try{ if(d.destroy) d.destroy() }catch(_){}
+  }
+  /* Detaches whatever is currently mounted on a surface. Safe to call twice and
+     safe to call when the surface has no engine at all. */
+  function teardown(s){
+    if(!s) return;
+    if(s.stallTimer){ try{ clearInterval(s.stallTimer) }catch(_){} s.stallTimer=null }
+    var h=s.hls, t=s.ts, d=s.dash;
+    s.hls=null; s.ts=null; s.dash=null;
+    killHls(h); killTs(t); killDash(d);
+  }
+  /* An engine that rejects after teardown must not surface as an uncaught
+     rejection in the console; playback errors are reported through the UI. */
+  window.addEventListener('unhandledrejection',function(e){
+    var m=e&&e.reason&&(e.reason.message||e.reason);
+    if(typeof m==='string'&&/null|undefined|abort|destroy/i.test(m)){
+      console.warn('[player] ignored async error after teardown:',m);
+      e.preventDefault();
+    }
+  });
 
-    try{ s.video.pause() }catch(_){}
-    s.video.removeAttribute('src');
-    /* load() after clearing the src resets the media element; skipping it left
-       the old resource selection alive and it fired a stale error 4 on the
-       *next* stream, which looked like "this stream is unsupported". */
-    try{ s.video.load() }catch(_){}
+  function lvStop(kind){
+    var s=surf(kind); if(!s) return;
+    s.session++;
+    teardown(s);
+    var v=s.video;
+    if(v){
+      try{ v.pause() }catch(_){}
+      try{ v.removeAttribute('src') }catch(_){}
+      /* load() after clearing the src resets the media element; skipping it left
+         the old resource selection alive and it fired a stale error 4 on the
+         *next* stream, which looked like "this stream is unsupported". */
+      try{ v.load() }catch(_){}
+    }
     busy(s,false); clearFail(s);
   }
 
@@ -2183,13 +2227,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     }
     /* Report the engine actually chosen so DevTools shows detection working. */
     function engine(name){ console.log('[player] Using '+name+' — '+kind+' · '+title) }
-    function killEngines(){
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var h=s.hls, t=s.ts, dp=s.dash;
-      s.hls=null; s.ts=null; s.dash=null;
-      try{ if(h){ h.stopLoad(); h.destroy() } }catch(_){}
-      try{ if(t){ t.pause(); t.unload(); t.detachMediaElement(); t.destroy() } }catch(_){}
-      try{ if(dp) dp.reset() }catch(_){}
+    /* Single teardown path (shared with lvStop) so no engine is ever left
+       half-attached to the media element when the next one mounts. */
+    function killEngines(){ teardown(s) }
+    /* Frees the element for a new engine: detach everything, drop the old
+       resource selection, and confirm the element is really there. */
+    function readyVideo(){
+      killEngines();
+      var v=s.video||(s.video=document.getElementById(kind==='iptv'?'ipVideo':'ltvVideo'));
+      if(!v) return null;
+      try{ v.pause() }catch(_){}
+      try{ v.removeAttribute('src'); v.load() }catch(_){}
+      return v;
     }
     /* Hard IPTV timeout: no picture from any engine within 6s → try the raw
        MPEG-TS demuxer once, and if that is also silent stop everything instead
@@ -2225,29 +2274,40 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
 
     function native(streamIsHls){
       if(!alive()) return;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
-      if(streamIsHls && !s.video.canPlayType('application/vnd.apple.mpegurl')){
+      var v=readyVideo();
+      if(!v){ fail(s,'Player is not ready — reopen the channel'); return }
+      if(streamIsHls && !v.canPlayType('application/vnd.apple.mpegurl')){
         retryable('This stream cannot be played in this browser');
         return;
       }
       var url=src;
-      s.video.preload='auto';
-      s.video.setAttribute('preload','auto');
-      s.video.src=url;
-      try{ s.video.load() }catch(_){}
-      s.video.play().catch(function(){});
-      s.video.addEventListener('error',function(){
-        if(!alive()) return;
-        var code=s.video.error&&s.video.error.code;
+      try{
+        v.preload='auto';
+        v.setAttribute('preload','auto');
+        v.src=url;
+        v.load();
+      }catch(err){
+        console.warn('[player] native mount failed',err&&err.message);
+        retryable('This stream cannot be played here');
+        return;
+      }
+      try{ var p=v.play(); if(p&&p.catch) p.catch(function(){}) }catch(_){}
+      /* The listener is removed on teardown so an error raised by the *previous*
+         attempt can never fail the engine that replaced it. */
+      function onNativeErr(){
+        v.removeEventListener('error',onNativeErr);
+        if(!alive()||ok) return;
+        /* Another engine already took the element over — its own handlers own
+           the failure now. */
+        if(s.hls||s.ts||s.dash) return;
+        var code=v.error&&v.error.code;
         console.error('[player] native playback error',code,url);
         /* SRC_NOT_SUPPORTED on a live channel almost always means raw MPEG-TS
            (or HEVC) the element cannot decode — hand it to mpegts.js. */
         if(isHls&&viaTs()) return;
         retryable('This stream cannot be played here');
-      },{once:true});
-
+      }
+      v.addEventListener('error',onNativeErr);
     }
 
 
@@ -2265,6 +2325,8 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            stream from a worker scope that resolves URLs differently and dies
            before the first segment; the main-thread demuxer is reliable and
            fast enough for a single live stream. */
+        /* Free the media element from any earlier engine first. */
+        if(!readyVideo()){ fail(s,'Player is not ready — reopen the channel'); return }
         var pl=mp.createPlayer({type:type||'mpegts',isLive:true,url:url},
           {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
            liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
@@ -2303,9 +2365,18 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
             retryable(HEVC_MSG); return;
           }
         });
-        pl.attachMediaElement(s.video);
-        pl.load();
-        s.video.play().catch(function(){});
+        /* Attach only when the element is free and still on the page. */
+        var mv=s.video;
+        if(!mv||s.ts!==pl){ killTs(pl); if(s.ts===pl) s.ts=null; if(!mv) fail(s,'Player is not ready — reopen the channel'); return }
+        try{
+          pl.attachMediaElement(mv);
+          pl.load();
+        }catch(err){
+          console.warn('[player] mpegts mount failed',err&&err.message);
+          killTs(pl); if(s.ts===pl) s.ts=null;
+          retryable(failMsg); return;
+        }
+        try{ var mp1=mv.play(); if(mp1&&mp1.catch) mp1.catch(function(){}) }catch(_){}
         /* No first frame at all after one reload attempt: stop spinning and say
            so instead of leaving the viewer on an endless loader. */
         var firstTry=true;
@@ -2351,9 +2422,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       }
 
       tsTried=true;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      /* Detach hls.js/dash.js synchronously: a deferred destroy left the old
+         instance writing into the element mpegts.js was taking over. */
+      killEngines();
       busy(s,true); clearFail(s);
       var hevcMsg=HEVC_MSG;
       /* Xtream provider channels expose a dedicated raw .ts endpoint; playlist
@@ -2386,9 +2457,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     function viaDash(){
       if(dashTried||!alive()) return false;
       dashTried=true;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      if(!readyVideo()){ fail(s,'Player is not ready — reopen the channel'); return true }
       busy(s,true); clearFail(s);
       ensureDash().then(function(dashjs){
         if(!alive()) return;
@@ -2402,7 +2471,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           if(!alive()||s.dash!==p) return;
           retryable('Stream failed to load');
         });
-        p.initialize(s.video,location.origin+src,true);
+        if(!s.video||s.dash!==p){ killDash(p); if(s.dash===p) s.dash=null; return }
+        try{
+          p.initialize(s.video,location.origin+src,true);
+        }catch(err){
+          console.warn('[player] dash mount failed',err&&err.message);
+          killDash(p); if(s.dash===p) s.dash=null;
+          retryable('Stream failed to load'); return;
+        }
         var dMove=Date.now(), dTime=0;
         s.stallTimer=setInterval(function(){
           if(!alive()||s.dash!==p||s.video.paused||s.video.ended) return;
@@ -2435,8 +2511,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         fragLoadingTimeOut:20000,fragLoadingMaxRetry:5,fragLoadingMaxRetryTimeout:8000,
         nudgeMaxRetry:10,nudgeOffset:0.2,maxBufferHole:0.5
       });
+      /* Detach any previous engine before hls.js claims the element. */
+      if(!readyVideo()){ killHls(h); fail(s,'Player is not ready — reopen the channel'); return }
       s.hls=h;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       h.on(Hls.Events.MANIFEST_PARSED,function(){
         if(!alive()) return;
         /* Start at the newest segment. Beginning at the oldest advertised
@@ -2581,7 +2658,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         }
         else retryable('Stream failed to load');
       });
-      h.attachMedia(s.video); h.loadSource(src);
+      try{
+        h.attachMedia(s.video); h.loadSource(src);
+      }catch(err){
+        console.warn('[player] hls mount failed',err&&err.message);
+        killHls(h); if(s.hls===h) s.hls=null;
+        retryable('Stream failed to load');
+      }
     }
 
     /* Start the network work off the click's task so the tap never janks. */
@@ -2611,9 +2694,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         hardGuard();
         sniffStream(src).then(function(p){
           if(!alive()) return;
-          if(!p.ok){ retryable('Stream error '+p.status); return }
+          /* A dead link (404/401/403/5xx) is not an engine problem: report it
+             at once instead of walking every demuxer against an error page. */
+          if(!p.ok){
+            chain=[]; chainIx=0;
+            retryable(p.status===404?'Channel not available (404)':'Stream error '+p.status);
+            return;
+          }
           if(p.kindOf==='bad'){
             console.error('[player] not a media stream — raw response:',p.text);
+            chain=[]; chainIx=0;
             retryable('Stream unavailable, try another channel'); return;
           }
           /* Whatever the bytes say first, keep the other engines queued. */
