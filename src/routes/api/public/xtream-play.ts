@@ -222,6 +222,7 @@ async function fetchTranscoded(
     }
     return res;
   } catch (err) {
+    clearTimeout(guard);
     console.error('[xtream-play] transcoder error', err);
     return null;
   }
