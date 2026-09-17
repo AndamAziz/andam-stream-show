@@ -273,6 +273,8 @@ export const Route = createFileRoute('/api/public/xtream-play')({
         }
 
         headers.set('Accept-Ranges', 'bytes');
+        const fixedType = segmentContentType(upstream, res.headers.get('content-type'));
+        if (fixedType) headers.set('Content-Type', fixedType);
         return new Response(res.body, { status: res.status, headers });
 
       },
