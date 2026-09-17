@@ -2437,7 +2437,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
          engine directly instead of probing first: some providers allow only
          one connection and rejected the player's immediate second request. */
       if(mediaKind==='dash'){ viaDash(); return }
-      if(mediaKind==='hls'){
+      /* IPTV playlist links lie about their type: a `.m3u8` entry frequently
+         answers with raw video/MP2T, which hls.js cannot parse. Always trust
+         the response for IPTV and only shortcut for provider channels. */
+      if(mediaKind==='hls'&&kind!=='iptv'){
         srcIsHls=true;
         ensureHls().then(function(Hls){
           if(!alive()) return;
@@ -2452,9 +2455,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            element rejects both with MEDIA_ERR_SRC_NOT_SUPPORTED. */
         if(p.dash){ viaDash(); return }
         if(p.flv){ viaTs('flv'); return }
-        if(p.mp2t){ viaTs(); return }
+        if(p.mp2t){ viaTs('mpegts'); return }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
+        /* Safari & co. decode HLS in the media element better than hls.js can
+           (HEVC, AC-3), so prefer it when it is genuinely supported. */
+        if(nativeHls()){ srcIsHls=true; native(true); return }
+
 
 
         srcIsHls=true;
