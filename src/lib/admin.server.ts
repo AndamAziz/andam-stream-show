@@ -101,8 +101,13 @@ export async function probeProvider(source: Source): Promise<ProviderProbe> {
  * player actually uses: a real proxied request to a provider, with that
  * provider's own relay address and token.
  */
+export type HealthSource = Source & {
+  is_active?: boolean | null;
+  type?: string | null;
+};
+
 export async function relayHealth(
-  sources: Source[] = [],
+  sources: HealthSource[] = [],
 ): Promise<{ ok: boolean; status: number; detail: string; ms: number }> {
   const started = Date.now();
   const source = sources.find(
