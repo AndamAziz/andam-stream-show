@@ -2186,8 +2186,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       probeKind(src).then(function(p){
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
+        console.log('[player] probe',p.status,'hls',p.hls,'ts',p.ts);
         if(p.ts){
           ensureMpegts().then(function(m){
+            console.log('[player] mpegts',!!m,m&&m.getFeatureList&&JSON.stringify(m.getFeatureList()));
             if(!alive()) return;
             if(m&&m.getFeatureList&&m.getFeatureList().mseLivePlayback) viaMpegts(m);
             else native(false);
