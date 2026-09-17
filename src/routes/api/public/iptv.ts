@@ -130,6 +130,32 @@ export const Route = createFileRoute('/api/public/iptv')({
             });
           }
 
+          /* Batched sealed tokens for the admin bulk stream audit: 500 single
+             `play` calls would rebuild the channel list 500 times. Returns the
+             same opaque tokens, never a raw provider URL. */
+          if (action === 'tokens') {
+            const ids = (url.searchParams.get('ids') ?? '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .slice(0, 500);
+            if (!ids.length) return json({ error: 'No ids given' }, 400);
+            const { channels } = await getPlaylistChannels(source);
+            const visibleList = (await withOverrides(source, channels)) as M3uChannel[];
+            const byId = new Map(visibleList.map((c) => [c.id, c]));
+            const out: { id: string; token: string; mediaKind: string }[] = [];
+            for (const id of ids) {
+              const channel = byId.get(id);
+              if (!channel) continue;
+              out.push({
+                id,
+                token: await sealUrl(channel.url),
+                mediaKind: mediaKind(channel.url),
+              });
+            }
+            return json({ tokens: out });
+          }
+
           return json({ error: `Unknown action: ${action}` }, 400);
         } catch (err) {
           const message = err instanceof Error ? err.message : 'IPTV request failed';
