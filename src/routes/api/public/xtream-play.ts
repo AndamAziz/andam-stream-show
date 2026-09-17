@@ -37,17 +37,48 @@ async function fetchRelay(url: string, request: Request): Promise<Response> {
   return fetch(relayUrl(url), { headers, redirect: 'follow' });
 }
 
+/** Fetch provider bytes directly, used when the relay cannot reach the host. */
+async function fetchDirect(url: string, request: Request): Promise<Response> {
+  const headers = new Headers({ 'User-Agent': 'AndamTV/1.0', Accept: '*/*' });
+  const range = request.headers.get('range');
+  if (range) headers.set('Range', range);
+  return fetch(url, { headers, redirect: 'follow' });
+}
+
+async function drain(res: Response) {
+  try {
+    await res.body?.cancel();
+  } catch {
+    /* nothing to drain */
+  }
+}
+
+const TRANSIENT = new Set([403, 408, 411, 429]);
+
+function isTransient(status: number): boolean {
+  return TRANSIENT.has(status) || status >= 500;
+}
+
 async function fetchUpstream(upstream: string, request: Request): Promise<Response> {
   let res = await fetchRelay(upstream, request);
-  // 403/411/5xx from the relay are usually transient — retry once.
-  if (!res.ok && (res.status === 403 || res.status === 411 || res.status >= 500)) {
-    try {
-      await res.body?.cancel();
-    } catch {
-      /* nothing to drain */
-    }
+  // 403/408/411/429/5xx from the relay are usually transient — retry once.
+  if (!res.ok && isTransient(res.status)) {
+    await drain(res);
     await new Promise((r) => setTimeout(r, 350));
     res = await fetchRelay(upstream, request);
+  }
+  // The relay timed out or died on this host (502/504 are the common cases) —
+  // fall back to a direct fetch instead of failing playback outright.
+  if (!res.ok && isTransient(res.status)) {
+    await drain(res);
+    try {
+      const direct = await fetchDirect(upstream, request);
+      if (direct.ok) return direct;
+      await drain(direct);
+      return direct;
+    } catch {
+      return new Response('Stream unavailable', { status: 502 });
+    }
   }
   return res;
 }
