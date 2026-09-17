@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 import type { Database } from '@/integrations/supabase/types';
-import { playerApi, type Source } from '@/lib/xtream';
+import { playerApi, relayConfig, relayHeaders, relayUrl, type Source } from '@/lib/xtream';
 
 export { supabaseAdmin };
 
