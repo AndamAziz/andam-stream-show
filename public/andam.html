@@ -2658,7 +2658,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         }
         else retryable('Stream failed to load');
       });
-      h.attachMedia(s.video); h.loadSource(src);
+      try{
+        h.attachMedia(s.video); h.loadSource(src);
+      }catch(err){
+        console.warn('[player] hls mount failed',err&&err.message);
+        killHls(h); if(s.hls===h) s.hls=null;
+        retryable('Stream failed to load');
+      }
     }
 
     /* Start the network work off the click's task so the tap never janks. */
