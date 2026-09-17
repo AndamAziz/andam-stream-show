@@ -4,6 +4,7 @@ import {
   liveStreamUrl,
   playerApi,
   seriesStreamUrl,
+  tagRelay,
   timeshiftUrl,
   vodStreamUrl,
   type Source,
@@ -82,7 +83,7 @@ async function loadSources(): Promise<Source[]> {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('sources')
-    .select('id, slug, name, base_url, username, password, is_public')
+    .select('id, slug, name, base_url, username, password, is_public, relay_url, relay_token')
     .eq('type', 'xtream')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
@@ -95,6 +96,8 @@ async function loadSources(): Promise<Source[]> {
     username: s.username ?? '',
     password: s.password ?? '',
     is_public: s.is_public,
+    relay_url: s.relay_url,
+    relay_token: s.relay_token,
   })) as Source[];
 }
 
