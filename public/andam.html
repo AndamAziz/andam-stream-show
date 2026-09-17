@@ -2457,9 +2457,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     function viaDash(){
       if(dashTried||!alive()) return false;
       dashTried=true;
-      if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-      var dead=s.hls; s.hls=null;
-      if(dead) setTimeout(function(){ try{dead.destroy()}catch(_){} },0);
+      if(!readyVideo()){ fail(s,'Player is not ready — reopen the channel'); return true }
       busy(s,true); clearFail(s);
       ensureDash().then(function(dashjs){
         if(!alive()) return;
