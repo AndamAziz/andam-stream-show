@@ -1980,6 +1980,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
   function killTs(t){
     if(!t) return;
+    /* Drop our listeners first. A loader task that lands after destroy() tries
+       to emit on an emitter that no longer exists ("reading 'emit'"); with the
+       listeners gone the event is discarded instead. */
+    try{
+      var hs=t.__h||[]; t.__h=[];
+      for(var i=0;i<hs.length;i++){ try{ t.off(hs[i][0],hs[i][1]) }catch(_){} }
+    }catch(_){}
     try{ t.pause() }catch(_){}
     try{ t.unload() }catch(_){}
     try{ t.detachMediaElement() }catch(_){}
