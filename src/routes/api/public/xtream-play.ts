@@ -52,6 +52,77 @@ async function fetchUpstream(upstream: string, request: Request): Promise<Respon
   return res;
 }
 
+/**
+ * Some playlist entries look like a raw `.ts` stream but actually redirect to an
+ * HLS manifest on a different host (`.../528.ts` → `http://host:8080/X/index.m3u8`).
+ * The relay does not report the final URL, so relative URIs inside the manifest
+ * would resolve against the wrong base. Follow the redirects ourselves to learn
+ * the real base; if the provider refuses a direct call we keep the original URL.
+ */
+async function resolveFinalUrl(upstream: string): Promise<string> {
+  let current = upstream;
+  for (let i = 0; i < 5; i += 1) {
+    let res: Response;
+    try {
+      res = await fetch(current, {
+        redirect: 'manual',
+        headers: { 'User-Agent': 'AndamTV/1.0', Accept: '*/*' },
+      });
+    } catch {
+      return current;
+    }
+    try {
+      await res.body?.cancel();
+    } catch {
+      /* nothing to drain */
+    }
+    const location = res.headers.get('location');
+    if (res.status >= 300 && res.status < 400 && location) {
+      try {
+        current = new URL(location, current).toString();
+        continue;
+      } catch {
+        return current;
+      }
+    }
+    return current;
+  }
+  return current;
+}
+
+/**
+ * Reads just the first playlist from the response. Live `.ts` endpoints that
+ * answer with a manifest keep the connection open and repeat the playlist
+ * forever, so `res.text()` never resolves and playback hangs.
+ */
+async function readManifestText(res: Response): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) return res.text();
+  const decoder = new TextDecoder();
+  const startedAt = Date.now();
+  let text = '';
+  const cut = () => {
+    const second = text.indexOf('#EXTM3U', 7);
+    return second > 0 ? text.slice(0, second) : '';
+  };
+  while (text.length < 262_144 && Date.now() - startedAt < 8_000) {
+    const chunk = await Promise.race([
+      reader.read(),
+      new Promise<{ done: true; value: undefined }>((resolve) =>
+        setTimeout(() => resolve({ done: true, value: undefined }), 5_000),
+      ),
+    ]);
+    if (chunk.done) break;
+    text += decoder.decode(chunk.value, { stream: true });
+    if (cut()) break;
+  }
+  try {
+    await reader.cancel();
+  } catch {
+    /* already closed */
+  }
+  return cut() || text;
+}
 
 
 /**
@@ -147,14 +218,17 @@ export const Route = createFileRoute('/api/public/xtream-play')({
 
 
         if (isManifest(upstream, res.headers.get('content-type'))) {
-          const text = await res.text();
-          // The relay may follow redirects; resolve relative URIs against the
-          // URL the manifest actually came from when the relay reports it.
-          const finalUrl = res.headers.get('x-final-url') || upstream;
+          const text = await readManifestText(res);
+          // The relay may follow redirects without reporting where it landed, so
+          // resolve the real base ourselves before rewriting relative URIs.
+          const finalUrl =
+            res.headers.get('x-final-url') ||
+            (/\.m3u8(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
           const body = await rewriteManifest(text, finalUrl);
           headers.set('Content-Type', 'application/vnd.apple.mpegurl');
           return new Response(body, { status: 200, headers });
         }
+
 
         headers.set('Accept-Ranges', 'bytes');
         return new Response(res.body, { status: res.status, headers });
