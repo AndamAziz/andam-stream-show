@@ -339,13 +339,19 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
   if (isManifest(upstream, contentType)) {
     const text = await readManifestText(res);
     // The relay may follow redirects without reporting where it landed, so
-    // resolve the real base ourselves before rewriting relative URIs.
+    // resolve the real base ourselves before rewriting relative URIs. Many
+    // provider lines allow a single connection at a time, so only spend that
+    // extra request when the playlist actually contains relative URIs.
+    const hasRelative = text
+      .split('\n')
+      .some((l) => l.trim() && !l.startsWith('#') && !/^https?:/i.test(l.trim()));
     const finalUrl =
       res.headers.get('x-final-url') ||
-      (/\.m3u8(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
+      (!hasRelative || /\.m3u8(\?|$)/i.test(upstream) ? upstream : await resolveFinalUrl(upstream));
     headers.set('Content-Type', 'application/vnd.apple.mpegurl');
     return new Response(await rewriteManifest(text, finalUrl), { status: 200, headers });
   }
+
 
   headers.set('Accept-Ranges', 'bytes');
   return new Response(res.body, { status: res.status, headers });
