@@ -2616,9 +2616,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
             console.error('[player] not a media stream — raw response:',p.text);
             retryable('Stream unavailable, try another channel'); return;
           }
-          if(p.kindOf==='dash'){ engine('dash.js'); viaDash(); return }
-          if(p.kindOf==='flv'){ engine('mpegts.js (flv)'); viaTs('flv'); return }
-          if(p.kindOf==='mpegts'){ engine('mpegts.js'); viaTs('mpegts'); return }
+          /* Whatever the bytes say first, keep the other engines queued. */
+          if(p.kindOf==='dash'){ chain=['hls','mpegts','native']; engine('dash.js'); viaDash(); return }
+          if(p.kindOf==='flv'){ chain=['mpegts','hls','native']; engine('mpegts.js (flv)'); viaTs('flv'); return }
+          if(p.kindOf==='mpegts'){ chain=['flv','hls','native']; engine('mpegts.js'); viaTs('mpegts'); return }
           if(p.kindOf==='hls'){
             srcIsHls=true;
             if(nativeHls()){ engine('native HLS'); native(true); return }
