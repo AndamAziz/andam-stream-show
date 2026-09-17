@@ -1962,19 +1962,63 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   }
 
 
-  function lvStop(kind){
-    var s=surf(kind); s.session++;
-    if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
-    if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
-    if(s.ts){ var deadTs=s.ts; s.ts=null; setTimeout(function(){ try{deadTs.destroy()}catch(_){} },0) }
-    if(s.dash){ var deadDash=s.dash; s.dash=null; setTimeout(function(){ try{deadDash.reset()}catch(_){} },0) }
+  /* ---- engine teardown ----
+     Every engine holds a reference to the <video> element. Handing the element
+     to a second engine (or clearing its src) while the first one is still
+     attached made the old instance's callbacks run against a media element it
+     no longer owns, which threw "Cannot read properties of null" and killed the
+     switch. Teardown is therefore synchronous, ordered (stop → detach →
+     destroy) and every step is individually guarded. */
+  function killHls(h){
+    if(!h) return;
+    try{ h.stopLoad() }catch(_){}
+    try{ h.detachMedia() }catch(_){}
+    try{ h.destroy() }catch(_){}
+  }
+  function killTs(t){
+    if(!t) return;
+    try{ t.pause() }catch(_){}
+    try{ t.unload() }catch(_){}
+    try{ t.detachMediaElement() }catch(_){}
+    try{ t.destroy() }catch(_){}
+  }
+  function killDash(d){
+    if(!d) return;
+    try{ d.reset() }catch(_){}
+    try{ if(d.destroy) d.destroy() }catch(_){}
+  }
+  /* Detaches whatever is currently mounted on a surface. Safe to call twice and
+     safe to call when the surface has no engine at all. */
+  function teardown(s){
+    if(!s) return;
+    if(s.stallTimer){ try{ clearInterval(s.stallTimer) }catch(_){} s.stallTimer=null }
+    var h=s.hls, t=s.ts, d=s.dash;
+    s.hls=null; s.ts=null; s.dash=null;
+    killHls(h); killTs(t); killDash(d);
+  }
+  /* An engine that rejects after teardown must not surface as an uncaught
+     rejection in the console; playback errors are reported through the UI. */
+  window.addEventListener('unhandledrejection',function(e){
+    var m=e&&e.reason&&(e.reason.message||e.reason);
+    if(typeof m==='string'&&/null|undefined|abort|destroy/i.test(m)){
+      console.warn('[player] ignored async error after teardown:',m);
+      e.preventDefault();
+    }
+  });
 
-    try{ s.video.pause() }catch(_){}
-    s.video.removeAttribute('src');
-    /* load() after clearing the src resets the media element; skipping it left
-       the old resource selection alive and it fired a stale error 4 on the
-       *next* stream, which looked like "this stream is unsupported". */
-    try{ s.video.load() }catch(_){}
+  function lvStop(kind){
+    var s=surf(kind); if(!s) return;
+    s.session++;
+    teardown(s);
+    var v=s.video;
+    if(v){
+      try{ v.pause() }catch(_){}
+      try{ v.removeAttribute('src') }catch(_){}
+      /* load() after clearing the src resets the media element; skipping it left
+         the old resource selection alive and it fired a stale error 4 on the
+         *next* stream, which looked like "this stream is unsupported". */
+      try{ v.load() }catch(_){}
+    }
     busy(s,false); clearFail(s);
   }
 
