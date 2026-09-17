@@ -2206,9 +2206,13 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       /* mpegts.js only understands a raw MPEG-TS byte stream. An HLS playlist
          with no raw .ts endpoint behind it cannot be handed to it. */
       if(!hasProviderTs&&srcIsHls){
+        /* Safari (and any browser with native HLS) decodes HEVC playlists the
+           JS demuxer rejects, so try the built-in player before giving up. */
+        if(s.video.canPlayType('application/vnd.apple.mpegurl')){ tsTried=true; native(true); return true }
         retryable('This channel uses a video format this browser cannot play (H.265)');
         return true;
       }
+
       tsTried=true;
       if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }
       var dead=s.hls; s.hls=null;
