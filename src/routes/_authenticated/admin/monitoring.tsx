@@ -45,7 +45,7 @@ function MonitoringPage() {
 
       <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
-          label="Relay /health"
+          label="Relay proxy"
           value={isLoading ? '—' : data?.relay.ok ? 'OK' : 'FAIL'}
           hint={data ? `HTTP ${data.relay.status} in ${data.relay.ms}ms` : ''}
         />
@@ -54,11 +54,38 @@ function MonitoringPage() {
         <Stat label="Logged errors" value={data?.recentErrors.length ?? '—'} />
       </div>
 
-      <Panel title="Relay proxy response">
+      <Panel
+        title="Relay proxy response"
+        description="A real proxied request to your provider — the same route the player uses."
+      >
         <pre className="overflow-x-auto rounded-md bg-secondary p-3 font-mono text-xs text-muted-foreground">
           {data?.relay.detail || 'no response body'}
         </pre>
       </Panel>
+
+      <Panel title="Provider check" description="Live channels, movies and series each provider is serving right now.">
+        {(data?.providerProbes?.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted-foreground">No active live-TV provider configured.</p>
+        ) : (
+          <ul className="divide-y divide-border text-sm">
+            {(data?.providerProbes ?? []).map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="font-medium">
+                  {p.name}{' '}
+                  <span className={p.ok ? 'text-primary' : 'text-destructive'}>
+                    {p.ok ? '· OK' : '· FAIL'}
+                  </span>
+                </span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {p.live} live · {p.vod} movies · {p.series} series
+                  {p.expires ? ` · expires ${p.expires}` : ''} · {p.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
 
       <Panel title="Recent playback errors" description="403 / 411 / timeout events logged by the stream proxy.">
         {(data?.recentErrors.length ?? 0) === 0 ? (

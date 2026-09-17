@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 import type { Database } from '@/integrations/supabase/types';
-import { playerApi, type Source } from '@/lib/xtream';
+import { playerApi, relayConfig, relayHeaders, relayUrl, type Source } from '@/lib/xtream';
 
 export { supabaseAdmin };
 
@@ -93,15 +93,58 @@ export async function probeProvider(source: Source): Promise<ProviderProbe> {
   }
 }
 
-/** Relay proxy health check used by the monitoring dashboard. */
-export async function relayHealth(): Promise<{ ok: boolean; status: number; detail: string; ms: number }> {
+/**
+ * Relay proxy health check used by the monitoring dashboard.
+ *
+ * The relay exposes no `/health` route — asking for one returns nginx's 404 and
+ * made a perfectly healthy relay read as FAIL. Instead we exercise the path the
+ * player actually uses: a real proxied request to a provider, with that
+ * provider's own relay address and token.
+ */
+export type HealthSource = Source & {
+  is_active?: boolean | null;
+  type?: string | null;
+};
+
+export async function relayHealth(
+  sources: HealthSource[] = [],
+): Promise<{ ok: boolean; status: number; detail: string; ms: number }> {
   const started = Date.now();
+  const source = sources.find(
+    (s) => s.is_active && s.type === 'xtream' && Boolean(s.base_url),
+  );
+  if (!source) {
+    return {
+      ok: false,
+      status: 0,
+      detail: 'No active provider to test the relay with.',
+      ms: 0,
+    };
+  }
+
+  const relay = relayConfig(source);
+  const upstream = `${source.base_url}/player_api.php?username=${encodeURIComponent(
+    source.username ?? '',
+  )}&password=${encodeURIComponent(source.password ?? '')}`;
+
+  const ac = new AbortController();
+  const guard = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch('https://relay.andam.uk:8443/health', {
-      headers: { 'X-Relay-Token': process.env['RELAY_TOKEN'] ?? '' },
+    const res = await fetch(relayUrl(upstream, relay), {
+      headers: { ...relayHeaders(relay), 'User-Agent': 'AndamTV/1.0' },
+      redirect: 'follow',
+      signal: ac.signal,
     });
-    const detail = (await res.text()).slice(0, 200);
-    return { ok: res.ok, status: res.status, detail, ms: Date.now() - started };
+    const body = (await res.text()).slice(0, 400);
+    const authed = /"auth"\s*:\s*1/.test(body);
+    return {
+      ok: res.ok && authed,
+      status: res.status,
+      detail: res.ok
+        ? `${source.name}: ${authed ? 'relay reached the provider and the account is active' : 'relay answered but the provider rejected the account'}\n${body}`
+        : body || `relay returned HTTP ${res.status}`,
+      ms: Date.now() - started,
+    };
   } catch (err) {
     return {
       ok: false,
@@ -109,5 +152,7 @@ export async function relayHealth(): Promise<{ ok: boolean; status: number; deta
       detail: err instanceof Error ? err.message : 'unreachable',
       ms: Date.now() - started,
     };
+  } finally {
+    clearTimeout(guard);
   }
 }

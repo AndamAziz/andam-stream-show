@@ -4,7 +4,14 @@
  * These run with the service role, but only after `assertAdmin` has verified
  * the caller's role against the database.
  */
-import { supabaseAdmin, maskSecret, probeProvider, relayHealth, verifyOwnPassword } from '@/lib/admin.server';
+import {
+  supabaseAdmin,
+  maskSecret,
+  probeProvider,
+  relayHealth,
+  verifyOwnPassword,
+  type HealthSource,
+} from '@/lib/admin.server';
 import { playerApi, type Source } from '@/lib/xtream';
 import type { OverrideKind } from '@/lib/overrides.server';
 
@@ -475,9 +482,25 @@ export async function listProviderItems(
 }
 
 export async function adminOverview() {
-  const [providers, health, users, logins, errors] = await Promise.all([
+  // The relay and provider checks need the stored relay address/token, which the
+  // provider list intentionally omits, so read the full rows once up front.
+  const { data: sourceRows } = await supabaseAdmin
+    .from('sources')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  const sources = (sourceRows ?? []) as HealthSource[];
+  const liveSources = sources.filter((s) => s.is_active && s.type === 'xtream');
+
+  const [providers, health, probes, users, logins, errors] = await Promise.all([
     listProviders(),
-    relayHealth(),
+    relayHealth(sources),
+    Promise.all(
+      liveSources.map(async (s) => ({
+        id: s.id,
+        name: s.name,
+        ...(await probeProvider(s)),
+      })),
+    ),
     supabaseAdmin.from('profiles').select('id', { count: 'exact', head: true }),
     supabaseAdmin
       .from('login_activity')
@@ -497,6 +520,7 @@ export async function adminOverview() {
     totalProviders: providers.length,
     totalUsers: users.count ?? 0,
     relay: health,
+    providerProbes: probes,
     recentLogins: logins.data ?? [],
     recentErrors: errors.data ?? [],
   };
