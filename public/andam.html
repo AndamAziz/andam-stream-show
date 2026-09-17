@@ -1961,6 +1961,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
   function lvStop(kind){
     var s=surf(kind); s.session++;
     if(s.hls){ var dead=s.hls; s.hls=null; setTimeout(function(){ try{dead.destroy()}catch(_){} },0) }
+    if(s.mts){ var deadM=s.mts; s.mts=null; setTimeout(function(){ try{deadM.destroy()}catch(_){} },0) }
     try{ s.video.pause() }catch(_){}
     s.video.removeAttribute('src');
     /* load() after clearing the src resets the media element; skipping it left
@@ -1997,6 +1998,29 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     return hlsReady;
   }
 
+  /* Live channels are served as progressive MPEG-TS (see xtream play route).
+     No browser decodes raw TS natively, so mpegts.js remuxes it into MSE. */
+  var mtsReady=null;
+  function ensureMpegts(){
+    if(window.mpegts) return Promise.resolve(window.mpegts);
+    if(mtsReady) return mtsReady;
+    mtsReady=new Promise(function(resolve){
+      var done=false,t0=Date.now();
+      (function poll(){
+        if(done) return;
+        if(window.mpegts){ done=true; return resolve(window.mpegts) }
+        if(Date.now()-t0>6000){ done=true; return resolve(null) }
+        setTimeout(poll,80);
+      })();
+      var s=document.createElement('script');
+      s.src='/vendor/mpegts.min.js';
+      s.onload=function(){ if(!done){ done=true; resolve(window.mpegts||null) } };
+      s.onerror=function(){ if(!done){ done=true; resolve(null) } };
+      document.head.appendChild(s);
+    });
+    return mtsReady;
+  }
+
   /* Trust the response, not the caller's flag: providers happily serve an
      .m3u8 for a "ts" channel and an mp4 for an "m3u8" movie. One cheap ranged
      probe tells us which engine to use, so the native element never receives a
@@ -2006,11 +2030,12 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       var ct=(r.headers.get('content-type')||'').toLowerCase();
       try{ if(r.body&&r.body.cancel) r.body.cancel() }catch(_){}
       return {ok:r.ok||r.status===206,status:r.status,
-              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0};
+              hls:ct.indexOf('mpegurl')>=0||ct.indexOf('x-mpegurl')>=0,
+              ts:ct.indexOf('mp2t')>=0};
     });
   }
 
-  function lvPlay(kind,token,title,sub,isHls){
+  function lvPlay(kind,token,title,sub,isHls,alt){
     var s=surf(kind), src='/api/public/xtream-play?t='+encodeURIComponent(token);
     lvStop(kind);
     var mine=++s.session, alive=function(){ return mine===s.session };
@@ -2018,8 +2043,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     setNow(s,title,sub,nowLogoOf(kind));
 
     clearFail(s); busy(s,true);
-    s.last={token:token,title:title,sub:sub,isHls:isHls};
+    s.last={token:token,title:title,sub:sub,isHls:isHls,alt:alt};
     var ok=false,timer=null;
+
+
 
     /* Movies/series are progressive files. The element ships with
        preload="none", so unless we opt back in (and call load()) the browser
@@ -2037,7 +2064,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.video.addEventListener('timeupdate',onProgress);
     s.video.addEventListener('loadeddata',settled,{once:true});
     s.video.addEventListener('canplay',settled,{once:true});
-    function retryable(msg){ if(!alive()||ok) return; clearTimeout(timer); fail(s,msg) }
+    /* Live channels ship a progressive TS url plus an HLS `alt`. If the first
+       engine cannot start, switch to the other one once before failing. */
+    function retryable(msg){
+      if(!alive()||ok) return;
+      clearTimeout(timer);
+      if(alt){ var a=alt; alt=null; setTimeout(function(){ if(alive()) lvPlay(kind,a,title,sub,true,null) },0); return }
+      fail(s,msg);
+    }
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
        was continuing to download. Engine errors below remain authoritative. */
@@ -2120,6 +2154,32 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       h.attachMedia(s.video); h.loadSource(src);
     }
 
+    /* Raw MPEG-TS live stream → remux to MSE with mpegts.js. */
+    function viaMpegts(mpegts){
+      if(!alive()) return;
+      var p;
+      try{
+        p=mpegts.createPlayer({type:'mpegts',isLive:true,url:src},
+          {enableStashBuffer:false,stashInitialSize:128,
+           liveBufferLatencyChasing:true,liveBufferLatencyMaxLatency:6,
+           lazyLoad:false,autoCleanupSourceBuffer:true});
+      }catch(_){ retryable('Stream failed to load'); return }
+      s.mts=p;
+      p.on(mpegts.Events.ERROR,function(t,d){
+        console.error('[player] mpegts',t,d);
+        if(!alive()||s.mts!==p) return;
+        /* Media/codec errors are the device's decoder saying no (many channels
+           are broadcast in H.265). Retrying the HLS url cannot help, so say
+           what is wrong instead of looping. */
+        var media=(''+t).toLowerCase().indexOf('media')>=0||(''+d).toLowerCase().indexOf('codec')>=0;
+        if(media){ alt=null; retryable('This channel is broadcast in H.265 — this device cannot decode it'); return }
+        retryable('Stream failed to load');
+      });
+      p.attachMediaElement(s.video);
+      try{ p.load() }catch(_){}
+      try{ var pr=p.play(); if(pr&&pr.catch) pr.catch(function(){}) }catch(_){}
+    }
+
     /* Start the network work off the click's task so the tap never janks. */
     setTimeout(function(){
       if(!alive()) return;
@@ -2131,6 +2191,14 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
       probeKind(src).then(function(p){
         if(!alive()) return;
         if(!p.ok){ retryable('Stream error '+p.status); return }
+        if(p.ts){
+          ensureMpegts().then(function(m){
+            if(!alive()) return;
+            if(m&&m.getFeatureList&&m.getFeatureList().mseLivePlayback) viaMpegts(m);
+            else native(false);
+          });
+          return;
+        }
         var streamIsHls=p.hls||(isHls&&p.status!==206);
         if(!streamIsHls){ native(false); return }
 
@@ -2157,9 +2225,10 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     s.idle.classList.add('hide'); clearFail(s); busy(s,true);
     s.now.textContent=title||'Andam'; s.sub.textContent='Preparing…';
     api({action:'play',source:ltv.prov,type:type,id:id,ext:ext||''})
-      .then(function(d){ lvPlay(k,d.play,title,sub,isHls) })
+      .then(function(d){ lvPlay(k,d.play,title,sub,isHls,d.fallback||null) })
       .catch(function(){ fail(s,'Could not start this stream') });
   }
+
 
   window.lvStopKind=function(kind){ if(SURF[kind]||document.getElementById(kind==='iptv'?'ipPlayer':'ltvPlayer')) lvStop(kind) };
 

@@ -250,7 +250,18 @@ export const Route = createFileRoute('/api/public/xtream')({
             const id = url.searchParams.get('id') ?? '';
             const ext = (url.searchParams.get('ext') || '').replace(/[^a-z0-9]/gi, '');
             if (!/^\d+$/.test(id)) return json({ error: 'id is required' }, 400);
-            if (kind === 'live') return json({ play: await sealUrl(liveStreamUrl(source, id)) });
+            if (kind === 'live') {
+              // Progressive MPEG-TS first: several providers hand out HLS
+              // segment URLs whose token is bound to the IP that fetched the
+              // playlist, so every segment fetched through the relay dies with
+              // "411 invalid data" and the channel never starts. The `.ts`
+              // endpoint has no such token and streams fine. `fallback` keeps
+              // HLS available for providers that only publish playlists.
+              return json({
+                play: await sealUrl(liveStreamUrl(source, id, 'ts')),
+                fallback: await sealUrl(liveStreamUrl(source, id, 'm3u8')),
+              });
+            }
             if (kind === 'vod')
               return json({ play: await sealUrl(vodStreamUrl(source, id, ext || 'mp4')) });
             if (kind === 'series')
