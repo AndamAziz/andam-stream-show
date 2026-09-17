@@ -2327,10 +2327,22 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
            fast enough for a single live stream. */
         /* Free the media element from any earlier engine first. */
         if(!readyVideo()){ fail(s,'Player is not ready — reopen the channel'); return }
-        var pl=mp.createPlayer({type:type||'mpegts',isLive:true,url:url},
-          {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
-           liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
-           reuseRedirectedURL:true});
+        /* Buffering profile. Cheap IPTV panels deliver bursty chunks, so the
+           playlist path gets a deeper stash (fewer premature stalls / dropped
+           frames while the demuxer warms up) plus source-buffer cleanup so a
+           long session does not grow unbounded. Provider Live TV keeps its
+           existing, proven settings. */
+        var tsCfg=(kind==='iptv')
+          ? {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*1024,
+             liveBufferLatencyChasing:true,liveBufferLatencyMaxLatency:6,
+             liveBufferLatencyMinRemain:0.6,autoCleanupSourceBuffer:true,
+             autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30,
+             lazyLoad:false,fixAudioTimestampGap:true,reuseRedirectedURL:true,
+             seekType:'range'}
+          : {enableWorker:false,enableStashBuffer:true,stashInitialSize:1024*384,
+             liveBufferLatencyChasing:true,lazyLoad:false,fixAudioTimestampGap:true,
+             reuseRedirectedURL:true};
+        var pl=mp.createPlayer({type:type||'mpegts',isLive:true,url:url},tsCfg);
         s.ts=pl;
         var softErr=0;
         function reload(){
@@ -2389,7 +2401,9 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
           clearInterval(startGuard);
           console.error('[player] mpegts produced no video frame',url);
           retryable('Stream unavailable');
-        },5000);
+        /* Playlist channels are often slow to hand over the first keyframe;
+           give them a longer warm-up before declaring failure. */
+        },kind==='iptv'?8000:5000);
         var tsMove=Date.now(), tsTime=0;
 
         if(s.stallTimer){ clearInterval(s.stallTimer); s.stallTimer=null }

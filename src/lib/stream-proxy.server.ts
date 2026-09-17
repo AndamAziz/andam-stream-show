@@ -357,8 +357,38 @@ export async function proxyStream(upstream: string, request: Request): Promise<R
   }
 
   if (!res.ok) {
-    console.error('[stream-proxy] relay responded', res.status, res.statusText);
-    return errorResponse(res.status);
+    // A 404/410 on a playlist line very often means the provider moved the
+    // stream behind a redirect the relay did not follow to the end. Learn the
+    // real final URL once and give that a single try before reporting failure.
+    if (res.status === 404 || res.status === 410) {
+      await drain(res);
+      let finalUrl = upstream;
+      try {
+        finalUrl = await resolveFinalUrl(upstream);
+      } catch {
+        /* keep the original */
+      }
+      if (finalUrl !== upstream) {
+        try {
+          const retry = await fetchUpstream(finalUrl, request);
+          if (retry.ok) {
+            res = retry;
+          } else {
+            await drain(retry);
+            console.error('[stream-proxy] redirect retry failed', retry.status);
+            return errorResponse(res.status);
+          }
+        } catch {
+          return errorResponse(404);
+        }
+      } else {
+        console.error('[stream-proxy] relay responded', res.status, res.statusText);
+        return errorResponse(res.status);
+      }
+    } else {
+      console.error('[stream-proxy] relay responded', res.status, res.statusText);
+      return errorResponse(res.status);
+    }
   }
 
 
