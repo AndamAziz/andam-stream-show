@@ -34,27 +34,64 @@
     return o;
   }
 
-  /* opts: {timeout: ms, quiet: true} — the audit page runs many of these at
-     once and does not want one console line per channel. */
+  /* opts: {timeout: ms, quiet: true, signal: AbortSignal}
+     The audit page runs many of these at once and does not want one console
+     line per channel. `signal` lets the caller cancel the probe when the user
+     switches channel, so no response handling runs after teardown.
+
+     This never rejects. A redirect the browser cannot follow, a non-200 answer,
+     a network drop or an abort all resolve to a plain result object, so callers
+     can branch on `ok`/`kindOf` instead of handling exceptions. */
   function sniffStream(src, opts) {
     opts = opts || {};
     var ms = opts.timeout || 5000, quiet = !!opts.quiet;
     var ctl = root.AbortController ? new AbortController() : null;
     var timeout = setTimeout(function () { if (ctl) try { ctl.abort() } catch (_) { } }, ms);
-    return fetch(src, { headers: { range: 'bytes=0-8191' }, signal: ctl ? ctl.signal : undefined }).then(function (r) {
+    var outer = opts.signal;
+    function onOuter() { if (ctl) try { ctl.abort() } catch (_) { } }
+    if (outer && outer.addEventListener) {
+      if (outer.aborted) onOuter();
+      else outer.addEventListener('abort', onOuter);
+    }
+    function done(o) {
+      clearTimeout(timeout);
+      if (outer && outer.removeEventListener) try { outer.removeEventListener('abort', onOuter) } catch (_) { }
+      return o;
+    }
+    /* redirect:'follow' is the default, but state it: a 30x answer must be
+       followed rather than surfacing as an opaque result. */
+    return fetch(src, {
+      headers: { range: 'bytes=0-8191' },
+      redirect: 'follow',
+      signal: ctl ? ctl.signal : undefined,
+    }).then(function (r) {
       var o = { ok: r.ok || r.status === 206, status: r.status, ct: (r.headers.get('content-type') || '').toLowerCase() };
       /* Never use arrayBuffer() here: a live MPEG-TS body never ends, so it
          would hang forever. Read exactly one chunk and cancel. */
-      if (!r.body || !r.body.getReader) { clearTimeout(timeout); o.head = new Uint8Array(0); return classifyHead(o, quiet) }
+      if (!r.body || !r.body.getReader) { o.head = new Uint8Array(0); return done(classifyHead(o, quiet)) }
       var reader = r.body.getReader();
       return reader.read().then(function (res) {
-        clearTimeout(timeout);
         o.head = res && res.value ? new Uint8Array(res.value) : new Uint8Array(0);
         try { reader.cancel() } catch (_) { }
         try { if (ctl) ctl.abort() } catch (_) { }
-        return classifyHead(o, quiet);
+        return done(classifyHead(o, quiet));
+      }, function (e) {
+        /* Headers arrived but the body read failed or was cancelled: still a
+           usable verdict from the status/content-type alone. */
+        o.head = new Uint8Array(0);
+        o.error = (e && e.message) || String(e);
+        o.aborted = !!(e && /abort/i.test(o.error));
+        return done(classifyHead(o, quiet));
       });
-    }).catch(function (e) { clearTimeout(timeout); throw e });
+    }, function (e) {
+      var msg = (e && e.message) || String(e);
+      var aborted = /abort/i.test(msg);
+      if (!quiet) console.warn('[player] stream probe failed:', msg);
+      return done({
+        ok: false, status: 0, ct: '', head: new Uint8Array(0), first16: '',
+        kindOf: 'bad', error: msg, aborted: aborted,
+      });
+    });
   }
 
   root.AndamSniff = { hexOf: hexOf, classifyHead: classifyHead, sniffStream: sniffStream };
