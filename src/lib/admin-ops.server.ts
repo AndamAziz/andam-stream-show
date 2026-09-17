@@ -513,6 +513,7 @@ export async function adminOverview() {
     totalProviders: providers.length,
     totalUsers: users.count ?? 0,
     relay: health,
+    providerProbes: probes,
     recentLogins: logins.data ?? [],
     recentErrors: errors.data ?? [],
   };
