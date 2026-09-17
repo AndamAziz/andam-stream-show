@@ -2197,12 +2197,16 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
     /* Hard IPTV timeout: no picture from any engine within 6s → try the raw
        MPEG-TS demuxer once, and if that is also silent stop everything instead
        of leaving an endless spinner. */
-    var hardTries=0;
+    var hardTries=0, hardGrace=0;
     function hardGuard(){
       if(kind!=='iptv') return;
       setTimeout(function(){
         if(!alive()||ok) return;
         if((s.video.currentTime||0)>0.1||s.video.readyState>=2) return;
+        /* Data is already arriving and decoding — a slow line, not a wrong
+           engine. Give it one more window before declaring failure. */
+        var progressing=s.video.readyState>=1||(s.video.buffered&&s.video.buffered.length>0);
+        if(progressing&&hardGrace++<1){ hardGuard(); return }
         if(hardTries++===0&&!tsTried&&!dashTried){
           console.warn('[player] no video frame in 6s — switching engine');
           if(s.hls){ try{ s.hls.stopLoad(); s.hls.destroy() }catch(_){} s.hls=null }
@@ -2213,6 +2217,7 @@ html.tvmode .card:focus-visible .cwrm{opacity:1}
         retryable('Stream unavailable, try another channel');
       },6000);
     }
+
 
     /* A relay segment can legitimately take longer than 15s to buffer. The old
        watchdog covered the still-active player with a false failure while HLS
